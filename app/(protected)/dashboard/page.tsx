@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ZONA_COLORS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -47,7 +48,7 @@ async function ColaboradorDashboard({
   tokensUsados,
   tokensLimite,
 }: {
-  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>;
+  supabase: SupabaseClient;
   idEmpleado: string | null;
   rol: Rol;
   coachHabilitado: boolean;
@@ -91,7 +92,6 @@ async function ColaboradorDashboard({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Tarjeta de perfil */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 col-span-full lg:col-span-1">
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
             Mis datos
@@ -101,12 +101,9 @@ async function ColaboradorDashboard({
           <p className="text-xs text-gray-400 mt-1">
             {colab?.organización} · {colab?.nivel}
           </p>
-          {colab?.area && (
-            <p className="text-xs text-gray-400">{colab.area}</p>
-          )}
+          {colab?.area && <p className="text-xs text-gray-400">{colab.area}</p>}
         </div>
 
-        {/* Tarjeta EIP */}
         {eip ? (
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
@@ -136,13 +133,10 @@ async function ColaboradorDashboard({
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-center text-center">
-            <p className="text-sm text-gray-400">
-              Sin evaluación integral disponible
-            </p>
+            <p className="text-sm text-gray-400">Sin evaluación integral disponible</p>
           </div>
         )}
 
-        {/* Tarjeta Coach IA */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
             Coach IA
@@ -178,12 +172,12 @@ async function ColaboradorDashboard({
         </div>
       </div>
 
-      {rol === "jefe" && (
+      {rol === "jefe" && colab && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">
             Mi equipo directo
           </p>
-          <TeamTable supabase={supabase} nombreJefe={colab?.nombre_completo ?? ""} />
+          <TeamTable supabase={supabase} nombreJefe={colab.nombre_completo} />
         </div>
       )}
     </div>
@@ -194,7 +188,7 @@ async function TeamTable({
   supabase,
   nombreJefe,
 }: {
-  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>;
+  supabase: SupabaseClient;
   nombreJefe: string;
 }) {
   const { data: equipo } = await supabase
@@ -236,7 +230,7 @@ async function AdminDashboard({
   supabase,
   rol,
 }: {
-  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>;
+  supabase: SupabaseClient;
   rol: Rol;
 }) {
   const [{ count: totalColab }, { data: zonas }] = await Promise.all([
@@ -244,9 +238,7 @@ async function AdminDashboard({
       .from("colaboradores")
       .select("*", { count: "exact", head: true })
       .eq("activo", true),
-    supabase
-      .from("ultimo_eip_vigente")
-      .select("zona_evaluacion"),
+    supabase.from("ultimo_eip_vigente").select("zona_evaluacion"),
   ]);
 
   const zonaCounts: Record<string, number> = {};
@@ -263,7 +255,8 @@ async function AdminDashboard({
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Panel de Capital Humano</h1>
         <p className="text-sm text-gray-500 mt-1">
-          {rol === "superadmin" ? "Vista Super Admin" : "Vista Capital Humano"} · GP Talent Intelligence
+          {rol === "superadmin" ? "Vista Super Admin" : "Vista Capital Humano"} · GP Talent
+          Intelligence
         </p>
       </div>
 
@@ -275,9 +268,7 @@ async function AdminDashboard({
             <p className={`text-xs font-medium uppercase tracking-wider mb-1 ${colors.text}`}>
               {zona}
             </p>
-            <p className={`text-2xl font-bold ${colors.text}`}>
-              {zonaCounts[zona] ?? 0}
-            </p>
+            <p className={`text-2xl font-bold ${colors.text}`}>{zonaCounts[zona] ?? 0}</p>
           </div>
         ))}
       </div>
