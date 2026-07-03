@@ -20,7 +20,7 @@ export default async function ProtectedLayout({
 
   const { data: perfil } = await supabase
     .from("usuarios_app")
-    .select("rol, activo, coach_habilitado, tokens_consumidos_mes, tokens_limite_mes, id_empleado")
+    .select("rol, activo, coach_habilitado, tokens_consumidos_mes, tokens_limite_mes, id_empleado, nombre")
     .eq("id", user.id)
     .single();
 
@@ -28,9 +28,9 @@ export default async function ProtectedLayout({
 
   const rolLabel = ROL_LABELS[perfil.rol as Rol] ?? perfil.rol;
 
-  // Fetch collaborator name for display in header
-  let displayName: string | null = null;
-  if (perfil.id_empleado) {
+  // Display name priority: usuarios_app.nombre > colaboradores.nombre_completo > email
+  let displayName: string | null = (perfil as { nombre?: string | null }).nombre ?? null;
+  if (!displayName && perfil.id_empleado) {
     const { data: colab } = await supabase
       .from("colaboradores")
       .select("nombre_completo")
