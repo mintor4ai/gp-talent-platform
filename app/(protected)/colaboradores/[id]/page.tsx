@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ZONA_COLORS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
+import RutaCarreraSection from "./RutaCarreraSection";
 
 export default async function ColaboradorPerfilPage({
   params,
@@ -34,6 +35,7 @@ export default async function ColaboradorPerfilPage({
     { data: competencias },
     { data: historial },
     { data: semaforo },
+    { data: rutasCarrera },
   ] = await Promise.all([
     supabase
       .from("colaboradores")
@@ -65,6 +67,12 @@ export default async function ColaboradorPerfilPage({
       .select("*")
       .eq("activo", true)
       .single(),
+    supabase
+      .from("rutas_carrera")
+      .select("id, tipo_ruta, puesto_objetivo, uen_objetivo, plazo_estimado, habilidades_gap, acciones_recomendadas, generado_con_ia")
+      .eq("id_empleado", params.id)
+      .eq("activa", true)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (!colab) notFound();
@@ -417,6 +425,13 @@ export default async function ColaboradorPerfilPage({
           </div>
         </div>
       )}
+
+      {/* Rutas de carrera IA */}
+      <RutaCarreraSection
+        colaboradorId={params.id}
+        isAdmin={isAdmin}
+        rutasIniciales={rutasCarrera ?? []}
+      />
     </div>
   );
 }
