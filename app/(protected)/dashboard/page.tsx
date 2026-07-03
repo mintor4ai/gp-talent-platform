@@ -163,6 +163,12 @@ async function ColaboradorDashboard({
               >
                 Iniciar sesión de coaching
               </a>
+              <a
+                href="/picd"
+                className="mt-2 inline-block w-full text-center border border-[#1a3a5c] text-[#1a3a5c] text-sm font-medium py-2 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Mi PICD
+              </a>
             </div>
           ) : (
             <p className="text-sm text-gray-400">

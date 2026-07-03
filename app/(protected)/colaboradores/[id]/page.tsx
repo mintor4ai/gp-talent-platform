@@ -138,12 +138,20 @@ export default async function ColaboradorPerfilPage({
   return (
     <div className="space-y-6 max-w-5xl">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-400">
-        <a href="/colaboradores" className="hover:text-gray-600 transition-colors">
-          Colaboradores
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          <a href="/colaboradores" className="hover:text-gray-600 transition-colors">
+            Colaboradores
+          </a>
+          <span>/</span>
+          <span className="text-gray-700 font-medium">{colab.nombre_completo}</span>
+        </div>
+        <a
+          href={`/picd/${params.id}`}
+          className="text-sm bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-[#152e4d] transition-colors"
+        >
+          Ver PICD →
         </a>
-        <span>/</span>
-        <span className="text-gray-700 font-medium">{colab.nombre_completo}</span>
       </div>
 
       {/* Header */}
