@@ -24,7 +24,7 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setError(error.message);
+      setError(error.message || error.code || JSON.stringify(error));
     } else {
       setSent(true);
     }
