@@ -71,7 +71,7 @@ async function ColaboradorDashboard({
       .single(),
     supabase
       .from("ultimo_eip_vigente")
-      .select("ciclo_año, zona_evaluacion, evaluacion_potencial_total, desempeno_logra")
+      .select("*")
       .eq("id_empleado", idEmpleado)
       .single(),
   ]);
