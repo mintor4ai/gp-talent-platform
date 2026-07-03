@@ -28,6 +28,17 @@ export default async function ProtectedLayout({
 
   const rolLabel = ROL_LABELS[perfil.rol as Rol] ?? perfil.rol;
 
+  // Fetch collaborator name for display in header
+  let displayName: string | null = null;
+  if (perfil.id_empleado) {
+    const { data: colab } = await supabase
+      .from("colaboradores")
+      .select("nombre_completo")
+      .eq("id", perfil.id_empleado)
+      .single();
+    displayName = (colab as { nombre_completo: string } | null)?.nombre_completo ?? null;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
@@ -42,9 +53,12 @@ export default async function ProtectedLayout({
             </span>
           </a>
           <div className="flex items-center gap-4">
-            <span className="text-xs text-white/60 hidden sm:block">
-              {user.email} · {rolLabel}
-            </span>
+            <div className="hidden sm:flex flex-col items-end">
+              <span className="text-sm font-medium text-white leading-tight">
+                {displayName ?? user.email}
+              </span>
+              <span className="text-xs text-white/50 leading-tight">{rolLabel}</span>
+            </div>
             <SignOutButton />
           </div>
         </div>
