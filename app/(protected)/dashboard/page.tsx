@@ -66,7 +66,7 @@ async function ColaboradorDashboard({
   const [{ data: colab }, { data: eip }] = await Promise.all([
     supabase
       .from("colaboradores")
-      .select("nombre_completo, puesto, nivel, organización, segmento_organizacional, area")
+      .select("*")
       .eq("id", idEmpleado)
       .single(),
     supabase
