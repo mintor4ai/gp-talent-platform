@@ -11,10 +11,12 @@ export default function CoachChat({
   contexto,
   tokensUsados,
   tokensLimite,
+  idEmpleado,
 }: {
   contexto: string;
   tokensUsados: number;
   tokensLimite: number;
+  idEmpleado: string | null;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -163,25 +165,37 @@ export default function CoachChat({
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                msg.role === "user"
-                  ? "bg-[#1a3a5c] text-white rounded-br-sm"
-                  : "bg-white border border-gray-200 text-gray-800 rounded-bl-sm"
-              }`}
-            >
-              {msg.content}
-              {msg.role === "assistant" && isStreaming && i === messages.length - 1 && (
-                <span className="inline-block w-1.5 h-4 bg-gray-400 ml-0.5 animate-pulse rounded-sm" />
+        {messages.map((msg, i) => {
+          const isLastAssistant = msg.role === "assistant" && i === messages.length - 1;
+          const showImport = msg.role === "assistant" && !isStreaming && idEmpleado && i === messages.length - 1;
+          return (
+            <div key={i} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
+              <div
+                className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                  msg.role === "user"
+                    ? "bg-[#1a3a5c] text-white rounded-br-sm"
+                    : "bg-white border border-gray-200 text-gray-800 rounded-bl-sm"
+                }`}
+              >
+                {msg.content}
+                {isLastAssistant && isStreaming && (
+                  <span className="inline-block w-1.5 h-4 bg-gray-400 ml-0.5 animate-pulse rounded-sm" />
+                )}
+              </div>
+              {showImport && (
+                <button
+                  onClick={() => {
+                    sessionStorage.setItem("coach_picd_import", msg.content);
+                    window.location.href = `/picd/${idEmpleado}`;
+                  }}
+                  className="mt-1.5 text-xs text-[#1a3a5c] border border-[#1a3a5c] rounded-full px-3 py-1 hover:bg-[#1a3a5c] hover:text-white transition-colors"
+                >
+                  ↓ Importar al PICD
+                </button>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">

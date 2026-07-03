@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { upsertPicd, updateAccionProgress, submitPicd } from "@/app/actions/picd";
 
 type PicdAccion = {
@@ -40,6 +40,17 @@ export default function PicdEditor({
   const [isPending, startTransition] = useTransition();
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"desarrollo" | "normativo">("desarrollo");
+  const [importedSuggestion, setImportedSuggestion] = useState<string | null>(null);
+  const [areasValue, setAreasValue] = useState(picd?.areas_oportunidad ?? "");
+
+  useEffect(() => {
+    const suggestion = sessionStorage.getItem("coach_picd_import");
+    if (suggestion) {
+      sessionStorage.removeItem("coach_picd_import");
+      setImportedSuggestion(suggestion);
+      setAreasValue(suggestion);
+    }
+  }, []);
 
   const actionsByType = {
     desarrollo: acciones.filter((a) => a.tipo_accion !== "normativo_sgi"),
@@ -86,6 +97,28 @@ export default function PicdEditor({
 
   return (
     <div className="space-y-6">
+      {/* Banner importación del Coach */}
+      {importedSuggestion && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <span className="text-blue-500 text-lg leading-none mt-0.5">✦</span>
+            <div>
+              <p className="text-sm font-semibold text-blue-800">Sugerencia del Coach IA importada</p>
+              <p className="text-xs text-blue-600 mt-0.5">
+                El texto ha sido pre-llenado en Áreas de oportunidad. Revísalo, edítalo si lo deseas y
+                <span className="font-bold"> guarda el plan para que quede registrado.</span>
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setImportedSuggestion(null)}
+            className="text-blue-400 hover:text-blue-600 flex-shrink-0 text-lg leading-none"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Estado y acciones globales */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -153,14 +186,20 @@ export default function PicdEditor({
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1.5">
             Áreas de oportunidad
+            {importedSuggestion && (
+              <span className="ml-2 text-xs font-normal text-blue-500">← importado del Coach IA</span>
+            )}
           </label>
           <textarea
             name="areas_oportunidad"
-            defaultValue={picd?.areas_oportunidad ?? ""}
+            value={areasValue}
+            onChange={(e) => setAreasValue(e.target.value)}
             disabled={!canEdit}
             rows={3}
             placeholder="Describe las áreas en las que trabajarás este ciclo..."
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] resize-none disabled:bg-gray-50 disabled:text-gray-500"
+            className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] resize-none disabled:bg-gray-50 disabled:text-gray-500 ${
+              importedSuggestion ? "border-blue-300 bg-blue-50/30" : "border-gray-200"
+            }`}
           />
         </div>
 

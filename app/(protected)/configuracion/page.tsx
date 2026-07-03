@@ -1,0 +1,65 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import ConfigTabs from "./ConfigTabs";
+
+export default async function ConfiguracionPage() {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: perfil } = await supabase
+    .from("usuarios_app")
+    .select("rol")
+    .eq("id", user.id)
+    .single();
+
+  if (perfil?.rol !== "superadmin") redirect("/dashboard");
+
+  // Distinct group values from colaboradores (trim whitespace)
+  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes] =
+    await Promise.all([
+      supabase.from("colaboradores").select("razon_social").not("razon_social", "is", null),
+      supabase.from("colaboradores").select("departamento").not("departamento", "is", null),
+      supabase.from("colaboradores").select("area").not("area", "is", null),
+      supabase.from("colaboradores").select("segmento_organizacional").not("segmento_organizacional", "is", null),
+      supabase.from("configuracion_coach_acceso").select("*").order("nivel").order("valor"),
+      supabase.from("configuracion_prompts").select("*").order("tipo").order("version", { ascending: false }),
+      supabase.from("configuracion_api").select("*").eq("activo", true).single(),
+      supabase.from("usuarios_app").select("id, rol, coach_habilitado, id_empleado").not("id_empleado", "is", null),
+      supabase.from("colaboradores").select("id, nombre_completo, puesto, razon_social"),
+    ]);
+
+  type Raw = { [key: string]: string | null };
+  const uniqueUens = [...new Set((uenRes.data as Raw[] ?? []).map((r) => r.razon_social?.trim()).filter(Boolean))].sort() as string[];
+  const uniqueDepts = [...new Set((deptRes.data as Raw[] ?? []).map((r) => r.departamento?.trim()).filter(Boolean))].sort() as string[];
+  const uniqueAreas = [...new Set((areaRes.data as Raw[] ?? []).map((r) => r.area?.trim()).filter(Boolean))].sort() as string[];
+  const uniqueSegs = [...new Set((segRes.data as Raw[] ?? []).map((r) => r.segmento_organizacional?.trim()).filter(Boolean))].sort() as string[];
+
+  // Merge user + colaborador data for individual exceptions panel
+  type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; razon_social: string | null };
+  type UserRow = { id: string; rol: string; coach_habilitado: boolean | null; id_empleado: string | null };
+  const colabMap = new Map<string, ColabRow>(
+    ((colabsRes.data as ColabRow[]) ?? []).map((c) => [c.id, c])
+  );
+  const usuarios = ((usersRes.data as UserRow[]) ?? []).map((u) => ({
+    ...u,
+    colab: u.id_empleado ? (colabMap.get(u.id_empleado) ?? null) : null,
+  }));
+
+  return (
+    <div className="space-y-6 max-w-5xl">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Configuración</h1>
+        <p className="text-sm text-gray-500 mt-1">Panel de administración · Solo superadmin</p>
+      </div>
+      <ConfigTabs
+        grupos={{ uens: uniqueUens, departamentos: uniqueDepts, areas: uniqueAreas, segmentos: uniqueSegs }}
+        reglasAcceso={(reglasRes.data ?? []) as Array<{ id: string; nivel: string; valor: string; habilitado: boolean }>}
+        prompts={(promptsRes.data ?? []) as Array<{ id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string }>}
+        apiConfig={apiRes.data as { modelo: string; max_tokens: number } | null}
+        usuarios={usuarios as Array<{ id: string; rol: string; coach_habilitado: boolean | null; id_empleado: string | null; colab: ColabRow | null }>}
+      />
+    </div>
+  );
+}

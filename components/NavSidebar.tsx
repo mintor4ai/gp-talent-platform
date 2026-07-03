@@ -17,6 +17,8 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/coach",          label: "Coach IA",             icon: "✦" },
 ];
 
+const SUPERADMIN_EXTRA: NavItem = { href: "/configuracion", label: "Configuración", icon: "⚙️" };
+
 const COLABORADOR_NAV: NavItem[] = [
   { href: "/dashboard",  label: "Inicio",    icon: "⊞",  exact: true },
   { href: "/picd",       label: "Mi PICD",   icon: "📄" },
@@ -57,6 +59,11 @@ export default function NavSidebar({
       { href: `/colaboradores/${idEmpleado}`, label: "Mi Perfil", icon: "👤" },
       ...items.slice(1),
     ];
+  }
+
+  // Add Configuración for superadmin
+  if (rol === "superadmin") {
+    items = [...items, SUPERADMIN_EXTRA];
   }
 
   // Filter Coach IA if not enabled (non-admin)

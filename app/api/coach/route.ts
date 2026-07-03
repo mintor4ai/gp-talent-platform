@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
   const { data: perfil } = await supabase
     .from("usuarios_app")
-    .select("id_empleado, coach_habilitado, tokens_consumidos_mes, tokens_limite_mes")
+    .select("id_empleado, rol, coach_habilitado, tokens_consumidos_mes, tokens_limite_mes")
     .eq("id", user.id)
     .single();
 
@@ -31,6 +31,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Límite de tokens alcanzado este mes" }, { status: 429 });
   }
 
+  // Determine prompt tipo by role
+  const rol = perfil.rol as string;
+  const promptTipo =
+    rol === "colaborador" ? "coach_colaborador" :
+    rol === "jefe"        ? "coach_jefe" :
+                            "coach_admin";
+
+  // Load active prompt + API config from DB
+  const [{ data: promptRow }, { data: apiCfg }] = await Promise.all([
+    supabase
+      .from("configuracion_prompts")
+      .select("contenido")
+      .eq("tipo", promptTipo)
+      .eq("activo", true)
+      .single(),
+    supabase
+      .from("configuracion_api")
+      .select("modelo, max_tokens")
+      .eq("activo", true)
+      .single(),
+  ]);
+
   const body = await req.json();
   const { messages, contexto } = body as {
     messages: Array<{ role: "user" | "assistant"; content: string }>;
@@ -41,26 +63,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Mensajes requeridos" }, { status: 400 });
   }
 
-  const systemPrompt = `Eres el Coach IA de GP Talent Intelligence, una herramienta de desarrollo profesional para colaboradores de Grupo GP, empresa mexicana líder en construcción e infraestructura.
+  const basePrompt = (promptRow as { contenido?: string } | null)?.contenido
+    ?? `Eres el Coach IA de GP Talent Intelligence. Apoya el desarrollo profesional del colaborador de Grupo GP. Responde siempre en español.`;
 
-Tu rol es actuar como coach ejecutivo empático, orientado al desarrollo de carrera y competencias. Guías a los colaboradores en reflexión, autoconocimiento, definición de metas y acciones concretas de desarrollo.
-
-Principios de coaching que sigues:
-- Escucha activa y preguntas poderosas
-- Foco en soluciones y fortalezas, no en problemas
-- Respeto por la autonomía del colaborador
-- Orientación a resultados medibles
-- Lenguaje positivo, directo y profesional en español mexicano
-
-Contexto del colaborador con quien hablas:
-${contexto}
-
-Lineamientos:
-- Responde siempre en español
-- Sé conciso (máximo 3-4 párrafos por respuesta salvo que se requiera más)
-- No des consejos médicos, legales ni financieros
-- Si te preguntan algo fuera del ámbito de desarrollo profesional, redirige amablemente al tema de coaching
-- No divulgues información confidencial de otros colaboradores`;
+  const systemPrompt = `${basePrompt}\n\nContexto del colaborador:\n${contexto}`;
 
   const encoder = new TextEncoder();
 
@@ -70,9 +76,12 @@ Lineamientos:
       let totalOutputTokens = 0;
 
       try {
+        const cfgModelo = (apiCfg as { modelo?: string; max_tokens?: number } | null)?.modelo ?? "claude-opus-4-8";
+        const cfgMaxTokens = (apiCfg as { modelo?: string; max_tokens?: number } | null)?.max_tokens ?? 1024;
+
         const claudeStream = anthropic.messages.stream({
-          model: "claude-opus-4-8",
-          max_tokens: 1024,
+          model: cfgModelo,
+          max_tokens: cfgMaxTokens,
           thinking: { type: "adaptive" },
           system: systemPrompt,
           messages,

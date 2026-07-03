@@ -96,6 +96,7 @@ export default async function CoachPage() {
         contexto={contexto}
         tokensUsados={perfil.tokens_consumidos_mes ?? 0}
         tokensLimite={perfil.tokens_limite_mes ?? 10000}
+        idEmpleado={perfil.id_empleado ?? null}
       />
     </div>
   );
