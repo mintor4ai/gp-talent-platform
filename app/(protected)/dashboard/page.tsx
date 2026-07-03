@@ -214,8 +214,12 @@ async function TeamTable({
         </thead>
         <tbody className="divide-y divide-gray-50">
           {equipo.map((c) => (
-            <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-              <td className="py-2.5 font-medium text-gray-900">{c.nombre_completo}</td>
+            <tr key={c.id} className="hover:bg-gray-50 transition-colors cursor-pointer">
+              <td className="py-2.5 font-medium text-gray-900">
+                <a href={`/colaboradores/${c.id}`} className="hover:text-[#1a3a5c]">
+                  {c.nombre_completo}
+                </a>
+              </td>
               <td className="py-2.5 text-gray-600">{c.puesto}</td>
               <td className="py-2.5 text-gray-500">{c.nivel}</td>
             </tr>
