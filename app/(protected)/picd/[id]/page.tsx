@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import PicdEditor from "./PicdEditor";
 
-export default async function PicdPage({ params }: { params: { id: string } }) {
+export default async function PicdPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createClient();
 
   const {
@@ -21,7 +22,7 @@ export default async function PicdPage({ params }: { params: { id: string } }) {
 
   const rol = perfil.rol as Rol;
   const isAdmin = rol === "capital_humano" || rol === "superadmin";
-  const isOwn = perfil.id_empleado === params.id;
+  const isOwn = perfil.id_empleado === id;
 
   // Colaborador solo puede ver su propio PICD
   if (rol === "colaborador" && !isOwn) redirect("/dashboard");
@@ -29,7 +30,7 @@ export default async function PicdPage({ params }: { params: { id: string } }) {
   const { data: colab } = await supabase
     .from("colaboradores")
     .select("id, nombre_completo, puesto, nivel")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (!colab) notFound();
@@ -48,32 +49,32 @@ export default async function PicdPage({ params }: { params: { id: string } }) {
         .select("id")
         .eq("jefe_inmediato_nombre", miColab.nombre_completo);
       const ids = equipo?.map((e) => e.id) ?? [];
-      if (!ids.includes(params.id)) redirect("/dashboard");
+      if (!ids.includes(id)) redirect("/dashboard");
     }
   }
 
   // Obtener ciclo activo (el más reciente con acciones)
   const { data: cicloRow } = await supabase
     .from("picd_acciones")
-    .select("ciclo_año")
-    .eq("id_empleado", params.id)
-    .order("ciclo_año", { ascending: false })
+    .select("*")
+    .eq("id_empleado", id)
+    .order("created_at", { ascending: false })
     .limit(1)
     .single();
 
-  const cicloAño = cicloRow?.ciclo_año ?? new Date().getFullYear();
+  const cicloAño = (cicloRow as { ciclo_año?: number } | null)?.ciclo_año ?? new Date().getFullYear();
 
   const [{ data: picdRecord }, { data: acciones }] = await Promise.all([
     supabase
       .from("picd")
       .select("*")
-      .eq("id_empleado", params.id)
+      .eq("id_empleado", id)
       .eq("ciclo_año", cicloAño)
       .single(),
     supabase
       .from("picd_acciones")
       .select("*")
-      .eq("id_empleado", params.id)
+      .eq("id_empleado", id)
       .eq("ciclo_año", cicloAño)
       .order("tipo_accion")
       .order("created_at"),
@@ -92,7 +93,7 @@ export default async function PicdPage({ params }: { params: { id: string } }) {
             </a>
             <span>/</span>
             <a
-              href={`/colaboradores/${params.id}`}
+              href={`/colaboradores/${id}`}
               className="hover:text-gray-600 transition-colors"
             >
               {colab.nombre_completo}
@@ -125,7 +126,7 @@ export default async function PicdPage({ params }: { params: { id: string } }) {
       </div>
 
       <PicdEditor
-        colaboradorId={params.id}
+        colaboradorId={id}
         cicloAño={cicloAño}
         picd={picdRecord ?? null}
         acciones={acciones ?? []}

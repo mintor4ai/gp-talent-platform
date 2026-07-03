@@ -7,8 +7,9 @@ import RutaCarreraSection from "./RutaCarreraSection";
 export default async function ColaboradorPerfilPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id: colaboradorId } = await params;
   const supabase = await createClient();
 
   const {
@@ -40,27 +41,27 @@ export default async function ColaboradorPerfilPage({
     supabase
       .from("colaboradores")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", colaboradorId)
       .single(),
     supabase
       .from("evaluacion_integral_personal")
       .select("*")
-      .eq("id_empleado", params.id)
+      .eq("id_empleado", colaboradorId)
       .order("ciclo_año", { ascending: false }),
     supabase
       .from("evaluacion_desempeno_anual")
       .select("*")
-      .eq("id_empleado", params.id)
+      .eq("id_empleado", colaboradorId)
       .order("ciclo_año", { ascending: false }),
     supabase
       .from("evaluacion_competencias_360")
       .select("*")
-      .eq("id_empleado", params.id)
+      .eq("id_empleado", colaboradorId)
       .order("ciclo_año", { ascending: false }),
     supabase
       .from("historial_carrera")
       .select("*")
-      .eq("id_empleado", params.id)
+      .eq("id_empleado", colaboradorId)
       .order("fecha_inicio", { ascending: false }),
     supabase
       .from("config_semaforo_movilidad")
@@ -70,7 +71,7 @@ export default async function ColaboradorPerfilPage({
     supabase
       .from("rutas_carrera")
       .select("id, tipo_ruta, puesto_objetivo, uen_objetivo, plazo_estimado, habilidades_gap, acciones_recomendadas, generado_con_ia")
-      .eq("id_empleado", params.id)
+      .eq("id_empleado", colaboradorId)
       .eq("activa", true)
       .order("created_at", { ascending: true }),
   ]);
@@ -78,7 +79,7 @@ export default async function ColaboradorPerfilPage({
   if (!colab) notFound();
 
   // RBAC: colaborador solo ve su propio perfil
-  if (rol === "colaborador" && perfil.id_empleado !== params.id) {
+  if (rol === "colaborador" && perfil.id_empleado !== colaboradorId) {
     redirect("/dashboard");
   }
 
@@ -155,7 +156,7 @@ export default async function ColaboradorPerfilPage({
           <span className="text-gray-700 font-medium">{colab.nombre_completo}</span>
         </div>
         <a
-          href={`/picd/${params.id}`}
+          href={`/picd/${colaboradorId}`}
           className="text-sm bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-[#152e4d] transition-colors"
         >
           Ver PICD →
@@ -428,7 +429,7 @@ export default async function ColaboradorPerfilPage({
 
       {/* Rutas de carrera IA */}
       <RutaCarreraSection
-        colaboradorId={params.id}
+        colaboradorId={colaboradorId}
         isAdmin={isAdmin}
         rutasIniciales={rutasCarrera ?? []}
       />
