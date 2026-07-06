@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ConfigTabs from "./ConfigTabs";
-import type { ZonaBand } from "@/lib/types";
+import type { ZonaBand, Periodo } from "@/lib/types";
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
@@ -18,7 +18,7 @@ export default async function ConfiguracionPage() {
   if (perfil?.rol !== "superadmin") redirect("/dashboard");
 
   // Distinct group values from colaboradores (trim whitespace)
-  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes] =
+  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes] =
     await Promise.all([
       supabase.from("colaboradores").select("razon_social").not("razon_social", "is", null),
       supabase.from("colaboradores").select("departamento").not("departamento", "is", null),
@@ -30,6 +30,7 @@ export default async function ConfiguracionPage() {
       supabase.from("usuarios_app").select("id, rol, coach_habilitado, id_empleado").not("id_empleado", "is", null),
       supabase.from("colaboradores").select("id, nombre_completo, puesto, razon_social"),
       supabase.from("config_zonas_eip").select("*").order("ciclo_año", { ascending: false }),
+      supabase.from("periodos").select("*").order("ciclo_año", { ascending: false }),
     ]);
 
   type Raw = { [key: string]: string | null };
@@ -46,6 +47,7 @@ export default async function ConfiguracionPage() {
     zonasMap[row.ciclo_año].push({ zona: row.zona, umbral_inferior: row.umbral_inferior, umbral_superior: row.umbral_superior });
   }
   const availableZonaCycles = Object.keys(zonasMap).map(Number).sort((a, b) => b - a);
+  const periodos = (periodosRes.data as unknown as Periodo[]) ?? [];
 
   // Merge user + colaborador data for individual exceptions panel
   type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; razon_social: string | null };
@@ -72,6 +74,7 @@ export default async function ConfiguracionPage() {
         usuarios={usuarios as Array<{ id: string; rol: string; coach_habilitado: boolean | null; id_empleado: string | null; colab: ColabRow | null }>}
         zonasMap={zonasMap}
         availableZonaCycles={availableZonaCycles}
+        periodos={periodos}
       />
     </div>
   );

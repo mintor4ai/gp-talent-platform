@@ -79,6 +79,17 @@ export interface EvaluacionDesempeno {
   estatus_desem: string | null;
 }
 
+export type Periodo = {
+  ciclo_año: number;
+  nombre: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  estado: "planificado" | "activo" | "cerrado";
+  activo: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export const ZONA_COLORS: Record<string, { bg: string; text: string }> = {
   Sobresaliente: { bg: "bg-purple-100", text: "text-purple-800" },
   Desarrollo: { bg: "bg-blue-100", text: "text-blue-800" },

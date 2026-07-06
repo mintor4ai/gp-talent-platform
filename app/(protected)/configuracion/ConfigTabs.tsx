@@ -10,7 +10,8 @@ import {
   actualizarConfigApi,
 } from "@/app/actions/configuracion";
 import { upsertZonaBands, copyZonaBandsFromCycle } from "@/app/actions/zonas";
-import type { ZonaBand } from "@/lib/types";
+import { upsertPeriodo, setPeriodoActivo, deletePeriodo } from "@/app/actions/periodos";
+import type { ZonaBand, Periodo } from "@/lib/types";
 import { TalentMatrixSVG } from "@/app/(protected)/evaluaciones/EIPScatterChart";
 
 type Regla = { id: string; nivel: string; valor: string; habilitado: boolean };
@@ -39,6 +40,7 @@ export default function ConfigTabs({
   usuarios,
   zonasMap,
   availableZonaCycles,
+  periodos,
 }: {
   grupos: { uens: string[]; departamentos: string[]; areas: string[]; segmentos: string[] };
   reglasAcceso: Regla[];
@@ -47,18 +49,20 @@ export default function ConfigTabs({
   usuarios: Usuario[];
   zonasMap: Record<number, ZonaBand[]>;
   availableZonaCycles: number[];
+  periodos: Periodo[];
 }) {
-  const [tab, setTab] = useState<"access" | "prompts" | "api" | "zonas">("access");
+  const [tab, setTab] = useState<"access" | "prompts" | "api" | "zonas" | "periodos">("access");
 
   return (
     <div>
       {/* Tab bar */}
       <div className="border-b border-gray-200 flex gap-0 mb-6">
         {[
-          { key: "access",  label: "Acceso Coach IA" },
-          { key: "prompts", label: "Prompts" },
-          { key: "api",     label: "API / Modelo" },
-          { key: "zonas",   label: "Zonas EIP" },
+          { key: "access",   label: "Acceso Coach IA" },
+          { key: "prompts",  label: "Prompts" },
+          { key: "api",      label: "API / Modelo" },
+          { key: "periodos", label: "Períodos" },
+          { key: "zonas",    label: "Zonas EIP" },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -74,10 +78,11 @@ export default function ConfigTabs({
         ))}
       </div>
 
-      {tab === "access"  && <CoachAccessTab grupos={grupos} reglasAcceso={reglasAcceso} usuarios={usuarios} />}
-      {tab === "prompts" && <PromptsTab prompts={prompts} />}
-      {tab === "api"     && <ApiTab apiConfig={apiConfig} />}
-      {tab === "zonas"   && <ZonasEipTab zonasMap={zonasMap} availableCycles={availableZonaCycles} />}
+      {tab === "access"   && <CoachAccessTab grupos={grupos} reglasAcceso={reglasAcceso} usuarios={usuarios} />}
+      {tab === "prompts"  && <PromptsTab prompts={prompts} />}
+      {tab === "api"      && <ApiTab apiConfig={apiConfig} />}
+      {tab === "periodos" && <PeriodosTab periodos={periodos} />}
+      {tab === "zonas"    && <ZonasEipTab zonasMap={zonasMap} availableCycles={availableZonaCycles} periodos={periodos} />}
     </div>
   );
 }
@@ -457,6 +462,292 @@ function ApiTab({ apiConfig }: { apiConfig: { modelo: string; max_tokens: number
   );
 }
 
+// ── Períodos Tab ──────────────────────────────────────────────────────────────
+
+const ESTADO_LABELS: Record<string, string> = {
+  planificado: "Planificado",
+  activo:      "Activo",
+  cerrado:     "Cerrado",
+};
+const ESTADO_COLORS: Record<string, string> = {
+  planificado: "bg-gray-100 text-gray-600",
+  activo:      "bg-green-100 text-green-700",
+  cerrado:     "bg-slate-100 text-slate-500",
+};
+
+function fmtDate(iso: string) {
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function PeriodosTab({ periodos }: { periodos: Periodo[] }) {
+  const [rows, setRows]    = useState<Periodo[]>(periodos);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [adding, setAdding]   = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [msg, setMsg]      = useState<{ text: string; ok: boolean } | null>(null);
+
+  function flash(text: string, ok = true) {
+    setMsg({ text, ok });
+    setTimeout(() => setMsg(null), 3500);
+  }
+
+  const blankRow: Periodo = {
+    ciclo_año:    new Date().getFullYear() + 1,
+    nombre:       `Ciclo ${new Date().getFullYear() + 1}`,
+    fecha_inicio: `${new Date().getFullYear() + 1}-01-01`,
+    fecha_fin:    `${new Date().getFullYear() + 1}-12-31`,
+    estado:       "planificado",
+    activo:       false,
+  };
+  const [newRow, setNewRow] = useState<Periodo>(blankRow);
+
+  function handleSave(p: Periodo) {
+    const fd = new FormData();
+    fd.append("ciclo_año",    String(p.ciclo_año));
+    fd.append("nombre",       p.nombre);
+    fd.append("fecha_inicio", p.fecha_inicio);
+    fd.append("fecha_fin",    p.fecha_fin);
+    fd.append("estado",       p.estado);
+    fd.append("activo",       String(p.activo));
+    startTransition(async () => {
+      try {
+        await upsertPeriodo(fd);
+        setRows((prev) => {
+          const idx = prev.findIndex((r) => r.ciclo_año === p.ciclo_año);
+          return idx >= 0 ? prev.map((r) => (r.ciclo_año === p.ciclo_año ? p : r)) : [...prev, p];
+        });
+        setEditing(null);
+        setAdding(false);
+        setNewRow(blankRow);
+        flash("Período guardado");
+      } catch (err) {
+        flash(err instanceof Error ? err.message : "Error al guardar", false);
+      }
+    });
+  }
+
+  function handleActivate(cicloAño: number) {
+    startTransition(async () => {
+      try {
+        await setPeriodoActivo(cicloAño);
+        setRows((prev) =>
+          prev.map((r) => ({
+            ...r,
+            activo: r.ciclo_año === cicloAño,
+            estado: r.ciclo_año === cicloAño ? "activo" : r.estado === "activo" ? "cerrado" : r.estado,
+          }))
+        );
+        flash("Período activado");
+      } catch (err) {
+        flash(err instanceof Error ? err.message : "Error", false);
+      }
+    });
+  }
+
+  function handleDelete(cicloAño: number) {
+    if (!confirm(`¿Eliminar el período ${cicloAño}? Esta acción no se puede deshacer.`)) return;
+    startTransition(async () => {
+      try {
+        await deletePeriodo(cicloAño);
+        setRows((prev) => prev.filter((r) => r.ciclo_año !== cicloAño));
+        flash("Período eliminado");
+      } catch (err) {
+        flash(err instanceof Error ? err.message : "Error", false);
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      {msg && (
+        <div className={`text-sm border rounded-lg px-4 py-2.5 ${msg.ok ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+          {msg.text}
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-700">Catálogo de Períodos</p>
+            <p className="text-xs text-gray-400 mt-0.5">Define los ciclos anuales de evaluación. Solo un período puede estar activo a la vez.</p>
+          </div>
+          {!adding && (
+            <button
+              onClick={() => { setAdding(true); setEditing(null); }}
+              className="text-xs bg-[#1a3a5c] text-white px-3 py-1.5 rounded-lg hover:bg-[#152e4d] transition-colors"
+            >
+              + Nuevo período
+            </button>
+          )}
+        </div>
+
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
+              <th className="text-left px-5 py-2.5">Ciclo</th>
+              <th className="text-left px-3 py-2.5">Nombre</th>
+              <th className="text-left px-3 py-2.5">Inicio</th>
+              <th className="text-left px-3 py-2.5">Fin</th>
+              <th className="text-left px-3 py-2.5">Estado</th>
+              <th className="px-3 py-2.5" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {rows.sort((a, b) => b.ciclo_año - a.ciclo_año).map((p) => (
+              editing === p.ciclo_año
+                ? <PeriodoEditRow key={p.ciclo_año} row={p} onSave={handleSave} onCancel={() => setEditing(null)} isPending={isPending} />
+                : (
+                  <tr key={p.ciclo_año} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3 font-mono font-semibold text-gray-800">{p.ciclo_año}</td>
+                    <td className="px-3 py-3 text-gray-700">{p.nombre}</td>
+                    <td className="px-3 py-3 text-gray-500 text-xs">{fmtDate(p.fecha_inicio)}</td>
+                    <td className="px-3 py-3 text-gray-500 text-xs">{fmtDate(p.fecha_fin)}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ESTADO_COLORS[p.estado] ?? "bg-gray-100 text-gray-500"}`}>
+                          {ESTADO_LABELS[p.estado] ?? p.estado}
+                        </span>
+                        {p.activo && <span className="text-xs text-green-600 font-semibold">● Vigente</span>}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-2 justify-end">
+                        {!p.activo && (
+                          <button
+                            onClick={() => handleActivate(p.ciclo_año)}
+                            disabled={isPending}
+                            className="text-xs text-[#1a3a5c] hover:underline disabled:opacity-40"
+                          >
+                            Activar
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setEditing(p.ciclo_año); setAdding(false); }}
+                          className="text-xs text-gray-400 hover:text-gray-600"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p.ciclo_año)}
+                          disabled={isPending || p.activo}
+                          className="text-xs text-red-400 hover:text-red-600 disabled:opacity-30"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+            ))}
+            {adding && (
+              <PeriodoEditRow
+                key="new"
+                row={newRow}
+                onSave={handleSave}
+                onCancel={() => { setAdding(false); setNewRow(blankRow); }}
+                isPending={isPending}
+                isNew
+                onChange={setNewRow}
+              />
+            )}
+          </tbody>
+        </table>
+
+        {rows.length === 0 && !adding && (
+          <p className="text-sm text-gray-400 text-center py-8">Sin períodos configurados.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PeriodoEditRow({
+  row,
+  onSave,
+  onCancel,
+  isPending,
+  isNew = false,
+  onChange,
+}: {
+  row: Periodo;
+  onSave: (p: Periodo) => void;
+  onCancel: () => void;
+  isPending: boolean;
+  isNew?: boolean;
+  onChange?: (p: Periodo) => void;
+}) {
+  const [local, setLocal] = useState<Periodo>(row);
+  function update<K extends keyof Periodo>(k: K, v: Periodo[K]) {
+    const next = { ...local, [k]: v };
+    setLocal(next);
+    onChange?.(next);
+  }
+
+  return (
+    <tr className="bg-blue-50/50">
+      <td className="px-5 py-2">
+        <input
+          type="number"
+          value={local.ciclo_año}
+          readOnly={!isNew}
+          onChange={(e) => update("ciclo_año", Number(e.target.value))}
+          className="w-20 px-2 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1a3a5c] read-only:bg-gray-100"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="text"
+          value={local.nombre}
+          onChange={(e) => update("nombre", e.target.value)}
+          className="w-36 px-2 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="date"
+          value={local.fecha_inicio}
+          onChange={(e) => update("fecha_inicio", e.target.value)}
+          className="text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="date"
+          value={local.fecha_fin}
+          onChange={(e) => update("fecha_fin", e.target.value)}
+          className="text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <select
+          value={local.estado}
+          onChange={(e) => update("estado", e.target.value as Periodo["estado"])}
+          className="text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]"
+        >
+          <option value="planificado">Planificado</option>
+          <option value="activo">Activo</option>
+          <option value="cerrado">Cerrado</option>
+        </select>
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex items-center gap-2 justify-end">
+          <button
+            onClick={() => onSave(local)}
+            disabled={isPending}
+            className="text-xs bg-[#1a3a5c] text-white px-3 py-1 rounded-lg hover:bg-[#152e4d] disabled:opacity-40"
+          >
+            {isPending ? "..." : "Guardar"}
+          </button>
+          <button onClick={onCancel} className="text-xs text-gray-400 hover:text-gray-600">
+            Cancelar
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 // ── Zonas EIP Tab ─────────────────────────────────────────────────────────────
 
 const ZONA_ORDER_CFG = ["Inicio", "Revisión", "Estabilidad", "Desarrollo", "Sobresaliente"];
@@ -471,12 +762,29 @@ const ZONA_DOT_COLORS_CFG: Record<string, string> = {
 function ZonasEipTab({
   zonasMap,
   availableCycles,
+  periodos,
 }: {
   zonasMap: Record<number, ZonaBand[]>;
   availableCycles: number[];
+  periodos: Periodo[];
 }) {
   const currentYear = new Date().getFullYear();
-  const allCycles = availableCycles.includes(currentYear) ? availableCycles : [currentYear, ...availableCycles];
+  // Union of configured cycles + period cycles, newest first
+  const periodCycles = periodos.map((p) => p.ciclo_año);
+  const allCycleSet = new Set([...availableCycles, ...periodCycles, currentYear]);
+  const allCycles = Array.from(allCycleSet).sort((a, b) => b - a);
+
+  const periodoMap = new Map(periodos.map((p) => [p.ciclo_año, p]));
+
+  function cycleLabel(año: number) {
+    const p = periodoMap.get(año);
+    const hasZones = availableCycles.includes(año);
+    if (!p) return `${año}${!hasZones ? " (nuevo)" : ""}`;
+    const inicio = new Date(p.fecha_inicio + "T12:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+    const fin    = new Date(p.fecha_fin   + "T12:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+    const badge  = p.activo ? " · Vigente" : p.estado === "cerrado" ? " · Cerrado" : "";
+    return `${p.nombre}${badge} (${inicio} – ${fin})`;
+  }
   const [cicloAño, setCicloAño] = useState(allCycles[0] ?? currentYear);
   const [isPending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -534,12 +842,22 @@ function ZonasEipTab({
             className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white"
           >
             {allCycles.map((y) => (
-              <option key={y} value={y}>{y}{!availableCycles.includes(y) ? " (nuevo)" : ""}</option>
+              <option key={y} value={y}>{cycleLabel(y)}</option>
             ))}
           </select>
-          <span className="text-xs text-gray-400">
-            {bands.length > 0 ? `${bands.length} zonas configuradas` : "Sin configuración aún"}
-          </span>
+          <div className="text-xs text-gray-400 space-y-0.5">
+            <div>{bands.length > 0 ? `${bands.length} zonas configuradas` : "Sin configuración de zonas aún"}</div>
+            {periodoMap.get(cicloAño) && (() => {
+              const p = periodoMap.get(cicloAño)!;
+              return (
+                <div>
+                  {new Date(p.fecha_inicio + "T12:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
+                  {" – "}
+                  {new Date(p.fecha_fin + "T12:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
+                </div>
+              );
+            })()}
+          </div>
         </div>
       </div>
 
