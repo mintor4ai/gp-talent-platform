@@ -96,7 +96,7 @@ export default async function EvaluacionesPage() {
   return (
     <div className="space-y-6 max-w-6xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Evaluaciones Integrales</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Carpetas individuales</h1>
         <p className="text-sm text-gray-500 mt-1">
           Ciclo {cicloActual} · {eipsActual.length} evaluaciones
         </p>

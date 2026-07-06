@@ -289,7 +289,7 @@ async function AdminDashboard({
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <QuickLink href="/colaboradores" label="Directorio de colaboradores" />
-          <QuickLink href="/evaluaciones" label="Evaluaciones integrales" />
+          <QuickLink href="/evaluaciones" label="Carpetas individuales" />
           <QuickLink href="/sucesion" label="Plan de sucesión" />
         </div>
       </div>
