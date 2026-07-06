@@ -77,6 +77,7 @@ export const ZONA_COLORS: Record<string, { bg: string; text: string }> = {
   Sobresaliente: { bg: "bg-purple-100", text: "text-purple-800" },
   Desarrollo: { bg: "bg-blue-100", text: "text-blue-800" },
   Estabilidad: { bg: "bg-green-100", text: "text-green-800" },
+  Revisión: { bg: "bg-orange-100", text: "text-orange-800" },
   Inicio: { bg: "bg-yellow-100", text: "text-yellow-800" },
 };
 

@@ -20,15 +20,16 @@ const ADMIN_NAV: NavItem[] = [
 const SUPERADMIN_EXTRA: NavItem = { href: "/configuracion", label: "Configuración", icon: "⚙️" };
 
 const COLABORADOR_NAV: NavItem[] = [
-  { href: "/dashboard",  label: "Inicio",    icon: "⊞",  exact: true },
-  { href: "/picd",       label: "Mi PICD",   icon: "📄" },
-  { href: "/coach",      label: "Coach IA",  icon: "✦" },
+  { href: "/dashboard",  label: "Inicio",             icon: "⊞",  exact: true },
+  { href: "/carpeta",    label: "Mi Carpeta",          icon: "📁" },
+  { href: "/coach",      label: "Coach IA",            icon: "✦" },
 ];
 
 const JEFE_NAV: NavItem[] = [
-  { href: "/dashboard",  label: "Inicio",         icon: "⊞", exact: true },
-  { href: "/picd",       label: "Mi PICD",        icon: "📄" },
-  { href: "/coach",      label: "Coach IA",       icon: "✦" },
+  { href: "/dashboard",  label: "Inicio",             icon: "⊞", exact: true },
+  { href: "/carpeta",    label: "Mi Carpeta",          icon: "📁" },
+  { href: "/equipo",     label: "Mi Equipo",           icon: "👥" },
+  { href: "/coach",      label: "Coach IA",            icon: "✦" },
 ];
 
 export default function NavSidebar({
@@ -50,15 +51,6 @@ export default function NavSidebar({
     items = JEFE_NAV;
   } else {
     items = COLABORADOR_NAV;
-  }
-
-  // Add profile link for non-admin with linked employee
-  if (!isAdmin && idEmpleado) {
-    items = [
-      items[0],
-      { href: `/colaboradores/${idEmpleado}`, label: "Mi Perfil", icon: "👤" },
-      ...items.slice(1),
-    ];
   }
 
   // Add Configuración for superadmin

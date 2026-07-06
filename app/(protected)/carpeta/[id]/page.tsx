@@ -1,0 +1,174 @@
+import { redirect, notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import type { Rol } from "@/lib/types";
+import CarpetaTabs from "./CarpetaTabs";
+
+export default async function CarpetaPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: colaboradorId } = await params;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: perfil } = await supabase
+    .from("usuarios_app")
+    .select("rol, id_empleado")
+    .eq("id", user.id)
+    .single();
+
+  if (!perfil) redirect("/login");
+
+  const rol = perfil.rol as Rol;
+  const isAdmin = rol === "capital_humano" || rol === "superadmin";
+  const isOwn = perfil.id_empleado === colaboradorId;
+
+  // Colaborador: solo su propia carpeta
+  if (rol === "colaborador" && !isOwn) redirect("/carpeta");
+
+  // Jefe: solo su carpeta propia + equipo directo
+  if (rol === "jefe" && !isOwn && !isAdmin) {
+    const { data: miColab } = await supabase
+      .from("colaboradores")
+      .select("nombre_completo")
+      .eq("id", perfil.id_empleado)
+      .single();
+
+    if (miColab) {
+      const { data: equipo } = await supabase
+        .from("colaboradores")
+        .select("id")
+        .eq("jefe_inmediato_nombre", miColab.nombre_completo);
+      const ids = equipo?.map((e) => e.id) ?? [];
+      if (!ids.includes(colaboradorId)) redirect("/equipo");
+    }
+  }
+
+  const { data: colab } = await supabase
+    .from("colaboradores")
+    .select("*")
+    .eq("id", colaboradorId)
+    .single();
+
+  if (!colab) notFound();
+
+  const [
+    { data: eips },
+    { data: desempenos },
+    { data: competencias },
+    { data: eals },
+    { data: picdAcciones },
+    { data: picdRecords },
+  ] = await Promise.all([
+    supabase
+      .from("evaluacion_integral_personal")
+      .select("*")
+      .eq("id_empleado", colaboradorId)
+      .order("ciclo_año", { ascending: false }),
+    supabase
+      .from("evaluacion_desempeno_anual")
+      .select("*")
+      .eq("id_empleado", colaboradorId)
+      .order("ciclo_año", { ascending: false }),
+    supabase
+      .from("evaluacion_competencias_360")
+      .select("*")
+      .eq("id_empleado", colaboradorId)
+      .order("ciclo_año", { ascending: false }),
+    supabase
+      .from("evaluacion_eal")
+      .select("*")
+      .eq("id_lider_evaluado", colaboradorId)
+      .order("ciclo_año", { ascending: false }),
+    supabase
+      .from("picd_acciones")
+      .select("*")
+      .eq("id_empleado", colaboradorId)
+      .order("ciclo_año", { ascending: false })
+      .order("tipo_accion")
+      .order("created_at"),
+    supabase
+      .from("picd")
+      .select("*")
+      .eq("id_empleado", colaboradorId)
+      .order("ciclo_año", { ascending: false }),
+  ]);
+
+  const canEdit = isOwn || isAdmin;
+
+  // Gather all available cycles from EIP + desempeño data
+  const ciclosSet = new Set<number>();
+  for (const e of eips ?? []) ciclosSet.add(e.ciclo_año);
+  for (const d of desempenos ?? []) ciclosSet.add(d.ciclo_año);
+  const ciclos = Array.from(ciclosSet).sort((a, b) => b - a);
+
+  const antiguedad = colab.fecha_antiguedad
+    ? Math.floor(
+        (Date.now() - new Date(colab.fecha_antiguedad).getTime()) /
+          (1000 * 60 * 60 * 24 * 365.25)
+      )
+    : null;
+
+  return (
+    <div className="space-y-5 max-w-5xl">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-gray-400">
+        {isAdmin && (
+          <>
+            <a href="/colaboradores" className="hover:text-gray-600 transition-colors">
+              Colaboradores
+            </a>
+            <span>/</span>
+          </>
+        )}
+        {rol === "jefe" && !isOwn && (
+          <>
+            <a href="/equipo" className="hover:text-gray-600 transition-colors">
+              Mi Equipo
+            </a>
+            <span>/</span>
+          </>
+        )}
+        <span className="text-gray-700 font-medium">
+          {isOwn ? "Mi Carpeta" : colab.nombre_completo}
+        </span>
+      </div>
+
+      {/* Header */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+          <div className="w-12 h-12 rounded-xl bg-[#1a3a5c] flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-lg font-bold">
+              {colab.nombre_completo.charAt(0)}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-bold text-gray-900">{colab.nombre_completo}</h1>
+            <p className="text-gray-500 text-sm mt-0.5">{colab.puesto}</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5 text-xs text-gray-400">
+              {(colab as any).organización && <span>{(colab as any).organización}</span>}
+              {colab.nivel && <span>{colab.nivel}</span>}
+              {colab.area && <span>{colab.area}</span>}
+              {antiguedad !== null && <span>{antiguedad} año{antiguedad !== 1 ? "s" : ""} de antigüedad</span>}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <CarpetaTabs
+        colaboradorId={colaboradorId}
+        ciclos={ciclos}
+        eips={eips ?? []}
+        desempenos={desempenos ?? []}
+        competencias={competencias ?? []}
+        eals={eals ?? []}
+        picdAcciones={picdAcciones ?? []}
+        picdRecords={picdRecords ?? []}
+        canEdit={canEdit}
+        isOwn={isOwn}
+        isAdmin={isAdmin}
+      />
+    </div>
+  );
+}

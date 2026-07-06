@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ZONA_COLORS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
+import EIPScatterChart from "./EIPScatterChart";
+import ZonaConfigEditor from "./ZonaConfigEditor";
 
 export default async function EvaluacionesPage() {
   const supabase = await createClient();
@@ -25,7 +27,7 @@ export default async function EvaluacionesPage() {
 
   const { data: eips } = await supabase
     .from("evaluacion_integral_personal")
-    .select("*, colaboradores(nombre_completo, puesto, nivel, area)")
+    .select("*, colaboradores(*)")
     .order("ciclo_año", { ascending: false })
     .order("zona_evaluacion");
 
@@ -37,6 +39,23 @@ export default async function EvaluacionesPage() {
 
   const eipsActual = (eips ?? []).filter((e) => e.ciclo_año === cicloActual);
 
+  // Load zone config for the current cycle, fall back to default thresholds
+  const { data: zonaConfig } = await supabase
+    .from("config_zonas_eip")
+    .select("zona, umbral_inferior, umbral_superior")
+    .eq("ciclo_año", cicloActual)
+    .order("umbral_inferior");
+
+  const DEFAULT_ZONA_BANDS = [
+    { zona: "Inicio",        umbral_inferior: 160,   umbral_superior: 175   },
+    { zona: "Revisión",      umbral_inferior: 175,   umbral_superior: 187.5 },
+    { zona: "Estabilidad",   umbral_inferior: 187.5, umbral_superior: 212.5 },
+    { zona: "Desarrollo",    umbral_inferior: 212.5, umbral_superior: 225   },
+    { zona: "Sobresaliente", umbral_inferior: 225,   umbral_superior: 240   },
+  ];
+
+  const zonaBands = (zonaConfig && zonaConfig.length > 0) ? zonaConfig : DEFAULT_ZONA_BANDS;
+
   // Conteos por zona
   const zonaCounts: Record<string, number> = {};
   for (const e of eipsActual) {
@@ -44,6 +63,35 @@ export default async function EvaluacionesPage() {
       zonaCounts[e.zona_evaluacion] = (zonaCounts[e.zona_evaluacion] ?? 0) + 1;
     }
   }
+
+  // Scatter chart data
+  const scatterPoints = eipsActual
+    .filter((e) => e.desempeno_logra != null && e.evaluacion_potencial_total != null)
+    .map((e) => {
+      const colab = e.colaboradores as {
+        nombre_completo: string;
+        puesto: string;
+        area: string | null;
+        organización: string | null;
+        jefe_inmediato_nombre: string | null;
+      } | null;
+      return {
+        id: e.id,
+        id_empleado: e.id_empleado,
+        nombre: colab?.nombre_completo ?? "—",
+        puesto: colab?.puesto ?? "—",
+        area: colab?.area ?? null,
+        uen: colab?.organización ?? null,
+        jefe: colab?.jefe_inmediato_nombre ?? null,
+        desempeno: Number(e.desempeno_logra),
+        potencial: Number(e.evaluacion_potencial_total),
+        zona: e.zona_evaluacion,
+      };
+    });
+
+  const uens = Array.from(new Set(scatterPoints.map((p) => p.uen).filter(Boolean) as string[])).sort();
+  const areas = Array.from(new Set(scatterPoints.map((p) => p.area).filter(Boolean) as string[])).sort();
+  const jefes = Array.from(new Set(scatterPoints.map((p) => p.jefe).filter(Boolean) as string[])).sort();
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -55,18 +103,37 @@ export default async function EvaluacionesPage() {
       </div>
 
       {/* Resumen por zona */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {Object.entries(ZONA_COLORS).map(([zona, colors]) => (
-          <div key={zona} className={`rounded-xl border p-4 ${colors.bg} border-transparent`}>
-            <p className={`text-xs font-semibold uppercase tracking-wider ${colors.text}`}>
-              {zona}
-            </p>
-            <p className={`text-3xl font-bold mt-1 ${colors.text}`}>
-              {zonaCounts[zona] ?? 0}
-            </p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {["Sobresaliente", "Desarrollo", "Estabilidad", "Revisión", "Inicio"].map((zona) => {
+          const colors = ZONA_COLORS[zona] ?? { bg: "bg-gray-100", text: "text-gray-700" };
+          return (
+            <div key={zona} className={`rounded-xl border p-4 ${colors.bg} border-transparent`}>
+              <p className={`text-xs font-semibold uppercase tracking-wider ${colors.text}`}>
+                {zona}
+              </p>
+              <p className={`text-3xl font-bold mt-1 ${colors.text}`}>
+                {zonaCounts[zona] ?? 0}
+              </p>
+            </div>
+          );
+        })}
       </div>
+
+      {/* Scatter chart */}
+      {scatterPoints.length > 0 && (
+        <EIPScatterChart
+          points={scatterPoints}
+          uens={uens}
+          areas={areas}
+          jefes={jefes}
+          zonaBands={zonaBands}
+        />
+      )}
+
+      {/* Zone config editor (superadmin only) */}
+      {rol === "superadmin" && (
+        <ZonaConfigEditor cicloAño={cicloActual} zonaBands={zonaBands} />
+      )}
 
       {/* Tabla de evaluaciones */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -131,10 +198,10 @@ export default async function EvaluacionesPage() {
                     </td>
                     <td className="px-5 py-3 text-right">
                       <a
-                        href={`/colaboradores/${e.id_empleado}`}
+                        href={`/carpeta/${e.id_empleado}`}
                         className="text-xs text-[#1a3a5c] hover:underline"
                       >
-                        Ver perfil →
+                        Ver carpeta →
                       </a>
                     </td>
                   </tr>
