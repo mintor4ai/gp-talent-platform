@@ -11,6 +11,7 @@ import {
 } from "@/app/actions/configuracion";
 import { upsertZonaBands, copyZonaBandsFromCycle } from "@/app/actions/zonas";
 import type { ZonaBand } from "@/lib/types";
+import { TalentMatrixSVG } from "@/app/(protected)/evaluaciones/EIPScatterChart";
 
 type Regla = { id: string; nivel: string; valor: string; habilitado: boolean };
 type Prompt = { id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string };
@@ -517,7 +518,7 @@ function ZonasEipTab({
   }
 
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="space-y-6 max-w-2xl">
       {msg && (
         <div className={`text-sm border rounded-lg px-4 py-2.5 ${msg.ok ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
           {msg.text}
@@ -541,6 +542,19 @@ function ZonasEipTab({
           </span>
         </div>
       </div>
+
+      {/* Live matrix preview */}
+      {bands.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+            <p className="text-sm font-semibold text-gray-700">Vista previa — Matriz de Talento {cicloAño}</p>
+            <p className="text-xs text-gray-400 mt-0.5">Así se verán las zonas en los reportes de evaluación</p>
+          </div>
+          <div className="p-4 flex justify-center">
+            <TalentMatrixSVG zonaBands={bands} width={520} height={448} showTitle={false} />
+          </div>
+        </div>
+      )}
 
       <form key={cicloAño} onSubmit={handleSave} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
