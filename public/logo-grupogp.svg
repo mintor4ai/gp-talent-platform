@@ -1,10 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 80">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 80" fill="none">
+  <!-- Transparent background, white lettering — for use on dark backgrounds -->
   <text x="4" y="58"
     font-family="'Arial Black','Franklin Gothic Heavy',Arial,sans-serif"
     font-size="52" font-weight="900" font-style="italic"
-    fill="#1a3a8f">GRUPO</text>
-  <text x="172" y="72"
+    fill="white" letter-spacing="-1">GRUPO</text>
+  <text x="170" y="72"
     font-family="'Arial Black','Franklin Gothic Heavy',Arial,sans-serif"
     font-size="68" font-weight="900"
-    fill="#1a3a8f">GP</text>
+    fill="white">GP</text>
 </svg>

@@ -46,8 +46,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10">
           <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-5">
-              <img src="/logo-grupogp.svg" alt="Grupo GP" className="h-14 w-auto" />
+            <div className="inline-flex items-center justify-center bg-[#1a3a5c] rounded-2xl px-8 py-4 mb-5">
+              <img src="/logo-grupogp.svg" alt="Grupo GP" className="h-10 w-auto" />
             </div>
             <h1 className="text-xl font-bold text-gray-900">Talent Intelligence</h1>
             <p className="text-sm text-gray-500 mt-1">Plataforma de Talento</p>
