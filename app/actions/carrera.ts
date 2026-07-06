@@ -6,6 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+export type AccionRuta = {
+  quien: string;
+  que: string;
+  para_cuando: string;
+};
+
 type RutaGenerada = {
   tipo_ruta: string;
   puesto_objetivo: string;
@@ -13,13 +19,12 @@ type RutaGenerada = {
   plazo_estimado: string;
   habilidades_gap: string;
   acciones_recomendadas: string;
+  acciones: AccionRuta[];
 };
 
-export async function generarRutasCarrera(colaboradorId: string): Promise<{
-  ok: boolean;
-  error?: string;
-  rutas?: RutaGenerada[];
-}> {
+// ─── Manual create / update ───────────────────────────────────────────────────
+
+export async function upsertRutaCarrera(formData: FormData): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
 
   const {
@@ -29,114 +34,176 @@ export async function generarRutasCarrera(colaboradorId: string): Promise<{
 
   const { data: perfil } = await supabase
     .from("usuarios_app")
-    .select("rol")
+    .select("rol, id_empleado")
     .eq("id", user.id)
     .single();
+  if (!perfil) return { ok: false, error: "Sin perfil" };
 
-  const isAdmin =
-    perfil?.rol === "capital_humano" || perfil?.rol === "superadmin";
-  if (!isAdmin) return { ok: false, error: "Sin permisos" };
+  const colaboradorId = formData.get("colaborador_id") as string;
+  const isAdmin = perfil.rol === "capital_humano" || perfil.rol === "superadmin";
+  const isOwn = perfil.id_empleado === colaboradorId;
+  if (!isAdmin && !isOwn) return { ok: false, error: "Sin permisos" };
 
-  type ColabRow = {
-    nombre_completo: string; puesto: string | null; nivel: string | null;
-    nivel_num: number | null; area: string | null; organización: string | null;
-    nivel_academico: string | null; resumen_exp_interno: string | null;
-    resumen_exp_externo: string | null; resumen_formacion_profesional: string | null;
-    dispuesto_cambiar_residencia: boolean | null; fecha_antiguedad: string | null;
+  const rutaId = formData.get("ruta_id") as string | null;
+  const tipo_ruta = formData.get("tipo_ruta") as string;
+  const puesto_objetivo = formData.get("puesto_objetivo") as string;
+  const plazo_estimado = formData.get("plazo_estimado") as string;
+  const habilidades_gap = (formData.get("habilidades_gap") as string) ?? "";
+  const ciclo_año = Number(formData.get("ciclo_año"));
+  const aspiracion = (formData.get("aspiracion") as string) ?? "";
+
+  // Parse structured actions (up to 5)
+  const acciones: AccionRuta[] = [];
+  for (let i = 0; i < 5; i++) {
+    const quien = (formData.get(`accion_quien_${i}`) as string)?.trim();
+    const que = (formData.get(`accion_que_${i}`) as string)?.trim();
+    const para_cuando = (formData.get(`accion_cuando_${i}`) as string)?.trim();
+    if (quien && que) acciones.push({ quien, que, para_cuando: para_cuando ?? "" });
+  }
+
+  const row = {
+    id_empleado: colaboradorId,
+    ciclo_año,
+    tipo_ruta,
+    puesto_objetivo,
+    plazo_estimado,
+    habilidades_gap,
+    aspiracion,
+    acciones,
+    generado_con_ia: false,
+    activa: true,
   };
-  type EipRow = {
-    ciclo_año: number | null; zona_evaluacion: string | null;
-    evaluacion_potencial_total: number | null; desempeno_logra: number | null;
-  };
-  type PicdRow = {
-    ciclo_año: number | null; puesto_futuro_opcion1: string | null;
-    puesto_futuro_opcion2: string | null; areas_oportunidad: string | null;
-  };
-  type HistorialRow = { puesto: string | null; empresa: string | null; tipo: string | null; años: number | null; };
+
+  if (rutaId) {
+    await supabase.from("rutas_carrera").update(row).eq("id", rutaId);
+  } else {
+    await supabase.from("rutas_carrera").insert(row);
+  }
+
+  revalidatePath(`/carpeta/${colaboradorId}`);
+  revalidatePath(`/colaboradores/${colaboradorId}`);
+  return { ok: true };
+}
+
+export async function deleteRutaCarrera(rutaId: string, colaboradorId: string): Promise<{ ok: boolean }> {
+  const supabase = await createClient();
+  await supabase.from("rutas_carrera").update({ activa: false }).eq("id", rutaId);
+  revalidatePath(`/carpeta/${colaboradorId}`);
+  return { ok: true };
+}
+
+// ─── AI generation with preference switches ───────────────────────────────────
+
+export async function generarRutasCarreraIA(
+  colaboradorId: string,
+  prefs: {
+    tipos: string[];       // ["ascendente","lateral","especializacion"] — which route types to generate
+    velocidad: string;     // "corto" | "mediano" | "largo"
+    aspiracion: string;    // "tecnico" | "directivo" | "emprendedor"
+  }
+): Promise<{ ok: boolean; error?: string; rutas?: RutaGenerada[] }> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+
+  const { data: perfil } = await supabase
+    .from("usuarios_app")
+    .select("rol, id_empleado, coach_habilitado")
+    .eq("id", user.id)
+    .single();
+  if (!perfil) return { ok: false, error: "Sin perfil" };
+
+  const isAdmin = perfil.rol === "capital_humano" || perfil.rol === "superadmin";
+  const isOwn = perfil.id_empleado === colaboradorId;
+  if (!isAdmin && !isOwn) return { ok: false, error: "Sin permisos" };
 
   const [colabRes, eipRes, picdRes, historialRes] = await Promise.all([
     supabase.from("colaboradores").select("*").eq("id", colaboradorId).single(),
-    supabase.from("ultimo_eip_vigente").select("*").eq("id_empleado", colaboradorId).single(),
+    supabase.from("evaluacion_integral_personal").select("*").eq("id_empleado", colaboradorId)
+      .order("ciclo_año", { ascending: false }).limit(1).single(),
     supabase.from("picd").select("*").eq("id_empleado", colaboradorId)
-      .order("ciclo_ano", { ascending: false }).limit(1).single(),
+      .order("ciclo_año", { ascending: false }).limit(1).single(),
     supabase.from("historial_carrera").select("puesto, empresa, tipo, años")
       .eq("id_empleado", colaboradorId).order("fecha_inicio", { ascending: false }).limit(6),
   ]);
 
-  const colab = colabRes.data as ColabRow | null;
-  const eip = eipRes.data as EipRow | null;
-  const picd = picdRes.data as PicdRow | null;
-  const historial = historialRes.data as HistorialRow[] | null;
+  const colab = colabRes.data as any;
+  const eip = eipRes.data as any;
+  const picd = picdRes.data as any;
+  const historial = (historialRes.data ?? []) as any[];
 
   if (!colab) return { ok: false, error: "Colaborador no encontrado" };
 
   const antiguedad = colab.fecha_antiguedad
-    ? Math.floor(
-        (Date.now() - new Date(colab.fecha_antiguedad).getTime()) /
-          (1000 * 60 * 60 * 24 * 365.25)
-      )
+    ? Math.floor((Date.now() - new Date(colab.fecha_antiguedad).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
     : null;
 
-  const prompt = `Eres un experto en desarrollo de talento para Grupo GP, empresa mexicana líder en construcción e infraestructura.
-Analiza el perfil del colaborador y genera exactamente 3 rutas de carrera realistas y distintas entre sí.
+  const velocidadLabel: Record<string, string> = { corto: "1-2 años", mediano: "2-3 años", largo: "3-5 años" };
+  const aspiracionLabel: Record<string, string> = {
+    tecnico: "especialización técnica profunda",
+    directivo: "liderazgo y gestión de equipos",
+    emprendedor: "innovación y emprendimiento interno",
+  };
 
-PERFIL DEL COLABORADOR:
+  const tiposLabel = prefs.tipos.map((t) =>
+    t === "ascendente" ? "ASCENDENTE" : t === "lateral" ? "LATERAL" : "ESPECIALIZACIÓN"
+  ).join(", ");
+
+  const prompt = `Eres un experto en desarrollo de talento para Grupo GP, empresa mexicana líder en construcción e infraestructura.
+Genera exactamente ${prefs.tipos.length} ruta(s) de carrera para este colaborador: ${tiposLabel}.
+
+PERFIL:
 - Nombre: ${colab.nombre_completo}
 - Puesto actual: ${colab.puesto}
-- Nivel: ${colab.nivel} (nivel_num: ${colab.nivel_num ?? "N/D"})
-- Área: ${(colab as any).organización ?? colab.area ?? "N/D"}
+- Nivel: ${colab.nivel} (num: ${colab.nivel_num ?? "N/D"})
+- Área/UEN: ${colab.organización ?? colab.area ?? "N/D"}
 - Antigüedad: ${antiguedad !== null ? `${antiguedad} años` : "N/D"}
-- Nivel académico: ${colab.nivel_academico ?? "N/D"}
-- Disponible para cambio de residencia: ${colab.dispuesto_cambiar_residencia ? "Sí" : "No"}
-${colab.resumen_exp_interno ? `- Experiencia interna GP: ${colab.resumen_exp_interno}` : ""}
-${colab.resumen_exp_externo ? `- Experiencia externa: ${colab.resumen_exp_externo}` : ""}
-${colab.resumen_formacion_profesional ? `- Formación: ${colab.resumen_formacion_profesional}` : ""}
+- Académico: ${colab.nivel_academico ?? "N/D"}
+${colab.resumen_exp_interno ? `- Exp. interna: ${colab.resumen_exp_interno}` : ""}
+${colab.resumen_exp_externo ? `- Exp. externa: ${colab.resumen_exp_externo}` : ""}
 
-EVALUACIÓN INTEGRAL (EIP ${eip?.ciclo_año ?? "N/D"}):
-- Zona: ${eip?.zona_evaluacion ?? "N/D"}
-- Potencial: ${eip?.evaluacion_potencial_total?.toFixed(1) ?? "N/D"}
-- Desempeño: ${eip?.desempeno_logra?.toFixed(1) ?? "N/D"}
+EIP ${eip?.ciclo_año ?? "N/D"}: zona=${eip?.zona_evaluacion ?? "N/D"}, potencial=${eip?.evaluacion_potencial_total?.toFixed(1) ?? "N/D"}, desempeño=${eip?.desempeno_logra?.toFixed(1) ?? "N/D"}
+${picd ? `PICD: puesto_futuro1="${picd.puesto_futuro_opcion1 ?? "N/D"}", áreas_oportunidad="${picd.areas_oportunidad ?? "N/D"}"` : ""}
+${historial.length > 0 ? `Historial: ${historial.map((h: any) => `${h.puesto}/${h.empresa ?? (h.tipo === "interno" ? "GP" : "Ext")} (${h.años ?? "?"}a)`).join("; ")}` : ""}
 
-${picd ? `PLAN DE DESARROLLO (PICD ${picd.ciclo_año}):
-- Puesto futuro aspirado 1: ${picd.puesto_futuro_opcion1 ?? "N/D"}
-- Puesto futuro aspirado 2: ${picd.puesto_futuro_opcion2 ?? "N/D"}
-- Áreas de oportunidad: ${picd.areas_oportunidad ?? "N/D"}` : ""}
+PREFERENCIAS DEL COLABORADOR:
+- Velocidad deseada: ${velocidadLabel[prefs.velocidad] ?? prefs.velocidad}
+- Aspiración: ${aspiracionLabel[prefs.aspiracion] ?? prefs.aspiracion}
 
-${historial && historial.length > 0 ? `HISTORIAL DE CARRERA:
-${historial.map((h) => `- ${h.puesto} en ${h.empresa ?? (h.tipo === "interno" ? "Grupo GP" : "Externo")} (${h.años ?? "?"} años)`).join("\n")}` : ""}
-
-Genera exactamente 3 rutas de carrera: una ASCENDENTE, una LATERAL y una de ESPECIALIZACIÓN.
-Para cada ruta, responde en formato JSON con esta estructura exacta:
-
+Para CADA ruta, responde con este JSON exacto:
 {
   "rutas": [
     {
-      "tipo_ruta": "ascendente",
-      "puesto_objetivo": "Nombre del puesto objetivo",
-      "uen_objetivo": "Unidad o área de destino dentro de Grupo GP",
-      "plazo_estimado": "1-2 años" (o "2-3 años" o "3-5 años"),
-      "habilidades_gap": "Descripción concisa de las brechas de habilidades a desarrollar (máx 2 oraciones)",
-      "acciones_recomendadas": "3 acciones concretas separadas por punto y coma"
-    },
-    ... (2 rutas más)
+      "tipo_ruta": "ascendente|lateral|especializacion",
+      "puesto_objetivo": "...",
+      "uen_objetivo": "...",
+      "plazo_estimado": "${velocidadLabel[prefs.velocidad] ?? "2-3 años"}",
+      "habilidades_gap": "brecha de habilidades en 1-2 oraciones",
+      "acciones_recomendadas": "acción1; acción2; acción3",
+      "acciones": [
+        {"quien": "Colaborador", "que": "acción concreta", "para_cuando": "mes/año"},
+        {"quien": "Jefe inmediato", "que": "acción de apoyo", "para_cuando": "mes/año"},
+        {"quien": "Capital Humano", "que": "acción institucional", "para_cuando": "mes/año"}
+      ]
+    }
   ]
 }
 
-IMPORTANTE: Responde SOLO con el JSON, sin texto adicional, sin markdown, sin bloques de código.`;
+IMPORTANTE: Responde SOLO con el JSON, sin texto adicional.`;
 
   let raw: string;
   try {
     const response = await anthropic.messages.create({
       model: "claude-opus-4-8",
-      max_tokens: 1200,
+      max_tokens: 2000,
       thinking: { type: "adaptive" },
       messages: [{ role: "user", content: prompt }],
     });
-
     const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      return { ok: false, error: "Respuesta vacía del modelo" };
-    }
+    if (!textBlock || textBlock.type !== "text") return { ok: false, error: "Respuesta vacía del modelo" };
     raw = textBlock.text.trim();
   } catch (err) {
     console.error("Claude error:", err);
@@ -145,49 +212,45 @@ IMPORTANTE: Responde SOLO con el JSON, sin texto adicional, sin markdown, sin bl
 
   let parsed: { rutas: RutaGenerada[] };
   try {
-    // Strip possible markdown fences if model added them despite instructions
     const clean = raw.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
     parsed = JSON.parse(clean);
-    if (!Array.isArray(parsed.rutas) || parsed.rutas.length === 0) {
-      throw new Error("Estructura inválida");
-    }
+    if (!Array.isArray(parsed.rutas) || parsed.rutas.length === 0) throw new Error("Estructura inválida");
   } catch {
     return { ok: false, error: "No se pudo interpretar la respuesta del modelo" };
   }
 
   const cicloActual = new Date().getFullYear();
+  await supabase.from("rutas_carrera").update({ activa: false })
+    .eq("id_empleado", colaboradorId).eq("ciclo_año", cicloActual).eq("generado_con_ia", true);
 
-  // Inactivar rutas anteriores del mismo colaborador/ciclo
-  await supabase
-    .from("rutas_carrera")
-    .update({ activa: false })
-    .eq("id_empleado", colaboradorId)
-    .eq("ciclo_año", cicloActual);
-
-  // Insertar nuevas rutas
   const inserts = parsed.rutas.map((r) => ({
     id_empleado: colaboradorId,
     ciclo_año: cicloActual,
     tipo_ruta: r.tipo_ruta,
-    descripcion: null,
     puesto_objetivo: r.puesto_objetivo,
     uen_objetivo: r.uen_objetivo,
     plazo_estimado: r.plazo_estimado,
     habilidades_gap: r.habilidades_gap,
     acciones_recomendadas: r.acciones_recomendadas,
+    acciones: r.acciones ?? [],
+    aspiracion: prefs.aspiracion,
     generado_con_ia: true,
     activa: true,
   }));
 
-  const { error: insertError } = await supabase
-    .from("rutas_carrera")
-    .insert(inserts);
+  const { error: insertError } = await supabase.from("rutas_carrera").insert(inserts);
+  if (insertError) return { ok: false, error: "No se pudieron guardar las rutas: " + insertError.message };
 
-  if (insertError) {
-    console.error("Insert error:", insertError);
-    return { ok: false, error: "No se pudieron guardar las rutas: " + insertError.message };
-  }
-
+  revalidatePath(`/carpeta/${colaboradorId}`);
   revalidatePath(`/colaboradores/${colaboradorId}`);
   return { ok: true, rutas: parsed.rutas };
+}
+
+// Keep legacy admin-only function for backward compat with /colaboradores page
+export async function generarRutasCarrera(colaboradorId: string) {
+  return generarRutasCarreraIA(colaboradorId, {
+    tipos: ["ascendente", "lateral", "especializacion"],
+    velocidad: "mediano",
+    aspiracion: "directivo",
+  });
 }

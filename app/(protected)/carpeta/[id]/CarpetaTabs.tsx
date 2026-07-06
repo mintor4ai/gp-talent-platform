@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ZONA_COLORS } from "@/lib/types";
 import PicdEditor from "@/app/(protected)/picd/[id]/PicdEditor";
 import EntrevistaThread from "./EntrevistaThread";
+import RutaCarreraEditor from "./RutaCarreraEditor";
 
 type EIP = {
   id: string;
@@ -101,6 +102,7 @@ export default function CarpetaTabs({
   picdRecords,
   entrevistas,
   comentarios,
+  rutas,
   canEdit,
   isOwn,
   isJefe,
@@ -117,6 +119,7 @@ export default function CarpetaTabs({
   picdRecords: PicdRecord[];
   entrevistas: Entrevista[];
   comentarios: Comentario[];
+  rutas: any[];
   canEdit: boolean;
   isOwn: boolean;
   isJefe: boolean;
@@ -448,6 +451,17 @@ export default function CarpetaTabs({
             isAdmin={isAdmin}
             nombreColaborador={nombreColaborador}
           />
+
+          {(isOwn || isAdmin) && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <RutaCarreraEditor
+                colaboradorId={colaboradorId}
+                cicloAño={cicloActual}
+                rutasIniciales={rutas.filter((r) => r.activa)}
+                canEdit={canEdit}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

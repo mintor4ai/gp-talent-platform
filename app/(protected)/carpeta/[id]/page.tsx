@@ -62,6 +62,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: picdRecords },
     { data: entrevistas },
     { data: comentarios },
+    { data: rutas },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -104,6 +105,12 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .from("picd_comentarios")
       .select("*, picd_entrevistas!inner(id_empleado)")
       .eq("picd_entrevistas.id_empleado", colaboradorId)
+      .order("created_at"),
+    supabase
+      .from("rutas_carrera")
+      .select("id, tipo_ruta, puesto_objetivo, uen_objetivo, plazo_estimado, habilidades_gap, acciones_recomendadas, acciones, aspiracion, generado_con_ia, activa")
+      .eq("id_empleado", colaboradorId)
+      .eq("activa", true)
       .order("created_at"),
   ]);
 
@@ -179,6 +186,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         picdRecords={picdRecords ?? []}
         entrevistas={(entrevistas ?? []) as any[]}
         comentarios={(comentarios ?? []) as any[]}
+        rutas={(rutas ?? []) as any[]}
         canEdit={canEdit}
         isOwn={isOwn}
         isJefe={rol === "jefe"}
