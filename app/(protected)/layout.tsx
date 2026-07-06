@@ -45,7 +45,7 @@ export default async function ProtectedLayout({
       <header className="bg-[#1a3a5c] text-white shadow-md flex-shrink-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           <a href="/dashboard" className="flex items-center gap-2">
-            <img src="/logo-grupogp.svg" alt="Grupo GP" className="h-8 w-auto" />
+            <img src="/Grupo GP Blanco.png" alt="Grupo GP" className="h-8 w-auto" />
             <span className="font-medium text-xs text-white/60 hidden sm:block tracking-wide">
               Talent Intelligence
             </span>
