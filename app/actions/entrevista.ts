@@ -21,6 +21,8 @@ export async function upsertEntrevista(formData: FormData) {
   const id_empleado = formData.get("id_empleado") as string;
   const ciclo_ano = Number(formData.get("ciclo_ano"));
   const notas = formData.get("notas") as string;
+  const fecha_entrevista = (formData.get("fecha_entrevista") as string) || null;
+  const participantes = (formData.get("participantes") as string) ?? "";
 
   // Colaborador can only update their own; admin can update any
   const isAdmin = perfil.rol === "capital_humano" || perfil.rol === "superadmin";
@@ -29,7 +31,15 @@ export async function upsertEntrevista(formData: FormData) {
   await supabase
     .from("picd_entrevistas")
     .upsert(
-      { id_empleado, ciclo_ano, notas, estado: "pendiente_revision", updated_at: new Date().toISOString() },
+      {
+        id_empleado,
+        ciclo_ano,
+        notas,
+        fecha_entrevista,
+        participantes,
+        estado: "pendiente_revision",
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: "id_empleado,ciclo_ano" }
     );
 

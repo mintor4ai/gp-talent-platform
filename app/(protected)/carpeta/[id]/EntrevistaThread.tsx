@@ -9,6 +9,8 @@ type Entrevista = {
   ciclo_ano: number;
   notas: string;
   estado: string;
+  fecha_entrevista: string | null;
+  participantes: string;
   created_at: string;
   updated_at: string;
 };
@@ -50,6 +52,8 @@ export default function EntrevistaThread({
   const [open, setOpen] = useState(!!entrevista);
   const [editingNotas, setEditingNotas] = useState(!entrevista && isOwn);
   const [notasValue, setNotasValue] = useState(entrevista?.notas ?? "");
+  const [fechaValue, setFechaValue] = useState(entrevista?.fecha_entrevista ?? "");
+  const [participantesValue, setParticipantesValue] = useState(entrevista?.participantes ?? "");
   const [commentText, setCommentText] = useState("");
   const [isPending, startTransition] = useTransition();
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -145,15 +149,46 @@ export default function EntrevistaThread({
         <div className="p-5 space-y-5">
           {/* Notes form (colaborador) */}
           {(editingNotas || !entrevista) && isOwn ? (
-            <form onSubmit={handleSaveNotas} className="space-y-3">
+            <form onSubmit={handleSaveNotas} className="space-y-4">
               <input type="hidden" name="id_empleado" value={colaboradorId} />
               <input type="hidden" name="ciclo_ano" value={cicloAno} />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    Fecha de la entrevista *
+                  </label>
+                  <input
+                    type="date"
+                    name="fecha_entrevista"
+                    value={fechaValue}
+                    onChange={(e) => setFechaValue(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    Participantes *
+                  </label>
+                  <input
+                    type="text"
+                    name="participantes"
+                    value={participantesValue}
+                    onChange={(e) => setParticipantesValue(e.target.value)}
+                    required
+                    placeholder="Ej. Juan Pérez (jefe), María López (RH)"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Notas de la entrevista
+                  Notas de la entrevista *
                 </label>
                 <p className="text-xs text-gray-400 mb-2">
-                  Documenta los acuerdos, compromisos y puntos clave de tu conversación con tu jefe sobre el PICD.
+                  Documenta los acuerdos, compromisos y puntos clave de tu conversación sobre el PICD.
                 </p>
                 <textarea
                   name="notas"
@@ -165,11 +200,17 @@ export default function EntrevistaThread({
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] resize-none"
                 />
               </div>
+
               <div className="flex gap-2 justify-end">
                 {editingNotas && entrevista && (
                   <button
                     type="button"
-                    onClick={() => { setEditingNotas(false); setNotasValue(entrevista.notas); }}
+                    onClick={() => {
+                      setEditingNotas(false);
+                      setNotasValue(entrevista.notas);
+                      setFechaValue(entrevista.fecha_entrevista ?? "");
+                      setParticipantesValue(entrevista.participantes ?? "");
+                    }}
                     className="text-sm text-gray-500 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     Cancelar
@@ -177,21 +218,39 @@ export default function EntrevistaThread({
                 )}
                 <button
                   type="submit"
-                  disabled={isPending || !notasValue.trim()}
+                  disabled={isPending || !notasValue.trim() || !fechaValue || !participantesValue.trim()}
                   className="text-sm bg-[#1a3a5c] text-white px-5 py-2 rounded-lg hover:bg-[#152e4d] disabled:opacity-50 transition-colors"
                 >
-                  {isPending ? "Guardando..." : entrevista ? "Actualizar notas" : "Documentar entrevista"}
+                  {isPending ? "Guardando..." : entrevista ? "Actualizar" : "Enviar a revisión →"}
                 </button>
               </div>
             </form>
           ) : entrevista ? (
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-xs text-gray-400 mb-2 font-medium">
-                Notas de {nombreColaborador}
-                <span className="ml-2 font-normal">
-                  · {new Date(entrevista.updated_at).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-gray-500">
+                {entrevista.fecha_entrevista && (
+                  <span>
+                    <span className="text-gray-400">Fecha: </span>
+                    <span className="font-medium text-gray-700">
+                      {new Date(entrevista.fecha_entrevista + "T12:00:00").toLocaleDateString("es-MX", {
+                        day: "numeric", month: "long", year: "numeric",
+                      })}
+                    </span>
+                  </span>
+                )}
+                {entrevista.participantes && (
+                  <span>
+                    <span className="text-gray-400">Participantes: </span>
+                    <span className="font-medium text-gray-700">{entrevista.participantes}</span>
+                  </span>
+                )}
+                <span className="text-gray-400 ml-auto">
+                  Documentado por {nombreColaborador} ·{" "}
+                  {new Date(entrevista.updated_at).toLocaleDateString("es-MX", {
+                    day: "numeric", month: "short", year: "numeric",
+                  })}
                 </span>
-              </p>
+              </div>
               <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{entrevista.notas}</p>
             </div>
           ) : null}
