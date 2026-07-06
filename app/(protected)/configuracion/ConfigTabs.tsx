@@ -13,11 +13,13 @@ import { saveZonaBandsArray, copyZonaBandsFromCycle } from "@/app/actions/zonas"
 import { upsertPeriodo, setPeriodoActivo, deletePeriodo } from "@/app/actions/periodos";
 import type { ZonaBand, Periodo } from "@/lib/types";
 import ZoneBoundaryEditor from "./ZoneBoundaryEditor";
+import UsuariosTab, { type AuthUsuario } from "./UsuariosTab";
 
 type Regla = { id: string; nivel: string; valor: string; habilitado: boolean };
 type Prompt = { id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string };
 type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; razon_social: string | null };
 type Usuario = { id: string; rol: string; coach_habilitado: boolean | null; id_empleado: string | null; colab: ColabRow | null };
+export type { AuthUsuario };
 
 const PROMPT_TIPOS = [
   { key: "coach_colaborador", label: "Colaborador", desc: "Para usuarios con rol colaborador" },
@@ -41,6 +43,8 @@ export default function ConfigTabs({
   zonasMap,
   availableZonaCycles,
   periodos,
+  authUsuarios,
+  colaboradores,
 }: {
   grupos: { uens: string[]; departamentos: string[]; areas: string[]; segmentos: string[] };
   reglasAcceso: Regla[];
@@ -50,14 +54,17 @@ export default function ConfigTabs({
   zonasMap: Record<number, ZonaBand[]>;
   availableZonaCycles: number[];
   periodos: Periodo[];
+  authUsuarios: AuthUsuario[];
+  colaboradores: ColabRow[];
 }) {
-  const [tab, setTab] = useState<"access" | "prompts" | "api" | "zonas" | "periodos">("access");
+  const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos">("usuarios");
 
   return (
     <div>
       {/* Tab bar */}
-      <div className="border-b border-gray-200 flex gap-0 mb-6">
+      <div className="border-b border-gray-200 flex gap-0 mb-6 overflow-x-auto">
         {[
+          { key: "usuarios", label: "Usuarios" },
           { key: "access",   label: "Acceso Coach IA" },
           { key: "prompts",  label: "Prompts" },
           { key: "api",      label: "API / Modelo" },
@@ -67,7 +74,7 @@ export default function ConfigTabs({
           <button
             key={key}
             onClick={() => setTab(key as typeof tab)}
-            className={`text-sm font-medium py-3 px-5 border-b-2 transition-colors ${
+            className={`text-sm font-medium py-3 px-5 border-b-2 transition-colors whitespace-nowrap ${
               tab === key
                 ? "border-[#1a3a5c] text-[#1a3a5c]"
                 : "border-transparent text-gray-400 hover:text-gray-600"
@@ -78,6 +85,7 @@ export default function ConfigTabs({
         ))}
       </div>
 
+      {tab === "usuarios" && <UsuariosTab usuarios={authUsuarios} colaboradores={colaboradores} />}
       {tab === "access"   && <CoachAccessTab grupos={grupos} reglasAcceso={reglasAcceso} usuarios={usuarios} />}
       {tab === "prompts"  && <PromptsTab prompts={prompts} />}
       {tab === "api"      && <ApiTab apiConfig={apiConfig} />}

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ConfigTabs from "./ConfigTabs";
 import type { ZonaBand, Periodo } from "@/lib/types";
+import type { AuthUsuario } from "./UsuariosTab";
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
@@ -18,7 +19,7 @@ export default async function ConfiguracionPage() {
   if (perfil?.rol !== "superadmin") redirect("/dashboard");
 
   // Distinct group values from colaboradores (trim whitespace)
-  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes] =
+  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes] =
     await Promise.all([
       supabase.from("colaboradores").select("razon_social").not("razon_social", "is", null),
       supabase.from("colaboradores").select("departamento").not("departamento", "is", null),
@@ -31,6 +32,7 @@ export default async function ConfiguracionPage() {
       supabase.from("colaboradores").select("id, nombre_completo, puesto, razon_social"),
       supabase.from("config_zonas_eip").select("*").order("ciclo_año", { ascending: false }),
       supabase.from("periodos").select("*").order("ciclo_año", { ascending: false }),
+      supabase.from("vw_auth_usuarios").select("*").order("auth_created_at", { ascending: false }),
     ]);
 
   type Raw = { [key: string]: string | null };
@@ -48,6 +50,7 @@ export default async function ConfiguracionPage() {
   }
   const availableZonaCycles = Object.keys(zonasMap).map(Number).sort((a, b) => b - a);
   const periodos = (periodosRes.data as unknown as Periodo[]) ?? [];
+  const authUsuarios = (authUsersRes.data as unknown as AuthUsuario[]) ?? [];
 
   // Merge user + colaborador data for individual exceptions panel
   type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; razon_social: string | null };
@@ -59,6 +62,8 @@ export default async function ConfiguracionPage() {
     ...u,
     colab: u.id_empleado ? (colabMap.get(u.id_empleado) ?? null) : null,
   }));
+
+  const colaboradoresAll = (colabsRes.data as ColabRow[]) ?? [];
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -75,6 +80,8 @@ export default async function ConfiguracionPage() {
         zonasMap={zonasMap}
         availableZonaCycles={availableZonaCycles}
         periodos={periodos}
+        authUsuarios={authUsuarios}
+        colaboradores={colaboradoresAll}
       />
     </div>
   );
