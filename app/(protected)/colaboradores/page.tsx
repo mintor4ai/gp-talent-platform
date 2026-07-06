@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ZONA_COLORS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
 
 export default async function ColaboradoresPage() {

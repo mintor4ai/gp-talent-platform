@@ -9,6 +9,8 @@ import {
   activarVersionPrompt,
   actualizarConfigApi,
 } from "@/app/actions/configuracion";
+import { upsertZonaBands, copyZonaBandsFromCycle } from "@/app/actions/zonas";
+import type { ZonaBand } from "@/lib/types";
 
 type Regla = { id: string; nivel: string; valor: string; habilitado: boolean };
 type Prompt = { id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string };
@@ -34,14 +36,18 @@ export default function ConfigTabs({
   prompts,
   apiConfig,
   usuarios,
+  zonasMap,
+  availableZonaCycles,
 }: {
   grupos: { uens: string[]; departamentos: string[]; areas: string[]; segmentos: string[] };
   reglasAcceso: Regla[];
   prompts: Prompt[];
   apiConfig: { modelo: string; max_tokens: number } | null;
   usuarios: Usuario[];
+  zonasMap: Record<number, ZonaBand[]>;
+  availableZonaCycles: number[];
 }) {
-  const [tab, setTab] = useState<"access" | "prompts" | "api">("access");
+  const [tab, setTab] = useState<"access" | "prompts" | "api" | "zonas">("access");
 
   return (
     <div>
@@ -51,6 +57,7 @@ export default function ConfigTabs({
           { key: "access",  label: "Acceso Coach IA" },
           { key: "prompts", label: "Prompts" },
           { key: "api",     label: "API / Modelo" },
+          { key: "zonas",   label: "Zonas EIP" },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -69,6 +76,7 @@ export default function ConfigTabs({
       {tab === "access"  && <CoachAccessTab grupos={grupos} reglasAcceso={reglasAcceso} usuarios={usuarios} />}
       {tab === "prompts" && <PromptsTab prompts={prompts} />}
       {tab === "api"     && <ApiTab apiConfig={apiConfig} />}
+      {tab === "zonas"   && <ZonasEipTab zonasMap={zonasMap} availableCycles={availableZonaCycles} />}
     </div>
   );
 }
@@ -444,6 +452,185 @@ function ApiTab({ apiConfig }: { apiConfig: { modelo: string; max_tokens: number
         <p className="font-medium mb-1">Próximamente</p>
         <p className="text-xs">Soporte para OpenAI (GPT-4o, o3) y otros proveedores estará disponible en una versión futura.</p>
       </div>
+    </div>
+  );
+}
+
+// ── Zonas EIP Tab ─────────────────────────────────────────────────────────────
+
+const ZONA_ORDER_CFG = ["Inicio", "Revisión", "Estabilidad", "Desarrollo", "Sobresaliente"];
+const ZONA_DOT_COLORS_CFG: Record<string, string> = {
+  Sobresaliente: "#8b5cf6",
+  Desarrollo: "#3b82f6",
+  Estabilidad: "#10b981",
+  Revisión: "#f97316",
+  Inicio: "#eab308",
+};
+
+function ZonasEipTab({
+  zonasMap,
+  availableCycles,
+}: {
+  zonasMap: Record<number, ZonaBand[]>;
+  availableCycles: number[];
+}) {
+  const currentYear = new Date().getFullYear();
+  const allCycles = availableCycles.includes(currentYear) ? availableCycles : [currentYear, ...availableCycles];
+  const [cicloAño, setCicloAño] = useState(allCycles[0] ?? currentYear);
+  const [isPending, startTransition] = useTransition();
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const sourceCycles = allCycles.filter((y) => y !== cicloAño && availableCycles.includes(y));
+  const [sourceCiclo, setSourceCiclo] = useState(sourceCycles[0] ?? currentYear - 1);
+
+  const bands = zonasMap[cicloAño] ?? [];
+  const bandMap = Object.fromEntries(bands.map((b) => [b.zona, b]));
+
+  function flash(text: string, ok = true) {
+    setMsg({ text, ok });
+    setTimeout(() => setMsg(null), 3500);
+  }
+
+  function handleSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      try {
+        await upsertZonaBands(fd);
+        flash("Zonas guardadas correctamente");
+      } catch (err) {
+        flash(err instanceof Error ? err.message : "Error al guardar", false);
+      }
+    });
+  }
+
+  function handleCopy(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      try {
+        await copyZonaBandsFromCycle(fd);
+        flash(`Umbrales copiados desde ${sourceCiclo} → ${cicloAño}. Recarga para ver los valores actualizados.`);
+      } catch (err) {
+        flash(err instanceof Error ? err.message : "Error al copiar", false);
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-6 max-w-xl">
+      {msg && (
+        <div className={`text-sm border rounded-lg px-4 py-2.5 ${msg.ok ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+          {msg.text}
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">Ciclo (año)</label>
+        <div className="flex items-center gap-3">
+          <select
+            value={cicloAño}
+            onChange={(e) => setCicloAño(Number(e.target.value))}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white"
+          >
+            {allCycles.map((y) => (
+              <option key={y} value={y}>{y}{!availableCycles.includes(y) ? " (nuevo)" : ""}</option>
+            ))}
+          </select>
+          <span className="text-xs text-gray-400">
+            {bands.length > 0 ? `${bands.length} zonas configuradas` : "Sin configuración aún"}
+          </span>
+        </div>
+      </div>
+
+      <form key={cicloAño} onSubmit={handleSave} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+          <p className="text-sm font-semibold text-gray-700">Umbrales de zonas — Ciclo {cicloAño}</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Define los umbrales como la <strong>suma de Desempeño + Potencial</strong> (rango típico: 160–240).
+          </p>
+        </div>
+        <div className="p-5 space-y-3">
+          <input type="hidden" name="ciclo_año" value={cicloAño} />
+          {ZONA_ORDER_CFG.map((zona) => {
+            const band = bandMap[zona];
+            return (
+              <div key={zona} className="flex items-center gap-3">
+                <div className="flex items-center gap-2 w-28 flex-shrink-0">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: ZONA_DOT_COLORS_CFG[zona] ?? "#9ca3af" }}
+                  />
+                  <span className="text-xs font-medium text-gray-700">{zona}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-400 w-10 text-right">desde</label>
+                  <input
+                    name={`umbral_inferior_${zona}`}
+                    type="number"
+                    step="0.5"
+                    min={160}
+                    max={240}
+                    defaultValue={band?.umbral_inferior ?? ""}
+                    required
+                    className="w-20 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]"
+                  />
+                  <label className="text-xs text-gray-400">hasta</label>
+                  <input
+                    name={`umbral_superior_${zona}`}
+                    type="number"
+                    step="0.5"
+                    min={160}
+                    max={240}
+                    defaultValue={band?.umbral_superior ?? ""}
+                    required
+                    className="w-20 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]"
+                  />
+                </div>
+              </div>
+            );
+          })}
+          <div className="pt-2 flex justify-end">
+            <button
+              type="submit"
+              disabled={isPending}
+              className="text-sm bg-[#1a3a5c] text-white px-5 py-2 rounded-lg hover:bg-[#152e4d] disabled:opacity-40 transition-colors"
+            >
+              {isPending ? "Guardando..." : "Guardar zonas"}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {sourceCycles.length > 0 && (
+        <form onSubmit={handleCopy} className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-700 mb-0.5">Copiar desde otro ciclo</p>
+            <p className="text-xs text-gray-400">
+              Copia los umbrales de un ciclo existente al ciclo {cicloAño}. Sobrescribe la configuración actual.
+            </p>
+          </div>
+          <input type="hidden" name="target_ciclo" value={cicloAño} />
+          <div className="flex items-center gap-3">
+            <select
+              name="source_ciclo"
+              value={sourceCiclo}
+              onChange={(e) => setSourceCiclo(Number(e.target.value))}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white"
+            >
+              {sourceCycles.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="text-sm border border-[#1a3a5c] text-[#1a3a5c] px-4 py-2 rounded-lg hover:bg-[#1a3a5c] hover:text-white disabled:opacity-40 transition-colors"
+            >
+              {isPending ? "Copiando..." : `Copiar al ciclo ${cicloAño}`}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

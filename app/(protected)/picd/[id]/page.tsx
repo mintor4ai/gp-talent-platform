@@ -43,14 +43,12 @@ export default async function PicdPage({ params }: { params: Promise<{ id: strin
       .eq("id", perfil.id_empleado)
       .single();
 
-    if (miColab && colab.nombre_completo !== miColab.nombre_completo) {
-      const { data: equipo } = await supabase
-        .from("colaboradores")
-        .select("id")
-        .eq("jefe_inmediato_nombre", miColab.nombre_completo);
-      const ids = equipo?.map((e) => e.id) ?? [];
-      if (!ids.includes(id)) redirect("/dashboard");
-    }
+    const { data: equipo } = await supabase
+      .from("colaboradores")
+      .select("id")
+      .eq("jefe_inmediato_nombre", miColab?.nombre_completo ?? "");
+    const ids = equipo?.map((e) => e.id) ?? [];
+    if (!ids.includes(id)) redirect("/dashboard");
   }
 
   // Obtener ciclo activo (el más reciente con acciones)

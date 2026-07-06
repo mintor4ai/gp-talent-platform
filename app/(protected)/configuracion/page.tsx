@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ConfigTabs from "./ConfigTabs";
+import type { ZonaBand } from "@/lib/types";
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
@@ -17,7 +18,7 @@ export default async function ConfiguracionPage() {
   if (perfil?.rol !== "superadmin") redirect("/dashboard");
 
   // Distinct group values from colaboradores (trim whitespace)
-  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes] =
+  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes] =
     await Promise.all([
       supabase.from("colaboradores").select("razon_social").not("razon_social", "is", null),
       supabase.from("colaboradores").select("departamento").not("departamento", "is", null),
@@ -28,6 +29,7 @@ export default async function ConfiguracionPage() {
       supabase.from("configuracion_api").select("*").eq("activo", true).single(),
       supabase.from("usuarios_app").select("id, rol, coach_habilitado, id_empleado").not("id_empleado", "is", null),
       supabase.from("colaboradores").select("id, nombre_completo, puesto, razon_social"),
+      supabase.from("config_zonas_eip").select("*").order("ciclo_año", { ascending: false }),
     ]);
 
   type Raw = { [key: string]: string | null };
@@ -35,6 +37,15 @@ export default async function ConfiguracionPage() {
   const uniqueDepts = [...new Set((deptRes.data as Raw[] ?? []).map((r) => r.departamento?.trim()).filter(Boolean))].sort() as string[];
   const uniqueAreas = [...new Set((areaRes.data as Raw[] ?? []).map((r) => r.area?.trim()).filter(Boolean))].sort() as string[];
   const uniqueSegs = [...new Set((segRes.data as Raw[] ?? []).map((r) => r.segmento_organizacional?.trim()).filter(Boolean))].sort() as string[];
+
+  // Build zones map: Record<ciclo_año, ZonaBand[]>
+  type ZonasRow = { ciclo_año: number; zona: string; umbral_inferior: number; umbral_superior: number };
+  const zonasMap: Record<number, ZonaBand[]> = {};
+  for (const row of ((zonasRes.data as unknown as ZonasRow[]) ?? [])) {
+    if (!zonasMap[row.ciclo_año]) zonasMap[row.ciclo_año] = [];
+    zonasMap[row.ciclo_año].push({ zona: row.zona, umbral_inferior: row.umbral_inferior, umbral_superior: row.umbral_superior });
+  }
+  const availableZonaCycles = Object.keys(zonasMap).map(Number).sort((a, b) => b - a);
 
   // Merge user + colaborador data for individual exceptions panel
   type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; razon_social: string | null };
@@ -59,6 +70,8 @@ export default async function ConfiguracionPage() {
         prompts={(promptsRes.data ?? []) as Array<{ id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string }>}
         apiConfig={apiRes.data as { modelo: string; max_tokens: number } | null}
         usuarios={usuarios as Array<{ id: string; rol: string; coach_habilitado: boolean | null; id_empleado: string | null; colab: ColabRow | null }>}
+        zonasMap={zonasMap}
+        availableZonaCycles={availableZonaCycles}
       />
     </div>
   );

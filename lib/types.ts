@@ -1,5 +1,11 @@
 export type Rol = "colaborador" | "jefe" | "capital_humano" | "superadmin";
 
+export type ZonaBand = {
+  zona: string;
+  umbral_inferior: number;
+  umbral_superior: number;
+};
+
 export interface UsuarioApp {
   id: string;
   id_empleado: string | null;

@@ -28,33 +28,6 @@ export default async function CoachPage() {
     );
   }
 
-  type ColabCtx = {
-    nombre_completo: string | null;
-    puesto: string | null;
-    nivel: string | null;
-    area: string | null;
-    organización: string | null;
-    jefe_inmediato_nombre: string | null;
-    nivel_academico: string | null;
-    resumen_exp_interno: string | null;
-    resumen_exp_externo: string | null;
-    resumen_formacion_profesional: string | null;
-    dispuesto_cambiar_residencia: boolean | null;
-  };
-  type EipCtx = {
-    ciclo_año: number | null;
-    zona_evaluacion: string | null;
-    evaluacion_potencial_total: number | null;
-    desempeno_logra: number | null;
-  };
-  type PicdCtx = {
-    ciclo_año: number | null;
-    puesto_futuro_opcion1: string | null;
-    puesto_futuro_opcion2: string | null;
-    areas_oportunidad: string | null;
-    compromisos: string | null;
-  };
-
   const [colabRes, eipRes, picdRes] = await Promise.all([
     supabase
       .from("colaboradores")

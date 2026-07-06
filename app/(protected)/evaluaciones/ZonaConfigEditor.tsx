@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { upsertZonaBands } from "@/app/actions/zonas";
-import type { ZonaBand } from "./EIPScatterChart";
+import type { ZonaBand } from "@/lib/types";
 
 const ZONA_ORDER = ["Inicio", "Revisión", "Estabilidad", "Desarrollo", "Sobresaliente"];
 

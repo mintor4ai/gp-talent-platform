@@ -15,11 +15,8 @@ type EIPPoint = {
   zona: string | null;
 };
 
-export type ZonaBand = {
-  zona: string;
-  umbral_inferior: number;
-  umbral_superior: number;
-};
+import type { ZonaBand } from "@/lib/types";
+export type { ZonaBand };
 
 const ZONA_DOT_COLORS: Record<string, string> = {
   Sobresaliente: "#8b5cf6",

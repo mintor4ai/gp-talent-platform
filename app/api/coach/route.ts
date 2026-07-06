@@ -79,10 +79,15 @@ export async function POST(req: NextRequest) {
         const cfgModelo = (apiCfg as { modelo?: string; max_tokens?: number } | null)?.modelo ?? "claude-opus-4-8";
         const cfgMaxTokens = (apiCfg as { modelo?: string; max_tokens?: number } | null)?.max_tokens ?? 1024;
 
+        const supportsAdaptiveThinking =
+          cfgModelo.includes("opus-4") ||
+          cfgModelo.includes("sonnet-4-6") ||
+          cfgModelo.includes("sonnet-5");
+
         const claudeStream = anthropic.messages.stream({
           model: cfgModelo,
           max_tokens: cfgMaxTokens,
-          thinking: { type: "adaptive" },
+          ...(supportsAdaptiveThinking ? { thinking: { type: "adaptive" as const } } : {}),
           system: systemPrompt,
           messages,
         });

@@ -37,6 +37,7 @@ export async function upsertZonaBands(formData: FormData) {
     .upsert(rows, { onConflict: "ciclo_año,zona" });
 
   revalidatePath("/evaluaciones");
+  revalidatePath("/configuracion");
 }
 
 export async function copyZonaBandsFromCycle(formData: FormData) {
@@ -80,4 +81,5 @@ export async function copyZonaBandsFromCycle(formData: FormData) {
     .upsert(rows, { onConflict: "ciclo_año,zona" });
 
   revalidatePath("/evaluaciones");
+  revalidatePath("/configuracion");
 }
