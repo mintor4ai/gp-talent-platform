@@ -9,10 +9,10 @@ import {
   activarVersionPrompt,
   actualizarConfigApi,
 } from "@/app/actions/configuracion";
-import { upsertZonaBands, copyZonaBandsFromCycle } from "@/app/actions/zonas";
+import { saveZonaBandsArray, copyZonaBandsFromCycle } from "@/app/actions/zonas";
 import { upsertPeriodo, setPeriodoActivo, deletePeriodo } from "@/app/actions/periodos";
 import type { ZonaBand, Periodo } from "@/lib/types";
-import { TalentMatrixSVG } from "@/app/(protected)/evaluaciones/EIPScatterChart";
+import ZoneBoundaryEditor from "./ZoneBoundaryEditor";
 
 type Regla = { id: string; nivel: string; valor: string; habilitado: boolean };
 type Prompt = { id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string };
@@ -750,15 +750,6 @@ function PeriodoEditRow({
 
 // ── Zonas EIP Tab ─────────────────────────────────────────────────────────────
 
-const ZONA_ORDER_CFG = ["Inicio", "Revisión", "Estabilidad", "Desarrollo", "Sobresaliente"];
-const ZONA_DOT_COLORS_CFG: Record<string, string> = {
-  Sobresaliente: "#8b5cf6",
-  Desarrollo: "#3b82f6",
-  Estabilidad: "#10b981",
-  Revisión: "#f97316",
-  Inicio: "#eab308",
-};
-
 function ZonasEipTab({
   zonasMap,
   availableCycles,
@@ -785,26 +776,23 @@ function ZonasEipTab({
     const badge  = p.activo ? " · Vigente" : p.estado === "cerrado" ? " · Cerrado" : "";
     return `${p.nombre}${badge} (${inicio} – ${fin})`;
   }
-  const [cicloAño, setCicloAño] = useState(allCycles[0] ?? currentYear);
+  const [cicloAño, setCicloAño]     = useState(allCycles[0] ?? currentYear);
   const [isPending, startTransition] = useTransition();
-  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [msg, setMsg]                = useState<{ text: string; ok: boolean } | null>(null);
   const sourceCycles = allCycles.filter((y) => y !== cicloAño && availableCycles.includes(y));
   const [sourceCiclo, setSourceCiclo] = useState(sourceCycles[0] ?? currentYear - 1);
 
   const bands = zonasMap[cicloAño] ?? [];
-  const bandMap = Object.fromEntries(bands.map((b) => [b.zona, b]));
 
   function flash(text: string, ok = true) {
     setMsg({ text, ok });
     setTimeout(() => setMsg(null), 3500);
   }
 
-  function handleSave(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+  function handleSaveBands(newBands: ZonaBand[]) {
     startTransition(async () => {
       try {
-        await upsertZonaBands(fd);
+        await saveZonaBandsArray(cicloAño, newBands);
         flash("Zonas guardadas correctamente");
       } catch (err) {
         flash(err instanceof Error ? err.message : "Error al guardar", false);
@@ -833,8 +821,9 @@ function ZonasEipTab({
         </div>
       )}
 
+      {/* Cycle selector */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <label className="block text-xs font-medium text-gray-600 mb-1.5">Ciclo (año)</label>
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">Ciclo</label>
         <div className="flex items-center gap-3">
           <select
             value={cicloAño}
@@ -846,7 +835,7 @@ function ZonasEipTab({
             ))}
           </select>
           <div className="text-xs text-gray-400 space-y-0.5">
-            <div>{bands.length > 0 ? `${bands.length} zonas configuradas` : "Sin configuración de zonas aún"}</div>
+            <div>{bands.length > 0 ? `${bands.length} zonas configuradas` : "Sin configuración aún — usa los valores por defecto"}</div>
             {periodoMap.get(cicloAño) && (() => {
               const p = periodoMap.get(cicloAño)!;
               return (
@@ -861,84 +850,21 @@ function ZonasEipTab({
         </div>
       </div>
 
-      {/* Live matrix preview */}
-      {bands.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-            <p className="text-sm font-semibold text-gray-700">Vista previa — Matriz de Talento {cicloAño}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Así se verán las zonas en los reportes de evaluación</p>
-          </div>
-          <div className="p-4 flex justify-center">
-            <TalentMatrixSVG zonaBands={bands} width={520} height={448} showTitle={false} />
-          </div>
-        </div>
-      )}
+      {/* Interactive zone editor */}
+      <ZoneBoundaryEditor
+        key={cicloAño}
+        initialBands={bands}
+        onSave={handleSaveBands}
+        isPending={isPending}
+      />
 
-      <form key={cicloAño} onSubmit={handleSave} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-          <p className="text-sm font-semibold text-gray-700">Umbrales de zonas — Ciclo {cicloAño}</p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Define los umbrales como la <strong>suma de Desempeño + Potencial</strong> (rango típico: 160–240).
-          </p>
-        </div>
-        <div className="p-5 space-y-3">
-          <input type="hidden" name="ciclo_año" value={cicloAño} />
-          {ZONA_ORDER_CFG.map((zona) => {
-            const band = bandMap[zona];
-            return (
-              <div key={zona} className="flex items-center gap-3">
-                <div className="flex items-center gap-2 w-28 flex-shrink-0">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: ZONA_DOT_COLORS_CFG[zona] ?? "#9ca3af" }}
-                  />
-                  <span className="text-xs font-medium text-gray-700">{zona}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-400 w-10 text-right">desde</label>
-                  <input
-                    name={`umbral_inferior_${zona}`}
-                    type="number"
-                    step="0.5"
-                    min={160}
-                    max={240}
-                    defaultValue={band?.umbral_inferior ?? ""}
-                    required
-                    className="w-20 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]"
-                  />
-                  <label className="text-xs text-gray-400">hasta</label>
-                  <input
-                    name={`umbral_superior_${zona}`}
-                    type="number"
-                    step="0.5"
-                    min={160}
-                    max={240}
-                    defaultValue={band?.umbral_superior ?? ""}
-                    required
-                    className="w-20 px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]"
-                  />
-                </div>
-              </div>
-            );
-          })}
-          <div className="pt-2 flex justify-end">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="text-sm bg-[#1a3a5c] text-white px-5 py-2 rounded-lg hover:bg-[#152e4d] disabled:opacity-40 transition-colors"
-            >
-              {isPending ? "Guardando..." : "Guardar zonas"}
-            </button>
-          </div>
-        </div>
-      </form>
-
+      {/* Copy from cycle */}
       {sourceCycles.length > 0 && (
         <form onSubmit={handleCopy} className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
           <div>
             <p className="text-sm font-semibold text-gray-700 mb-0.5">Copiar desde otro ciclo</p>
             <p className="text-xs text-gray-400">
-              Copia los umbrales de un ciclo existente al ciclo {cicloAño}. Sobrescribe la configuración actual.
+              Copia los umbrales de un ciclo existente al ciclo {cicloAño}. Recarga la página después de copiar.
             </p>
           </div>
           <input type="hidden" name="target_ciclo" value={cicloAño} />
@@ -950,7 +876,7 @@ function ZonasEipTab({
               className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white"
             >
               {sourceCycles.map((y) => (
-                <option key={y} value={y}>{y}</option>
+                <option key={y} value={y}>{cycleLabel(y)}</option>
               ))}
             </select>
             <button

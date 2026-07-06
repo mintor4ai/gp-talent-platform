@@ -40,6 +40,34 @@ export async function upsertZonaBands(formData: FormData) {
   revalidatePath("/configuracion");
 }
 
+export async function saveZonaBandsArray(
+  cicloAño: number,
+  bands: { zona: string; umbral_inferior: number; umbral_superior: number }[]
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+  const { data: perfil } = await supabase
+    .from("usuarios_app").select("rol").eq("id", user.id).single();
+  if (!perfil || !["capital_humano", "superadmin"].includes(perfil.rol))
+    throw new Error("Sin permisos");
+
+  const rows = bands.map((b) => ({
+    ciclo_año: cicloAño,
+    zona: b.zona,
+    umbral_inferior: b.umbral_inferior,
+    umbral_superior: b.umbral_superior,
+    updated_at: new Date().toISOString(),
+  }));
+  const { error } = await supabase
+    .from("config_zonas_eip")
+    .upsert(rows, { onConflict: "ciclo_año,zona" });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/evaluaciones");
+  revalidatePath("/configuracion");
+}
+
 export async function copyZonaBandsFromCycle(formData: FormData) {
   const supabase = await createClient();
 
