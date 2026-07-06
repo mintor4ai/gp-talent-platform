@@ -89,6 +89,22 @@ export default async function MiEquipoPage() {
     if (!latestPicd[p.id_empleado]) latestPicd[p.id_empleado] = p;
   }
 
+  type EntrevistaRow = { id_empleado: string; ciclo_ano: number; estado: string };
+
+  // Get pending entrevistas for the team
+  const { data: entrevistasRaw } = await supabase
+    .from("picd_entrevistas")
+    .select("*")
+    .in("id_empleado", equipoIds);
+  const entrevistas = (entrevistasRaw ?? []) as unknown as EntrevistaRow[];
+
+  const pendingByEmpleado: Record<string, boolean> = {};
+  for (const e of entrevistas) {
+    if (e.estado === "pendiente_revision" || e.estado === "ajustes_solicitados") {
+      pendingByEmpleado[e.id_empleado] = true;
+    }
+  }
+
   const picdEstadoColors: Record<string, string> = {
     borrador: "bg-yellow-100 text-yellow-700",
     enviado: "bg-blue-100 text-blue-700",
@@ -141,6 +157,12 @@ export default async function MiEquipoPage() {
                   {picd && (
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${picdEstadoColors[picd.estado] ?? "bg-gray-100 text-gray-600"}`}>
                       PICD: {picd.estado}
+                    </span>
+                  )}
+                  {pendingByEmpleado[miembro.id] && (
+                    <span className="flex items-center gap-1 text-xs font-medium text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block" />
+                      Entrevista pendiente
                     </span>
                   )}
                   <a

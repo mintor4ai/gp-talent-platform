@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ZONA_COLORS } from "@/lib/types";
 import PicdEditor from "@/app/(protected)/picd/[id]/PicdEditor";
+import EntrevistaThread from "./EntrevistaThread";
 
 type EIP = {
   id: string;
@@ -70,6 +71,25 @@ type PicdRecord = {
   compromisos: string | null;
 };
 
+type Entrevista = {
+  id: string;
+  id_empleado: string;
+  ciclo_ano: number;
+  notas: string;
+  estado: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type Comentario = {
+  id: string;
+  id_entrevista: string;
+  autor_rol: string;
+  autor_nombre: string;
+  texto: string;
+  created_at: string;
+};
+
 export default function CarpetaTabs({
   colaboradorId,
   ciclos,
@@ -79,9 +99,13 @@ export default function CarpetaTabs({
   eals,
   picdAcciones,
   picdRecords,
+  entrevistas,
+  comentarios,
   canEdit,
   isOwn,
+  isJefe,
   isAdmin,
+  nombreColaborador,
 }: {
   colaboradorId: string;
   ciclos: number[];
@@ -91,9 +115,13 @@ export default function CarpetaTabs({
   eals: EAL[];
   picdAcciones: PicdAccion[];
   picdRecords: PicdRecord[];
+  entrevistas: Entrevista[];
+  comentarios: Comentario[];
   canEdit: boolean;
   isOwn: boolean;
+  isJefe: boolean;
   isAdmin: boolean;
+  nombreColaborador: string;
 }) {
   const defaultTab = isOwn ? "evaluacion" : "evaluacion";
   const [mainTab, setMainTab] = useState<"evaluacion" | "picd">(defaultTab);
@@ -107,6 +135,14 @@ export default function CarpetaTabs({
 
   const picdRecord = picdRecords.find((p) => p.ciclo_año === cicloActual) ?? null;
   const picdAccionesCiclo = picdAcciones.filter((a) => a.ciclo_año === cicloActual);
+
+  const entrevistaCiclo = entrevistas.find((e) => e.ciclo_ano === cicloActual) ?? null;
+  const comentariosCiclo = comentarios.filter((c) => c.id_entrevista === entrevistaCiclo?.id);
+
+  // Badge: pending reviews for jefe
+  const pendingEntrevistas = entrevistas.filter(
+    (e) => e.estado === "pendiente_revision" || e.estado === "ajustes_solicitados"
+  );
 
   const zonaColors = eip?.zona_evaluacion
     ? ZONA_COLORS[eip.zona_evaluacion] ?? { bg: "bg-gray-100", text: "text-gray-700" }
@@ -145,10 +181,10 @@ export default function CarpetaTabs({
         >
           Carpeta Individual
         </button>
-        {(isOwn || isAdmin) && (
+        {(isOwn || isJefe || isAdmin) && (
           <button
             onClick={() => setMainTab("picd")}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-1.5 ${
               mainTab === "picd"
                 ? "border-[#1a3a5c] text-[#1a3a5c]"
                 : "border-transparent text-gray-400 hover:text-gray-600"
@@ -157,7 +193,7 @@ export default function CarpetaTabs({
             PICD
             {picdRecord && (
               <span
-                className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
+                className={`text-xs px-1.5 py-0.5 rounded-full ${
                   picdRecord.estado === "aprobado"
                     ? "bg-green-100 text-green-700"
                     : picdRecord.estado === "enviado"
@@ -166,6 +202,11 @@ export default function CarpetaTabs({
                 }`}
               >
                 {picdRecord.estado}
+              </span>
+            )}
+            {(isJefe || isAdmin) && pendingEntrevistas.length > 0 && (
+              <span className="w-4 h-4 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center font-bold">
+                {pendingEntrevistas.length}
               </span>
             )}
           </button>
@@ -363,11 +404,11 @@ export default function CarpetaTabs({
         </div>
       )}
 
-      {mainTab === "picd" && (isOwn || isAdmin) && (
-        <div>
+      {mainTab === "picd" && (isOwn || isJefe || isAdmin) && (
+        <div className="space-y-5">
           {/* PICD cycle selector */}
           {ciclos.length > 0 && (
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3">
               <span className="text-sm text-gray-500">Ciclo:</span>
               <div className="flex gap-1.5 flex-wrap">
                 {ciclos.map((c) => (
@@ -387,12 +428,25 @@ export default function CarpetaTabs({
             </div>
           )}
 
-          <PicdEditor
+          {(isOwn || isAdmin) && (
+            <PicdEditor
+              colaboradorId={colaboradorId}
+              cicloAño={cicloActual}
+              picd={picdEditorRecord}
+              acciones={picdAccionesCiclo}
+              canEdit={canEdit}
+            />
+          )}
+
+          <EntrevistaThread
             colaboradorId={colaboradorId}
-            cicloAño={cicloActual}
-            picd={picdEditorRecord}
-            acciones={picdAccionesCiclo}
-            canEdit={canEdit}
+            cicloAno={cicloActual}
+            entrevista={entrevistaCiclo}
+            comentarios={comentariosCiclo}
+            isOwn={isOwn}
+            isJefe={isJefe}
+            isAdmin={isAdmin}
+            nombreColaborador={nombreColaborador}
           />
         </div>
       )}

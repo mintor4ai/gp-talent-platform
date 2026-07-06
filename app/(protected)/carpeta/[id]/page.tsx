@@ -60,6 +60,8 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: eals },
     { data: picdAcciones },
     { data: picdRecords },
+    { data: entrevistas },
+    { data: comentarios },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -93,6 +95,16 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .select("*")
       .eq("id_empleado", colaboradorId)
       .order("ciclo_año", { ascending: false }),
+    supabase
+      .from("picd_entrevistas")
+      .select("*")
+      .eq("id_empleado", colaboradorId)
+      .order("ciclo_ano", { ascending: false }),
+    supabase
+      .from("picd_comentarios")
+      .select("*, picd_entrevistas!inner(id_empleado)")
+      .eq("picd_entrevistas.id_empleado", colaboradorId)
+      .order("created_at"),
   ]);
 
   const canEdit = isOwn || isAdmin;
@@ -165,9 +177,13 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         eals={eals ?? []}
         picdAcciones={picdAcciones ?? []}
         picdRecords={picdRecords ?? []}
+        entrevistas={(entrevistas ?? []) as any[]}
+        comentarios={(comentarios ?? []) as any[]}
         canEdit={canEdit}
         isOwn={isOwn}
+        isJefe={rol === "jefe"}
         isAdmin={isAdmin}
+        nombreColaborador={colab.nombre_completo}
       />
     </div>
   );
