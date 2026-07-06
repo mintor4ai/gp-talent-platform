@@ -44,11 +44,11 @@ export default async function ProtectedLayout({
       {/* Header */}
       <header className="bg-[#1a3a5c] text-white shadow-md flex-shrink-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <a href="/dashboard" className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center">
-              <span className="text-sm font-bold">GP</span>
+          <a href="/dashboard" className="flex items-center gap-2.5">
+            <div className="bg-white rounded-lg px-2.5 py-1 flex items-center">
+              <img src="/logo-grupogp.svg" alt="Grupo GP" className="h-7 w-auto" />
             </div>
-            <span className="font-semibold text-sm hidden sm:block">
+            <span className="font-medium text-xs text-white/70 hidden sm:block tracking-wide">
               Talent Intelligence
             </span>
           </a>

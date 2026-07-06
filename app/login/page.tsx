@@ -46,11 +46,11 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-[#1a3a5c] rounded-xl mb-4">
-              <span className="text-white text-2xl font-bold">GP</span>
+            <div className="flex items-center justify-center mb-5">
+              <img src="/logo-grupogp.svg" alt="Grupo GP" className="h-14 w-auto" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Talent Intelligence</h1>
-            <p className="text-sm text-gray-500 mt-1">Plataforma de Talento — Grupo GP</p>
+            <h1 className="text-xl font-bold text-gray-900">Talent Intelligence</h1>
+            <p className="text-sm text-gray-500 mt-1">Plataforma de Talento</p>
           </div>
 
           {sent ? (
