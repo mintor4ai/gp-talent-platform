@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { crearNotificacion } from "./notificaciones";
+import { notificarEmpleado } from "./notificaciones";
 
 async function requireAuth() {
   const supabase = await createClient();
@@ -51,18 +51,13 @@ export async function cerrarCicloPicd(id_empleado: string, ciclo_año: number) {
     .eq("id", id_empleado).single();
 
   if (colab?.jefe_inmediato_id) {
-    const { data: jefeUser } = await supabase
-      .from("usuarios_app").select("id")
-      .eq("id_empleado", colab.jefe_inmediato_id).single();
-    if (jefeUser) {
-      await crearNotificacion({
-        user_id: jefeUser.id,
-        tipo: "accion",
-        titulo: `PICD ${ciclo_año} listo para revisión`,
-        cuerpo: `${colab.nombre_completo} cerró su ciclo y requiere tu aprobación.`,
-        url: `/carpeta/${id_empleado}`,
-      });
-    }
+    await notificarEmpleado({
+      id_empleado: colab.jefe_inmediato_id,
+      tipo: "accion",
+      titulo: `PICD ${ciclo_año} listo para revisión`,
+      cuerpo: `${colab.nombre_completo} cerró su ciclo y requiere tu aprobación.`,
+      url: `/carpeta/${id_empleado}`,
+    });
   }
 
   revalidatePath(`/carpeta/${id_empleado}`);
@@ -89,17 +84,13 @@ export async function aprobarCicloPicd(id_empleado: string, ciclo_año: number) 
   if (error) throw new Error(error.message);
 
   // Notificar al colaborador
-  const { data: empleadoUser } = await supabase
-    .from("usuarios_app").select("id").eq("id_empleado", id_empleado).single();
-  if (empleadoUser) {
-    await crearNotificacion({
-      user_id: empleadoUser.id,
-      tipo: "informativo",
-      titulo: `Tu PICD ${ciclo_año} fue aprobado`,
-      cuerpo: `${(perfil as any).nombre ?? "Tu jefe"} aprobó tu ciclo de desarrollo.`,
-      url: `/carpeta/${id_empleado}`,
-    });
-  }
+  await notificarEmpleado({
+    id_empleado,
+    tipo: "informativo",
+    titulo: `Tu PICD ${ciclo_año} fue aprobado`,
+    cuerpo: `${(perfil as any).nombre ?? "Tu jefe"} aprobó tu ciclo de desarrollo.`,
+    url: `/carpeta/${id_empleado}`,
+  });
 
   revalidatePath(`/carpeta/${id_empleado}`);
   revalidatePath("/equipo");
@@ -130,17 +121,13 @@ export async function rechazarCicloPicd(
   if (error) throw new Error(error.message);
 
   // Notificar al colaborador
-  const { data: empleadoUser } = await supabase
-    .from("usuarios_app").select("id").eq("id_empleado", id_empleado).single();
-  if (empleadoUser) {
-    await crearNotificacion({
-      user_id: empleadoUser.id,
-      tipo: "accion",
-      titulo: `Tu PICD ${ciclo_año} requiere ajustes`,
-      cuerpo: comentario.trim() || `${(perfil as any).nombre ?? "Tu jefe"} solicitó cambios en tu ciclo.`,
-      url: `/carpeta/${id_empleado}`,
-    });
-  }
+  await notificarEmpleado({
+    id_empleado,
+    tipo: "accion",
+    titulo: `Tu PICD ${ciclo_año} requiere ajustes`,
+    cuerpo: comentario.trim() || `${(perfil as any).nombre ?? "Tu jefe"} solicitó cambios en tu ciclo.`,
+    url: `/carpeta/${id_empleado}`,
+  });
 
   revalidatePath(`/carpeta/${id_empleado}`);
   revalidatePath("/equipo");
@@ -165,17 +152,13 @@ export async function reabrirCicloPicd(id_empleado: string, ciclo_año: number) 
   if (error) throw new Error(error.message);
 
   // Notificar al colaborador
-  const { data: empleadoUser } = await supabase
-    .from("usuarios_app").select("id").eq("id_empleado", id_empleado).single();
-  if (empleadoUser) {
-    await crearNotificacion({
-      user_id: empleadoUser.id,
-      tipo: "sistema",
-      titulo: `Tu ciclo PICD ${ciclo_año} fue reabierto`,
-      cuerpo: "El administrador habilitó nuevamente la edición de tu ciclo.",
-      url: `/carpeta/${id_empleado}`,
-    });
-  }
+  await notificarEmpleado({
+    id_empleado,
+    tipo: "sistema",
+    titulo: `Tu ciclo PICD ${ciclo_año} fue reabierto`,
+    cuerpo: "El administrador habilitó nuevamente la edición de tu ciclo.",
+    url: `/carpeta/${id_empleado}`,
+  });
 
   revalidatePath(`/carpeta/${id_empleado}`);
   revalidatePath("/colaboradores");

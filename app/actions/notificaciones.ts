@@ -59,3 +59,31 @@ export async function crearNotificacion(params: {
     url:      params.url ?? null,
   });
 }
+
+/**
+ * Notifica a TODOS los usuarios_app vinculados a un id_empleado.
+ * Resuelve el problema de cuentas duplicadas (mismo empleado, varios roles/logins).
+ */
+export async function notificarEmpleado(params: {
+  id_empleado: string;
+  tipo: "accion" | "informativo" | "sistema";
+  titulo: string;
+  cuerpo?: string;
+  url?: string;
+}) {
+  const supabase = await createClient();
+  const { data: users } = await supabase
+    .from("usuarios_app")
+    .select("id")
+    .eq("id_empleado", params.id_empleado);
+  if (!users?.length) return;
+  await supabase.from("notificaciones").insert(
+    users.map((u) => ({
+      user_id: u.id,
+      tipo:    params.tipo,
+      titulo:  params.titulo,
+      cuerpo:  params.cuerpo ?? null,
+      url:     params.url ?? null,
+    }))
+  );
+}

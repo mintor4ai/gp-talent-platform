@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { crearNotificacion } from "./notificaciones";
+import { notificarEmpleado } from "./notificaciones";
 
 export async function upsertEntrevista(formData: FormData) {
   const supabase = await createClient();
@@ -99,20 +99,13 @@ export async function addComentario(formData: FormData) {
   const isJefeOAdmin = perfil.rol === "jefe" || perfil.rol === "capital_humano" || perfil.rol === "superadmin";
   if (isJefeOAdmin) {
     // Notificar al empleado dueño de la entrevista
-    const { data: empleadoUser } = await supabase
-      .from("usuarios_app")
-      .select("id")
-      .eq("id_empleado", id_empleado)
-      .single();
-    if (empleadoUser) {
-      await crearNotificacion({
-        user_id: empleadoUser.id,
-        tipo: "informativo",
-        titulo: `${autor_nombre} comentó en tu entrevista de desarrollo`,
-        cuerpo: texto.length > 80 ? texto.slice(0, 80) + "…" : texto,
-        url: `/carpeta/${id_empleado}`,
-      });
-    }
+    await notificarEmpleado({
+      id_empleado,
+      tipo: "informativo",
+      titulo: `${autor_nombre} comentó en tu entrevista de desarrollo`,
+      cuerpo: texto.length > 80 ? texto.slice(0, 80) + "…" : texto,
+      url: `/carpeta/${id_empleado}`,
+    });
   } else {
     // Empleado comenta → notificar al jefe inmediato
     const { data: colab } = await supabase
@@ -121,20 +114,13 @@ export async function addComentario(formData: FormData) {
       .eq("id", id_empleado)
       .single();
     if (colab?.jefe_inmediato_id) {
-      const { data: jefeUser } = await supabase
-        .from("usuarios_app")
-        .select("id")
-        .eq("id_empleado", colab.jefe_inmediato_id)
-        .single();
-      if (jefeUser) {
-        await crearNotificacion({
-          user_id: jefeUser.id,
-          tipo: "informativo",
-          titulo: `${autor_nombre} respondió en su entrevista de desarrollo`,
-          cuerpo: texto.length > 80 ? texto.slice(0, 80) + "…" : texto,
-          url: `/carpeta/${id_empleado}`,
-        });
-      }
+      await notificarEmpleado({
+        id_empleado: colab.jefe_inmediato_id,
+        tipo: "informativo",
+        titulo: `${autor_nombre} respondió en su entrevista de desarrollo`,
+        cuerpo: texto.length > 80 ? texto.slice(0, 80) + "…" : texto,
+        url: `/carpeta/${id_empleado}`,
+      });
     }
   }
 
@@ -177,19 +163,12 @@ export async function updateEstadoEntrevista(formData: FormData) {
   };
   const estadoInfo = ESTADO_LABELS[estado];
   if (estadoInfo) {
-    const { data: empleadoUser } = await supabase
-      .from("usuarios_app")
-      .select("id")
-      .eq("id_empleado", id_empleado)
-      .single();
-    if (empleadoUser) {
-      await crearNotificacion({
-        user_id: empleadoUser.id,
-        tipo: estadoInfo.tipo,
-        titulo: estadoInfo.titulo,
-        url: `/carpeta/${id_empleado}`,
-      });
-    }
+    await notificarEmpleado({
+      id_empleado,
+      tipo: estadoInfo.tipo,
+      titulo: estadoInfo.titulo,
+      url: `/carpeta/${id_empleado}`,
+    });
   }
 
   revalidatePath(`/carpeta/${id_empleado}`);

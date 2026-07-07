@@ -3,7 +3,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { crearNotificacion } from "./notificaciones";
+import { notificarEmpleado } from "./notificaciones";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -86,18 +86,13 @@ export async function upsertRutaCarrera(formData: FormData): Promise<{ ok: boole
       .select("nombre_completo, jefe_inmediato_id")
       .eq("id", colaboradorId).single();
     if (colab?.jefe_inmediato_id) {
-      const { data: jefeUser } = await supabase
-        .from("usuarios_app").select("id")
-        .eq("id_empleado", colab.jefe_inmediato_id).single();
-      if (jefeUser) {
-        await crearNotificacion({
-          user_id: jefeUser.id,
-          tipo: "informativo",
-          titulo: `Nueva ruta de carrera registrada`,
-          cuerpo: `${colab.nombre_completo} agregó una ruta: ${puesto_objetivo}.`,
-          url: `/carpeta/${colaboradorId}`,
-        });
-      }
+      await notificarEmpleado({
+        id_empleado: colab.jefe_inmediato_id,
+        tipo: "informativo",
+        titulo: `Nueva ruta de carrera registrada`,
+        cuerpo: `${colab.nombre_completo} agregó una ruta: ${puesto_objetivo}.`,
+        url: `/carpeta/${colaboradorId}`,
+      });
     }
   }
 
