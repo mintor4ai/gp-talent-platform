@@ -6,6 +6,7 @@ import type { ZonaBand } from "@/lib/types";
 import PicdEditor from "@/app/(protected)/picd/[id]/PicdEditor";
 import EntrevistaThread from "./EntrevistaThread";
 import RutaCarreraEditor from "./RutaCarreraEditor";
+import SucesionEditor, { type SucesionItem } from "./SucesionEditor";
 import { TalentMatrixSVG } from "@/app/(protected)/evaluaciones/EIPScatterChart";
 
 type EIP = {
@@ -107,6 +108,8 @@ export default function CarpetaTabs({
   entrevistas,
   comentarios,
   rutas,
+  sucesion,
+  colaboradores,
   zonasMap,
   canEdit,
   isOwn,
@@ -125,6 +128,8 @@ export default function CarpetaTabs({
   entrevistas: Entrevista[];
   comentarios: Comentario[];
   rutas: any[];
+  sucesion: SucesionItem[];
+  colaboradores: { id: string; nombre_completo: string | null; puesto: string | null }[];
   zonasMap: Record<number, ZonaBand[]>;
   canEdit: boolean;
   isOwn: boolean;
@@ -133,7 +138,7 @@ export default function CarpetaTabs({
   nombreColaborador: string;
 }) {
   const defaultTab = isOwn ? "evaluacion" : "evaluacion";
-  const [mainTab, setMainTab] = useState<"evaluacion" | "picd">(defaultTab);
+  const [mainTab, setMainTab] = useState<"evaluacion" | "picd" | "sucesion">(defaultTab);
   const [cicloActual, setCicloActual] = useState<number>(ciclos[0] ?? new Date().getFullYear());
 
   const eip = eips.find((e) => e.ciclo_año === cicloActual) ?? null;
@@ -216,6 +221,23 @@ export default function CarpetaTabs({
             {(isJefe || isAdmin) && pendingEntrevistas.length > 0 && (
               <span className="w-4 h-4 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center font-bold">
                 {pendingEntrevistas.length}
+              </span>
+            )}
+          </button>
+        )}
+        {(isOwn || isAdmin) && (
+          <button
+            onClick={() => setMainTab("sucesion")}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-1.5 ${
+              mainTab === "sucesion"
+                ? "border-[#1a3a5c] text-[#1a3a5c]"
+                : "border-transparent text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            Sucesión
+            {sucesion.filter((s) => s.ciclo_año === cicloActual).length > 0 && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-[#1a3a5c]/10 text-[#1a3a5c] font-semibold">
+                {sucesion.filter((s) => s.ciclo_año === cicloActual).length}
               </span>
             )}
           </button>
@@ -457,6 +479,41 @@ export default function CarpetaTabs({
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {mainTab === "sucesion" && (isOwn || isAdmin) && (
+        <div className="space-y-5">
+          {/* Cycle selector */}
+          {ciclos.length > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500">Ciclo:</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {ciclos.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setCicloActual(c)}
+                    className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                      c === cicloActual
+                        ? "bg-[#1a3a5c] text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <SucesionEditor
+              colaboradorId={colaboradorId}
+              cicloAño={cicloActual}
+              itemsIniciales={sucesion}
+              colaboradores={colaboradores}
+              canEdit={canEdit}
+            />
+          </div>
         </div>
       )}
 

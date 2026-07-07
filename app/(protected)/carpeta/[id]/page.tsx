@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Rol, ZonaBand } from "@/lib/types";
 import CarpetaTabs from "./CarpetaTabs";
+import type { SucesionItem } from "./SucesionEditor";
 
 export default async function CarpetaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: colaboradorId } = await params;
@@ -64,6 +65,8 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: comentarios },
     { data: rutas },
     { data: zonasRaw },
+    { data: sucesionRaw },
+    { data: colaboradoresAll },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -116,6 +119,16 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     supabase
       .from("config_zonas_eip")
       .select("ciclo_año, zona, umbral_inferior, umbral_superior"),
+    supabase
+      .from("plan_sucesion")
+      .select("*")
+      .eq("id_empleado", colaboradorId)
+      .order("ciclo_año", { ascending: false })
+      .order("created_at"),
+    supabase
+      .from("colaboradores")
+      .select("id, nombre_completo, puesto")
+      .order("nombre_completo"),
   ]);
 
   const canEdit = isOwn || isAdmin;
@@ -126,6 +139,10 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     if (!zonasMap[row.ciclo_año]) zonasMap[row.ciclo_año] = [];
     zonasMap[row.ciclo_año].push({ zona: row.zona, umbral_inferior: row.umbral_inferior, umbral_superior: row.umbral_superior });
   }
+
+  const sucesion = (sucesionRaw ?? []) as unknown as SucesionItem[];
+  type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
+  const colaboradoresLista = (colaboradoresAll ?? []) as unknown as ColabOption[];
 
   // Gather all available cycles from EIP + desempeño data
   const ciclosSet = new Set<number>();
@@ -199,6 +216,8 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         comentarios={(comentarios ?? []) as any[]}
         rutas={(rutas ?? []) as any[]}
         zonasMap={zonasMap}
+        sucesion={sucesion}
+        colaboradores={colaboradoresLista}
         canEdit={canEdit}
         isOwn={isOwn}
         isJefe={rol === "jefe"}
