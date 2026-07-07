@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { upsertPicd, updateAccionProgress, submitPicd } from "@/app/actions/picd";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 type PicdAccion = {
   id: string;
@@ -145,14 +146,12 @@ export default function PicdEditor({
       </div>
 
       {/* Formulario principal PICD */}
-      <form onSubmit={handleSavePicd} className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+      <form onSubmit={handleSavePicd} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
         <input type="hidden" name="id_empleado" value={colaboradorId} />
         <input type="hidden" name="ciclo_año" value={cicloAño} />
         {picd?.id && <input type="hidden" name="picd_id" value={picd.id} />}
 
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-          Plan de Desarrollo — Ciclo {cicloAño}
-        </p>
+        <SectionHeader label={`Plan de Desarrollo — Ciclo ${cicloAño}`} />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -232,7 +231,7 @@ export default function PicdEditor({
 
       {/* Acciones de desarrollo */}
       {acciones.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {/* Tabs */}
           <div className="border-b border-gray-100 px-6 flex gap-0">
             {[

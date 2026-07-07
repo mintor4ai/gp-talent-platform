@@ -173,7 +173,7 @@ function CoachAccessTab({
 
       {/* Group rules */}
       {grupos_config.map(({ nivel, valores }) => (
-        <div key={nivel} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div key={nivel} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
             <p className="text-sm font-semibold text-gray-700">{GRUPO_LABELS[nivel]}</p>
             <p className="text-xs text-gray-400 mt-0.5">
@@ -219,7 +219,7 @@ function CoachAccessTab({
       ))}
 
       {/* Individual exceptions */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-gray-700">Excepciones individuales</p>
@@ -316,7 +316,7 @@ function PromptsTab({ prompts }: { prompts: Prompt[] }) {
         const showHistory = expandHistory[key];
 
         return (
-          <div key={key} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div key={key} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-start justify-between">
               <div>
                 <p className="text-sm font-semibold text-gray-700">{label}</p>
@@ -415,7 +415,7 @@ function ApiTab({ apiConfig }: { apiConfig: { modelo: string; max_tokens: number
 
   return (
     <div className="max-w-xl space-y-6">
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1.5">Modelo de IA</label>
           <select
@@ -574,7 +574,7 @@ function PeriodosTab({ periodos }: { periodos: Periodo[] }) {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-gray-700">Catálogo de Períodos</p>
@@ -830,7 +830,7 @@ function ZonasEipTab({
       )}
 
       {/* Cycle selector */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <label className="block text-xs font-medium text-gray-600 mb-1.5">Ciclo</label>
         <div className="flex items-center gap-3">
           <select
@@ -868,7 +868,7 @@ function ZonasEipTab({
 
       {/* Copy from cycle */}
       {sourceCycles.length > 0 && (
-        <form onSubmit={handleCopy} className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+        <form onSubmit={handleCopy} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
           <div>
             <p className="text-sm font-semibold text-gray-700 mb-0.5">Copiar desde otro ciclo</p>
             <p className="text-xs text-gray-400">

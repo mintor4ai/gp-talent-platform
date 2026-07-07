@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ZONA_COLORS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 export default async function MiEquipoPage() {
   const supabase = await createClient();
@@ -50,7 +51,7 @@ export default async function MiEquipoPage() {
           <h1 className="text-2xl font-bold text-gray-900">Mi Equipo</h1>
           <p className="text-sm text-gray-500 mt-1">{miPerfil.nombre_completo}</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-10 text-center">
           <p className="text-gray-400 text-sm">No hay colaboradores directos registrados.</p>
         </div>
       </div>
@@ -120,11 +121,9 @@ export default async function MiEquipoPage() {
         </p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-            Colaboradores a tu cargo
-          </p>
+          <SectionHeader label="Colaboradores a tu cargo" />
         </div>
         <div className="divide-y divide-gray-50">
           {equipo.map((miembro) => {

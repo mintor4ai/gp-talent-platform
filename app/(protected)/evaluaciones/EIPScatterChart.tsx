@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import type { ZonaBand } from "@/lib/types";
 export type { ZonaBand };
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 type EIPPoint = {
   id: string;
@@ -411,11 +412,11 @@ export default function EIPScatterChart({
   const sortedZones = [...zonaBands].sort((a, b) => a.umbral_inferior - b.umbral_inferior);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
       {/* Filters */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Mapa de Talento — EIP</p>
+          <SectionHeader label="Mapa de Talento — EIP" />
           <p className="text-xs text-gray-400 mt-0.5">{filtered.length} colaboradores</p>
         </div>
         <div className="flex flex-wrap gap-2">

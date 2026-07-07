@@ -103,7 +103,7 @@ export default async function PicdPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* Header colaborador */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 rounded-lg bg-[#1a3a5c] flex items-center justify-center flex-shrink-0">
             <span className="text-white text-sm font-bold">

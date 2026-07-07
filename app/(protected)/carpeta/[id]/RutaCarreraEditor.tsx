@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { upsertRutaCarrera, deleteRutaCarrera, generarRutasCarreraIA } from "@/app/actions/carrera";
 import type { AccionRuta } from "@/app/actions/carrera";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 type Ruta = {
   id: string;
@@ -142,9 +143,7 @@ export default function RutaCarreraEditor({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-            Rutas de Carrera — {cicloAño}
-          </p>
+          <SectionHeader label={`Rutas de Carrera — ${cicloAño}`} />
           {savedMsg && <p className="text-xs text-green-600 font-medium mt-0.5">{savedMsg}</p>}
         </div>
         {canEdit && mode === "list" && (
@@ -245,14 +244,12 @@ export default function RutaCarreraEditor({
 
       {/* MANUAL FORM */}
       {mode === "manual" && (
-        <form onSubmit={handleManualSubmit} className="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
+        <form onSubmit={handleManualSubmit} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
           <input type="hidden" name="colaborador_id" value={colaboradorId} />
           <input type="hidden" name="ciclo_año" value={cicloAño} />
           {editingRuta && <input type="hidden" name="ruta_id" value={editingRuta.id} />}
 
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-            {editingRuta ? "Editar ruta" : "Nueva ruta de carrera"}
-          </p>
+          <SectionHeader label={editingRuta ? "Editar ruta" : "Nueva ruta de carrera"} />
 
           {/* Tipo */}
           <div>
@@ -399,7 +396,7 @@ export default function RutaCarreraEditor({
 
       {/* IA MODE */}
       {mode === "ia" && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-6">
           <div className="flex items-center gap-2">
             <span className="text-base">✦</span>
             <p className="text-sm font-semibold text-gray-800">Generar rutas de carrera con IA</p>

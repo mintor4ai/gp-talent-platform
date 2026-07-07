@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { upsertSucesor, deleteSucesor, submitSucesion } from "@/app/actions/sucesion";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 export type SucesionItem = {
   id: string;
@@ -449,9 +450,7 @@ export default function SucesionEditor({
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
-            Plan de Sucesión — {cicloAño}
-          </p>
+          <SectionHeader label={`Plan de Sucesión — ${cicloAño}`} />
           <p className="text-xs text-gray-500">
             Identifica sucesores potenciales, nivel de readiness y plan de desarrollo. El jefe debe validar cada propuesta.
           </p>

@@ -39,7 +39,7 @@ export default function ZonaConfigEditor({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"

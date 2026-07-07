@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import { upsertEntrevista, addComentario, updateEstadoEntrevista } from "@/app/actions/entrevista";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 type Entrevista = {
   id: string;
@@ -103,13 +104,11 @@ export default function EntrevistaThread({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       {/* Header */}
       <div className="px-5 py-4 flex items-center justify-between border-b border-gray-100">
         <div className="flex items-center gap-3">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-            Entrevista de Desarrollo — {cicloAno}
-          </p>
+          <SectionHeader label={`Entrevista de Desarrollo — ${cicloAno}`} />
           {estadoInfo && (
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${estadoInfo.bg} ${estadoInfo.text}`}>
               {estadoInfo.label}

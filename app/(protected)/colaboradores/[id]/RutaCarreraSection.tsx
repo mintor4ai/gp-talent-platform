@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { generarRutasCarrera } from "@/app/actions/carrera";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 type Ruta = {
   id: string;
@@ -47,12 +48,10 @@ export default function RutaCarreraSection({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-            Rutas de Carrera IA
-          </p>
+          <SectionHeader label="Rutas de Carrera IA" />
           {rutas.length > 0 && rutas[0].generado_con_ia && (
             <p className="text-xs text-gray-400 mt-0.5">Generado con IA · {new Date().getFullYear()}</p>
           )}

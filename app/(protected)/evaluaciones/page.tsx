@@ -4,6 +4,7 @@ import { ZONA_COLORS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
 import EIPScatterChart from "./EIPScatterChart";
 import ZonaConfigEditor from "./ZonaConfigEditor";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 export default async function EvaluacionesPage() {
   const supabase = await createClient();
@@ -136,11 +137,9 @@ export default async function EvaluacionesPage() {
       )}
 
       {/* Tabla de evaluaciones */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-            Detalle — Ciclo {cicloActual}
-          </p>
+          <SectionHeader label={`Detalle — Ciclo ${cicloActual}`} />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -214,10 +213,8 @@ export default async function EvaluacionesPage() {
 
       {/* Ciclos anteriores */}
       {ciclos.length > 1 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">
-            Ciclos anteriores
-          </p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <SectionHeader label="Ciclos anteriores" />
           <div className="space-y-2">
             {ciclos.slice(1).map((ciclo) => {
               const eipsCiclo = (eips ?? []).filter((e) => e.ciclo_año === ciclo);

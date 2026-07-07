@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { SucesionItem } from "../carpeta/[id]/SucesionEditor";
 import { readinessBadge, ESTADO_CONFIG } from "../carpeta/[id]/SucesionEditor";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 type ColabRow = {
   id: string;
@@ -165,7 +166,7 @@ function TitularCard({
   colabs: ColabRow[];
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
       {/* Titular header */}
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-lg bg-[#1a3a5c] flex items-center justify-center flex-shrink-0">
@@ -191,9 +192,7 @@ function TitularCard({
 
       {/* Sucesores */}
       <div className="space-y-2 pl-1">
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-          Sucesores ({sucesores.length})
-        </p>
+        <SectionHeader label={`Sucesores (${sucesores.length})`} />
         {sucesores.map((s) => {
           const readiness = readinessBadge(s.readiness);
           const estado    = ESTADO_CONFIG[s.estado] ?? ESTADO_CONFIG.borrador;

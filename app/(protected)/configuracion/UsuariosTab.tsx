@@ -614,7 +614,7 @@ export default function UsuariosTab({
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {/* Toolbar */}
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">

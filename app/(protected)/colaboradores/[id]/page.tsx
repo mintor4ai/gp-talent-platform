@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ZONA_COLORS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
 import RutaCarreraSection from "./RutaCarreraSection";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 export default async function ColaboradorPerfilPage({
   params,
@@ -164,7 +165,7 @@ export default async function ColaboradorPerfilPage({
       </div>
 
       {/* Header */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
           <div className="w-14 h-14 rounded-xl bg-[#1a3a5c] flex items-center justify-center flex-shrink-0">
             <span className="text-white text-xl font-bold">
@@ -194,25 +195,25 @@ export default async function ColaboradorPerfilPage({
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <p className="text-xs text-gray-400 mb-1">Potencial EIP {eipActual?.ciclo_año}</p>
           <p className="text-2xl font-bold text-gray-900">
             {eipActual?.evaluacion_potencial_total?.toFixed(1) ?? "—"}
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <p className="text-xs text-gray-400 mb-1">Desempeño {eipActual?.ciclo_año}</p>
           <p className="text-2xl font-bold text-gray-900">
             {eipActual?.desempeno_logra?.toFixed(1) ?? "—"}
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <p className="text-xs text-gray-400 mb-1">Años en puesto</p>
           <p className="text-2xl font-bold text-gray-900">
             {añosEnPuesto ?? "—"}
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <p className="text-xs text-gray-400 mb-2">Semáforo movilidad</p>
           <div className="flex items-center gap-2">
             <div className={`w-4 h-4 rounded-full ${semClasses[semColor]} flex-shrink-0`} />
@@ -224,10 +225,8 @@ export default async function ColaboradorPerfilPage({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* EIP histórico */}
         {(eips?.length ?? 0) > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">
-              Evaluación Integral (EIP) — Histórico
-            </p>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <SectionHeader label="Evaluación Integral (EIP) — Histórico" />
             <div className="space-y-3">
               {eips!.map((e) => {
                 const zc = e.zona_evaluacion
@@ -266,10 +265,8 @@ export default async function ColaboradorPerfilPage({
 
         {/* Desempeño anual */}
         {(desempenos?.length ?? 0) > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">
-              Desempeño Anual — Competencias
-            </p>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <SectionHeader label="Desempeño Anual — Competencias" />
             <div className="space-y-4">
               {desempenos!.map((d) => (
                 <div key={d.id}>
@@ -310,10 +307,8 @@ export default async function ColaboradorPerfilPage({
 
       {/* Competencias 360 */}
       {comp360.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">
-            Competencias 360
-          </p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <SectionHeader label="Competencias 360" />
           <p className="text-xs text-gray-400 mb-4">Ciclo {ciclo360}</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Object.entries(bloques).map(([bloque, items]) => (
@@ -349,10 +344,8 @@ export default async function ColaboradorPerfilPage({
 
       {/* Historial de carrera */}
       {(historial?.length ?? 0) > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">
-            Historial de Carrera
-          </p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <SectionHeader label="Historial de Carrera" />
           <div className="relative">
             <div className="absolute left-3 top-0 bottom-0 w-px bg-gray-100" />
             <div className="space-y-4">
@@ -394,10 +387,8 @@ export default async function ColaboradorPerfilPage({
         colab.resumen_formacion_especialidad ||
         colab.resumen_exp_interno ||
         colab.resumen_exp_externo) && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">
-            Formación y Experiencia
-          </p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <SectionHeader label="Formación y Experiencia" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             {colab.nivel_academico && (
               <div>

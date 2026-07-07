@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ZONA_COLORS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -92,10 +93,8 @@ async function ColaboradorDashboard({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-5 col-span-full lg:col-span-1">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-            Mis datos
-          </p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 col-span-full lg:col-span-1">
+          <SectionHeader label="Mis datos" />
           <p className="text-lg font-semibold text-gray-900">{colab?.nombre_completo ?? "—"}</p>
           <p className="text-sm text-gray-600 mt-1">{colab?.puesto ?? "—"}</p>
           <p className="text-xs text-gray-400 mt-1">
@@ -105,10 +104,8 @@ async function ColaboradorDashboard({
         </div>
 
         {eip ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-              Evaluación Integral {eip.ciclo_año}
-            </p>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <SectionHeader label={`Evaluación Integral ${eip.ciclo_año}`} />
             {zonaColors && (
               <span
                 className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${zonaColors.bg} ${zonaColors.text} mb-3`}
@@ -132,15 +129,13 @@ async function ColaboradorDashboard({
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-center text-center">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-center justify-center text-center">
             <p className="text-sm text-gray-400">Sin evaluación integral disponible</p>
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-            Coach IA
-          </p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <SectionHeader label="Coach IA" />
           {coachHabilitado ? (
             <div>
               <p className="text-sm text-gray-700 mb-3">
@@ -179,10 +174,8 @@ async function ColaboradorDashboard({
       </div>
 
       {rol === "jefe" && colab && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">
-            Mi equipo directo
-          </p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <SectionHeader label="Mi equipo directo" />
           <TeamTable supabase={supabase} nombreJefe={colab.nombre_completo} />
         </div>
       )}
@@ -283,10 +276,8 @@ async function AdminDashboard({
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">
-          Accesos rápidos
-        </p>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <SectionHeader label="Accesos rápidos" />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <QuickLink href="/colaboradores" label="Directorio de colaboradores" />
           <QuickLink href="/evaluaciones" label="Carpetas individuales" />
@@ -299,7 +290,7 @@ async function AdminDashboard({
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
       <p className="text-xs text-gray-400 mb-1">{label}</p>
       <p className="text-2xl font-bold text-gray-900">{value.toLocaleString()}</p>
     </div>
