@@ -170,6 +170,46 @@ export async function reabrirCiclosMultiples(
   await Promise.all(pares.map((p) => reabrirCicloPicd(p.id_empleado, p.ciclo_año)));
 }
 
+export async function activarCiclosPicd(id_empleados: string[], ciclo_año: number) {
+  const { supabase, perfil } = await requireAuth();
+  const isAdmin = perfil.rol === "capital_humano" || perfil.rol === "superadmin";
+  if (!isAdmin) throw new Error("Sin permisos");
+
+  const now = new Date().toISOString();
+  for (const id_empleado of id_empleados) {
+    // Solo inserta si no existe ya un registro para ese ciclo (no sobreescribe estados activos)
+    await supabase.from("picd_ciclos_estado").upsert(
+      { id_empleado, ciclo_año, estado: "abierto", updated_at: now },
+      { onConflict: "id_empleado,ciclo_año", ignoreDuplicates: true }
+    );
+    await notificarEmpleado({
+      id_empleado,
+      tipo: "informativo",
+      titulo: `Tu ciclo PICD ${ciclo_año} está disponible`,
+      cuerpo: "Ya puedes documentar tu Plan Individual de Capacitación y Desarrollo.",
+      url: `/picd/${id_empleado}`,
+    });
+  }
+
+  revalidatePath("/colaboradores");
+}
+
+export async function enviarRecordatorioEntrevista(id_empleados: string[], ciclo_año: number) {
+  const { supabase, perfil } = await requireAuth();
+  const isAdmin = perfil.rol === "capital_humano" || perfil.rol === "superadmin";
+  if (!isAdmin) throw new Error("Sin permisos");
+
+  for (const id_empleado of id_empleados) {
+    await notificarEmpleado({
+      id_empleado,
+      tipo: "accion",
+      titulo: `Pendiente: documenta tu entrevista de desarrollo ${ciclo_año}`,
+      cuerpo: "Registra los acuerdos de tu entrevista de desarrollo antes de cerrar el ciclo.",
+      url: `/carpeta/${id_empleado}`,
+    });
+  }
+}
+
 export async function getCicloEstadoAdmin(ciclo_año: number) {
   const { supabase, perfil } = await requireAuth();
   const isAdmin = perfil.rol === "capital_humano" || perfil.rol === "superadmin";
