@@ -340,7 +340,7 @@ export default function CarpetaTabs({
                 ].map(([label, val]) =>
                   val != null ? (
                     <div key={label as string}>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label as string}</p>
+                      <p className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-1">{label as string}</p>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-gray-100 rounded-full h-2">
                           <div
@@ -358,7 +358,7 @@ export default function CarpetaTabs({
               </div>
               {desemp.resultado_logra != null && (
                 <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Resultado Logra</span>
+                  <span className="text-sm font-bold text-gray-600 uppercase tracking-wide">Resultado Logra</span>
                   <span className="text-2xl font-bold text-[#1a3a5c]">{desemp.resultado_logra.toFixed(1)}</span>
                 </div>
               )}
@@ -772,7 +772,7 @@ function CandidaturasPanel({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+      <p className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-1">{label}</p>
       <p className="text-xl font-bold text-[#1a3a5c]">{value}</p>
     </div>
   );
