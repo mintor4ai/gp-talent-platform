@@ -10,6 +10,7 @@ import SucesionEditor, { type SucesionItem, readinessBadge } from "./SucesionEdi
 import SucesionValidacion from "./SucesionValidacion";
 import { TalentMatrixSVG } from "@/app/(protected)/evaluaciones/EIPScatterChart";
 import { registrarAspiracion } from "@/app/actions/sucesion";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 type EIP = {
   id: string;
@@ -196,7 +197,7 @@ export default function CarpetaTabs({
           className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             mainTab === "evaluacion"
               ? "border-[#1a3a5c] text-[#1a3a5c]"
-              : "border-transparent text-gray-400 hover:text-gray-600"
+              : "border-transparent text-gray-500 hover:text-gray-800"
           }`}
         >
           Carpeta Individual
@@ -207,7 +208,7 @@ export default function CarpetaTabs({
             className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-1.5 ${
               mainTab === "picd"
                 ? "border-[#1a3a5c] text-[#1a3a5c]"
-                : "border-transparent text-gray-400 hover:text-gray-600"
+                : "border-transparent text-gray-500 hover:text-gray-800"
             }`}
           >
             PICD
@@ -237,7 +238,7 @@ export default function CarpetaTabs({
             className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-1.5 ${
               mainTab === "sucesion"
                 ? "border-[#1a3a5c] text-[#1a3a5c]"
-                : "border-transparent text-gray-400 hover:text-gray-600"
+                : "border-transparent text-gray-500 hover:text-gray-800"
             }`}
           >
             Sucesión
@@ -291,10 +292,8 @@ export default function CarpetaTabs({
           )}
 
           {/* Section 1: Datos personales / posición */}
+          <SectionHeader label={`Datos del Ciclo ${cicloActual}`} />
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-              Datos del Ciclo {cicloActual}
-            </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {eip && (
                 <>
@@ -302,7 +301,7 @@ export default function CarpetaTabs({
                   <Stat label="Desempeño" value={eip.desempeno_logra?.toFixed(1) ?? "—"} />
                   {eip.zona_evaluacion && zonaColors && (
                     <div>
-                      <p className="text-xs text-gray-400 mb-1">Zona</p>
+                      <p className="text-xs text-gray-500 mb-1">Zona</p>
                       <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${zonaColors.bg} ${zonaColors.text}`}>
                         {eip.zona_evaluacion}
                       </span>
@@ -327,10 +326,9 @@ export default function CarpetaTabs({
 
           {/* Section 2: Evaluación del Desempeño */}
           {desemp && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-                Evaluación del Desempeño {cicloActual}
-              </p>
+            <>
+              <SectionHeader label={`Evaluación del Desempeño ${cicloActual}`} />
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {[
                   ["Planea", desemp.planea],
@@ -342,7 +340,7 @@ export default function CarpetaTabs({
                 ].map(([label, val]) =>
                   val != null ? (
                     <div key={label as string}>
-                      <p className="text-xs text-gray-400 mb-0.5">{label as string}</p>
+                      <p className="text-xs text-gray-500 mb-0.5">{label as string}</p>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-gray-100 rounded-full h-1.5">
                           <div
@@ -365,14 +363,14 @@ export default function CarpetaTabs({
                 </div>
               )}
             </div>
+            </>
           )}
 
           {/* Section 3: Competencias 360 */}
           {comp360.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-                Competencias 360 — {cicloActual}
-              </p>
+            <>
+              <SectionHeader label={`Competencias 360 — ${cicloActual}`} />
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {Object.entries(bloques).map(([bloque, items]) => (
                   <div key={bloque}>
@@ -403,14 +401,14 @@ export default function CarpetaTabs({
                 ))}
               </div>
             </div>
+            </>
           )}
 
           {/* Section 4: EAL (only when applicable) */}
           {hasEal && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-                Evaluación de Aptitudes de Liderazgo (EAL) — {cicloActual}
-              </p>
+            <>
+              <SectionHeader label={`EAL — Aptitudes de Liderazgo ${cicloActual}`} />
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
               {eal ? (
                 <div className="flex gap-6">
                   {eal.puntaje_total != null && (
@@ -421,9 +419,10 @@ export default function CarpetaTabs({
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-gray-400">Tuvo EAL en este ciclo. Datos detallados no disponibles.</p>
+                <p className="text-sm text-gray-500">Tuvo EAL en este ciclo. Datos detallados no disponibles.</p>
               )}
             </div>
+            </>
           )}
 
           {/* Section 5: Candidaturas como sucesor (only when person has approved nominations) */}
@@ -468,22 +467,22 @@ export default function CarpetaTabs({
                 {/* Header */}
                 <div className="px-6 pt-5 pb-3 flex items-center justify-between flex-wrap gap-3">
                   <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-widest mb-2">
                       Posición en Mapa de Talento — {cicloActual}
                     </p>
                     <div className="flex items-center gap-4">
                       <div className="text-center">
-                        <p className="text-xs text-gray-400 mb-0.5">Desempeño</p>
+                        <p className="text-xs text-gray-500 mb-0.5">Desempeño</p>
                         <p className="text-2xl font-bold text-gray-900">{eip.desempeno_logra.toFixed(1)}</p>
                       </div>
                       <div className="w-px h-8 bg-gray-200" />
                       <div className="text-center">
-                        <p className="text-xs text-gray-400 mb-0.5">Potencial</p>
+                        <p className="text-xs text-gray-500 mb-0.5">Potencial</p>
                         <p className="text-2xl font-bold text-gray-900">{eip.evaluacion_potencial_total.toFixed(1)}</p>
                       </div>
                       <div className="w-px h-8 bg-gray-200" />
                       <div>
-                        <p className="text-xs text-gray-400 mb-1">Zona</p>
+                        <p className="text-xs text-gray-500 mb-1">Zona</p>
                         <span className={`text-sm font-bold px-3 py-1 rounded-full ${zonaColors?.bg ?? "bg-gray-100"} ${zonaColors?.text ?? "text-gray-700"}`}>
                           {eip.zona_evaluacion}
                         </span>
@@ -664,10 +663,8 @@ function CandidaturasPanel({
   return (
     <div className="bg-white rounded-xl border border-blue-200 p-5"
       style={{ animation: "carpetaMatrixIn 0.45s cubic-bezier(0.22,1,0.36,1) both" }}>
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">
-        Oportunidades de Sucesión Identificadas
-      </p>
-      <p className="text-xs text-gray-500 mb-4">
+      <SectionHeader label="Oportunidades de Sucesión Identificadas" />
+      <p className="text-xs text-gray-500 mt-2 mb-4">
         Has sido considerado como sucesor potencial para las siguientes posiciones.
       </p>
 
@@ -775,7 +772,7 @@ function CandidaturasPanel({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
       <p className="text-sm font-semibold text-gray-900">{value}</p>
     </div>
   );
