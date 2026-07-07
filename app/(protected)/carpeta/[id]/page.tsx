@@ -67,6 +67,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: zonasRaw },
     { data: sucesionRaw },
     { data: colaboradoresAll },
+    { data: candidaturasRaw },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -129,6 +130,13 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .from("colaboradores")
       .select("id, nombre_completo, puesto")
       .order("nombre_completo"),
+    supabase
+      .from("plan_sucesion")
+      .select("*")
+      .eq("sucesor_id", colaboradorId)
+      .eq("informar_sucesor", true)
+      .eq("estado", "aprobado")
+      .order("ciclo_año", { ascending: false }),
   ]);
 
   const canEdit = isOwn || isAdmin;
@@ -143,6 +151,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
   const sucesion = (sucesionRaw ?? []) as unknown as SucesionItem[];
   type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
   const colaboradoresLista = (colaboradoresAll ?? []) as unknown as ColabOption[];
+  const candidaturasComoSuccesor = (candidaturasRaw ?? []) as unknown as SucesionItem[];
 
   // Gather all available cycles from EIP + desempeño data
   const ciclosSet = new Set<number>();
@@ -218,6 +227,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         zonasMap={zonasMap}
         sucesion={sucesion}
         colaboradores={colaboradoresLista}
+        candidaturasComoSuccesor={candidaturasComoSuccesor}
         canEdit={canEdit}
         isOwn={isOwn}
         isJefe={rol === "jefe"}

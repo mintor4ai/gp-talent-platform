@@ -6,8 +6,10 @@ import type { ZonaBand } from "@/lib/types";
 import PicdEditor from "@/app/(protected)/picd/[id]/PicdEditor";
 import EntrevistaThread from "./EntrevistaThread";
 import RutaCarreraEditor from "./RutaCarreraEditor";
-import SucesionEditor, { type SucesionItem } from "./SucesionEditor";
+import SucesionEditor, { type SucesionItem, readinessBadge } from "./SucesionEditor";
+import SucesionValidacion from "./SucesionValidacion";
 import { TalentMatrixSVG } from "@/app/(protected)/evaluaciones/EIPScatterChart";
+import { registrarAspiracion } from "@/app/actions/sucesion";
 
 type EIP = {
   id: string;
@@ -110,6 +112,7 @@ export default function CarpetaTabs({
   rutas,
   sucesion,
   colaboradores,
+  candidaturasComoSuccesor,
   zonasMap,
   canEdit,
   isOwn,
@@ -130,6 +133,7 @@ export default function CarpetaTabs({
   rutas: any[];
   sucesion: SucesionItem[];
   colaboradores: { id: string; nombre_completo: string | null; puesto: string | null }[];
+  candidaturasComoSuccesor: SucesionItem[];
   zonasMap: Record<number, ZonaBand[]>;
   canEdit: boolean;
   isOwn: boolean;
@@ -140,6 +144,8 @@ export default function CarpetaTabs({
   const defaultTab = isOwn ? "evaluacion" : "evaluacion";
   const [mainTab, setMainTab] = useState<"evaluacion" | "picd" | "sucesion">(defaultTab);
   const [cicloActual, setCicloActual] = useState<number>(ciclos[0] ?? new Date().getFullYear());
+  const [sucesionItems, setSucesionItems] = useState<SucesionItem[]>(sucesion);
+  const [candidaturas, setCandidaturas]   = useState<SucesionItem[]>(candidaturasComoSuccesor);
 
   const eip = eips.find((e) => e.ciclo_año === cicloActual) ?? null;
   const desemp = desempenos.find((d) => d.ciclo_año === cicloActual) ?? null;
@@ -225,7 +231,7 @@ export default function CarpetaTabs({
             )}
           </button>
         )}
-        {(isOwn || isAdmin) && (
+        {(isOwn || isJefe || isAdmin) && (
           <button
             onClick={() => setMainTab("sucesion")}
             className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-1.5 ${
@@ -235,11 +241,27 @@ export default function CarpetaTabs({
             }`}
           >
             Sucesión
-            {sucesion.filter((s) => s.ciclo_año === cicloActual).length > 0 && (
-              <span className="text-xs px-1.5 py-0.5 rounded-full bg-[#1a3a5c]/10 text-[#1a3a5c] font-semibold">
-                {sucesion.filter((s) => s.ciclo_año === cicloActual).length}
-              </span>
-            )}
+            {(() => {
+              const pendingV1 = !isOwn && isJefe
+                ? sucesionItems.filter((s) => s.estado === "pendiente_v1").length
+                : 0;
+              const pendingV2 = isAdmin
+                ? sucesionItems.filter((s) => s.estado === "pendiente_v2").length
+                : 0;
+              const total = pendingV1 + pendingV2;
+              if (total > 0) return (
+                <span className="w-4 h-4 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center font-bold">
+                  {total}
+                </span>
+              );
+              const count = sucesionItems.filter((s) => s.ciclo_año === cicloActual).length;
+              if (count > 0) return (
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-[#1a3a5c]/10 text-[#1a3a5c] font-semibold">
+                  {count}
+                </span>
+              );
+              return null;
+            })()}
           </button>
         )}
       </div>
@@ -404,7 +426,19 @@ export default function CarpetaTabs({
             </div>
           )}
 
-          {/* Section 5: Talent Matrix */}
+          {/* Section 5: Candidaturas como sucesor (only when person has approved nominations) */}
+          {candidaturas.length > 0 && (
+            <CandidaturasPanel
+              candidaturas={candidaturas}
+              colaboradores={colaboradores}
+              isOwn={isOwn}
+              onAspiracionChange={(id, val) =>
+                setCandidaturas((p) => p.map((c) => c.id === id ? { ...c, sucesor_aspiracion: val, sucesor_aspiracion_at: new Date().toISOString() } : c))
+              }
+            />
+          )}
+
+          {/* Section 6: Talent Matrix */}
           {eip?.zona_evaluacion && eip.desempeno_logra != null && eip.evaluacion_potencial_total != null && (() => {
             const zonaBands = zonasMap[cicloActual] ?? [];
             const point = {
@@ -482,36 +516,58 @@ export default function CarpetaTabs({
         </div>
       )}
 
-      {mainTab === "sucesion" && (isOwn || isAdmin) && (
+      {mainTab === "sucesion" && (isOwn || isJefe || isAdmin) && (
         <div className="space-y-5">
+          {/* Validation panel — jefe sees V1 pending, admin sees V2 pending */}
+          {(isJefe && !isOwn) && (
+            <div className="bg-white rounded-xl border border-orange-200 p-5">
+              <SucesionValidacion
+                items={sucesionItems}
+                idEmpleado={colaboradorId}
+                isV2={false}
+                onValidated={(updated) => setSucesionItems((p) => p.map((i) => i.id === updated.id ? updated : i))}
+              />
+              {sucesionItems.filter((s) => s.estado === "pendiente_v1").length === 0 && (
+                <p className="text-sm text-gray-400">Sin propuestas pendientes de revisión.</p>
+              )}
+            </div>
+          )}
+          {isAdmin && sucesionItems.some((s) => s.estado === "pendiente_v2") && (
+            <div className="bg-white rounded-xl border border-orange-200 p-5">
+              <SucesionValidacion
+                items={sucesionItems}
+                idEmpleado={colaboradorId}
+                isV2={true}
+                onValidated={(updated) => setSucesionItems((p) => p.map((i) => i.id === updated.id ? updated : i))}
+              />
+            </div>
+          )}
+
           {/* Cycle selector */}
           {ciclos.length > 0 && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-500">Ciclo:</span>
               <div className="flex gap-1.5 flex-wrap">
                 {ciclos.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setCicloActual(c)}
+                  <button key={c} onClick={() => setCicloActual(c)}
                     className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                      c === cicloActual
-                        ? "bg-[#1a3a5c] text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
+                      c === cicloActual ? "bg-[#1a3a5c] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}>
                     {c}
                   </button>
                 ))}
               </div>
             </div>
           )}
+
+          {/* Editor — titular and admin can edit/add; jefe reads */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <SucesionEditor
               colaboradorId={colaboradorId}
               cicloAño={cicloActual}
-              itemsIniciales={sucesion}
+              itemsIniciales={sucesionItems}
               colaboradores={colaboradores}
-              canEdit={canEdit}
+              canEdit={isOwn || isAdmin}
             />
           </div>
         </div>
@@ -574,6 +630,144 @@ export default function CarpetaTabs({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function CandidaturasPanel({
+  candidaturas,
+  colaboradores,
+  isOwn,
+  onAspiracionChange,
+}: {
+  candidaturas: SucesionItem[];
+  colaboradores: { id: string; nombre_completo: string | null; puesto: string | null }[];
+  isOwn: boolean;
+  onAspiracionChange: (id: string, val: boolean) => void;
+}) {
+  const [pending, setPending] = useState<string | null>(null);
+  const [err, setErr]         = useState<string | null>(null);
+
+  async function handleAspiracion(id: string, aspiracion: boolean) {
+    setPending(id);
+    setErr(null);
+    try {
+      await registrarAspiracion({ id, aspiracion });
+      onAspiracionChange(id, aspiracion);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Error");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-blue-200 p-5"
+      style={{ animation: "carpetaMatrixIn 0.45s cubic-bezier(0.22,1,0.36,1) both" }}>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">
+        Oportunidades de Sucesión Identificadas
+      </p>
+      <p className="text-xs text-gray-500 mb-4">
+        Has sido considerado como sucesor potencial para las siguientes posiciones.
+      </p>
+
+      {err && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{err}</p>}
+
+      <div className="space-y-3">
+        {candidaturas.map((cand) => {
+          const titular = colaboradores.find((c) => c.id === cand.id_empleado);
+          const readiness = readinessBadge(cand.readiness);
+          return (
+            <div key={cand.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-[#1a3a5c]/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[#1a3a5c] text-sm font-bold">
+                      {(titular?.nombre_completo ?? "?").charAt(0)}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{titular?.nombre_completo ?? "Colaborador"}</p>
+                    <p className="text-xs text-gray-500">{titular?.puesto ?? "—"}</p>
+                  </div>
+                </div>
+                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium flex-shrink-0 ${readiness.color}`}>
+                  Readiness: {readiness.label}
+                </span>
+              </div>
+
+              {cand.brechas && (
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Plan de desarrollo para ti</p>
+                  <p className="text-xs text-gray-700">{cand.brechas}</p>
+                </div>
+              )}
+              {cand.acciones_desarrollo && (
+                <div className="bg-blue-50/60 rounded-lg px-3 py-2">
+                  <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Acciones</p>
+                  <p className="text-xs text-gray-700">{cand.acciones_desarrollo}</p>
+                </div>
+              )}
+              {cand.fecha_objetivo && (
+                <p className="text-xs text-gray-500">
+                  Fecha objetivo:{" "}
+                  {new Date(cand.fecha_objetivo + "T00:00:00").toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })}
+                </p>
+              )}
+
+              {isOwn && (
+                <div className="pt-1">
+                  {cand.sucesor_aspiracion === null ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-gray-700">
+                        ¿Tienes aspiración de tomar esta ruta de carrera?
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAspiracion(cand.id, true)}
+                          disabled={pending === cand.id}
+                          className="flex-1 text-xs bg-[#1a3a5c] text-white py-2 rounded-lg hover:bg-[#152e4d] font-medium transition-colors disabled:opacity-40"
+                        >
+                          Sí, me interesa
+                        </button>
+                        <button
+                          onClick={() => handleAspiracion(cand.id, false)}
+                          disabled={pending === cand.id}
+                          className="flex-1 text-xs bg-white border border-gray-300 text-gray-600 py-2 rounded-lg hover:bg-gray-50 font-medium transition-colors disabled:opacity-40"
+                        >
+                          No por ahora
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <p className={`text-xs font-medium ${cand.sucesor_aspiracion ? "text-green-600" : "text-gray-400"}`}>
+                        {cand.sucesor_aspiracion
+                          ? "✓ Tienes aspiración de tomar esta ruta"
+                          : "Sin aspiración por ahora"}
+                      </p>
+                      {isOwn && (
+                        <button
+                          onClick={() => handleAspiracion(cand.id, !cand.sucesor_aspiracion)}
+                          disabled={pending === cand.id}
+                          className="text-xs text-gray-400 hover:text-gray-600 underline disabled:opacity-40"
+                        >
+                          Cambiar
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {!isOwn && cand.sucesor_aspiracion !== null && (
+                <p className={`text-xs font-medium pt-1 ${cand.sucesor_aspiracion ? "text-green-600" : "text-gray-400"}`}>
+                  {cand.sucesor_aspiracion ? "✓ El colaborador tiene aspiración de tomar esta ruta" : "Sin aspiración por ahora"}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
