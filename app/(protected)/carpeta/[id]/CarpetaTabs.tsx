@@ -293,7 +293,7 @@ export default function CarpetaTabs({
 
           {/* Section 1: Datos personales / posición */}
           <SectionHeader label={`Datos del Ciclo ${cicloActual}`} />
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {eip && (
                 <>
@@ -328,7 +328,7 @@ export default function CarpetaTabs({
           {desemp && (
             <>
               <SectionHeader label={`Evaluación del Desempeño ${cicloActual}`} />
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {[
                   ["Planea", desemp.planea],
@@ -340,15 +340,15 @@ export default function CarpetaTabs({
                 ].map(([label, val]) =>
                   val != null ? (
                     <div key={label as string}>
-                      <p className="text-xs text-gray-500 mb-0.5">{label as string}</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label as string}</p>
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                        <div className="flex-1 bg-gray-100 rounded-full h-2">
                           <div
-                            className="bg-[#1a3a5c] h-1.5 rounded-full"
+                            className="bg-[#1a3a5c] h-2 rounded-full"
                             style={{ width: `${Math.min(100, ((val as number) / 5) * 100)}%` }}
                           />
                         </div>
-                        <span className="text-xs font-semibold text-gray-700 w-8 text-right">
+                        <span className="text-sm font-bold text-[#1a3a5c] w-10 text-right">
                           {(val as number).toFixed(1)}
                         </span>
                       </div>
@@ -358,8 +358,8 @@ export default function CarpetaTabs({
               </div>
               {desemp.resultado_logra != null && (
                 <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-600">Resultado Logra</span>
-                  <span className="text-xl font-bold text-gray-900">{desemp.resultado_logra.toFixed(1)}</span>
+                  <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Resultado Logra</span>
+                  <span className="text-2xl font-bold text-[#1a3a5c]">{desemp.resultado_logra.toFixed(1)}</span>
                 </div>
               )}
             </div>
@@ -370,7 +370,7 @@ export default function CarpetaTabs({
           {comp360.length > 0 && (
             <>
               <SectionHeader label={`Competencias 360 — ${cicloActual}`} />
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {Object.entries(bloques).map(([bloque, items]) => (
                   <div key={bloque}>
@@ -408,7 +408,7 @@ export default function CarpetaTabs({
           {hasEal && (
             <>
               <SectionHeader label={`EAL — Aptitudes de Liderazgo ${cicloActual}`} />
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
               {eal ? (
                 <div className="flex gap-6">
                   {eal.puntaje_total != null && (
@@ -618,7 +618,7 @@ export default function CarpetaTabs({
           />
 
           {(isOwn || isAdmin) && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
               <RutaCarreraEditor
                 colaboradorId={colaboradorId}
                 cicloAño={cicloActual}
@@ -772,8 +772,8 @@ function CandidaturasPanel({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
-      <p className="text-sm font-semibold text-gray-900">{value}</p>
+      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+      <p className="text-xl font-bold text-[#1a3a5c]">{value}</p>
     </div>
   );
 }
