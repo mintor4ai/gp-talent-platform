@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/SignOutButton";
 import NavSidebar from "@/components/NavSidebar";
+import { NotificationBell } from "@/components/ui/NotificationBell";
 import { ROL_LABELS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
 
@@ -50,7 +51,8 @@ export default async function ProtectedLayout({
               Talent Intelligence
             </span>
           </a>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <NotificationBell />
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-sm font-medium text-white leading-tight">
                 {displayName ?? user.email}

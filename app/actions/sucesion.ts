@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { crearNotificacion } from "./notificaciones";
 
 async function requireAuth() {
   const supabase = await createClient();
@@ -109,6 +110,28 @@ export async function submitSucesion(id: string, id_empleado: string) {
     .eq("id", id);
   if (error) throw new Error(error.message);
 
+  // Notificar a jefes/admins que hay un plan pendiente de validación
+  const { data: colab } = await supabase
+    .from("colaboradores")
+    .select("nombre_completo, jefe_inmediato_id")
+    .eq("id", id_empleado).single();
+  if (colab?.jefe_inmediato_id) {
+    const { data: jefeUser } = await supabase
+      .from("usuarios_app")
+      .select("id")
+      .eq("id_empleado", colab.jefe_inmediato_id)
+      .single();
+    if (jefeUser) {
+      await crearNotificacion({
+        user_id: jefeUser.id,
+        tipo: "accion",
+        titulo: "Plan de sucesión pendiente de validación",
+        cuerpo: `${colab.nombre_completo} envió un plan de sucesión para tu revisión.`,
+        url: `/sucesion`,
+      });
+    }
+  }
+
   revalidatePath(`/carpeta/${id_empleado}`);
   revalidatePath("/sucesion");
 }
@@ -146,6 +169,23 @@ export async function validarSucesionV1(params: {
   }).eq("id", params.id);
   if (error) throw new Error(error.message);
 
+  // Notificar al empleado dueño del plan
+  const { data: empleadoUser } = await supabase
+    .from("usuarios_app")
+    .select("id")
+    .eq("id_empleado", params.id_empleado)
+    .single();
+  if (empleadoUser) {
+    const estadoLabel = nuevoEstado === "rechazado" ? "rechazado" : nuevoEstado === "pendiente_v2" ? "en validación V2" : "aprobado";
+    await crearNotificacion({
+      user_id: empleadoUser.id,
+      tipo: nuevoEstado === "rechazado" ? "accion" : "informativo",
+      titulo: `Tu plan de sucesión fue ${estadoLabel}`,
+      cuerpo: params.comentario.trim() || undefined,
+      url: `/carpeta/${params.id_empleado}`,
+    });
+  }
+
   revalidatePath(`/carpeta/${params.id_empleado}`);
   revalidatePath("/sucesion");
 }
@@ -174,6 +214,22 @@ export async function validarSucesionV2(params: {
     updated_at:         new Date().toISOString(),
   }).eq("id", params.id);
   if (error) throw new Error(error.message);
+
+  // Notificar al empleado dueño del plan
+  const { data: empleadoUser } = await supabase
+    .from("usuarios_app")
+    .select("id")
+    .eq("id_empleado", params.id_empleado)
+    .single();
+  if (empleadoUser) {
+    await crearNotificacion({
+      user_id: empleadoUser.id,
+      tipo: params.aprobado ? "informativo" : "accion",
+      titulo: `Tu plan de sucesión fue ${params.aprobado ? "aprobado" : "rechazado"}`,
+      cuerpo: params.comentario.trim() || undefined,
+      url: `/carpeta/${params.id_empleado}`,
+    });
+  }
 
   revalidatePath(`/carpeta/${params.id_empleado}`);
   revalidatePath("/sucesion");
