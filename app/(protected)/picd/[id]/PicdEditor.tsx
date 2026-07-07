@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { upsertPicd, updateAccionProgress, submitPicd } from "@/app/actions/picd";
+import { cerrarCicloPicd } from "@/app/actions/picd_ciclo";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
 type PicdAccion = {
@@ -25,18 +26,34 @@ type PicdRecord = {
   compromisos: string | null;
 } | null;
 
+type CicloEstado = {
+  estado: string;
+  cerrado_at: string | null;
+  decision_at: string | null;
+  decision_nombre: string | null;
+  comentario_jefe: string | null;
+  reabierto_at: string | null;
+  reabierto_nombre: string | null;
+} | null;
+
 export default function PicdEditor({
   colaboradorId,
   cicloAño,
   picd,
   acciones,
   canEdit,
+  isOwn,
+  isAdmin,
+  cicloEstado,
 }: {
   colaboradorId: string;
   cicloAño: number;
   picd: PicdRecord;
   acciones: PicdAccion[];
   canEdit: boolean;
+  isOwn: boolean;
+  isAdmin: boolean;
+  cicloEstado: CicloEstado;
 }) {
   const [isPending, startTransition] = useTransition();
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -96,8 +113,73 @@ export default function PicdEditor({
     });
   }
 
+  async function handleCerrarCiclo() {
+    if (!confirm("¿Confirmas que deseas cerrar y enviar tu PICD a revisión? Ya no podrás editarlo hasta que tu jefe lo revise.")) return;
+    startTransition(async () => {
+      await cerrarCicloPicd(colaboradorId, cicloAño);
+      setSavedMsg("Ciclo enviado a revisión");
+    });
+  }
+
+  const cicloLocked = cicloEstado?.estado === "enviado_revision" || cicloEstado?.estado === "aprobado";
+  const showCerrarBtn = (isOwn || isAdmin) && (!cicloEstado || cicloEstado.estado === "abierto");
+  const fueRechazado = cicloEstado?.estado === "abierto" && !!cicloEstado.comentario_jefe && !!cicloEstado.decision_at;
+
   return (
     <div className="space-y-6">
+
+      {/* Banner: ciclo en revisión */}
+      {cicloEstado?.estado === "enviado_revision" && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3">
+          <svg className="w-5 h-5 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p className="text-sm font-semibold text-blue-800">PICD enviado a revisión</p>
+            <p className="text-xs text-blue-600 mt-0.5">
+              Tu ciclo {cicloAño} está bloqueado mientras tu jefe lo revisa.
+              {cicloEstado.cerrado_at && ` Enviado el ${new Date(cicloEstado.cerrado_at).toLocaleDateString("es-MX")}.`}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Banner: ciclo aprobado */}
+      {cicloEstado?.estado === "aprobado" && (
+        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-3">
+          <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p className="text-sm font-semibold text-green-800">
+              PICD {cicloAño} aprobado
+              {cicloEstado.decision_nombre && ` por ${cicloEstado.decision_nombre}`}
+            </p>
+            <p className="text-xs text-green-600 mt-0.5">
+              El ciclo está cerrado. Contacta a tu administrador si necesitas hacer cambios.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Banner: rechazado / requiere ajustes */}
+      {fueRechazado && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+          <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Tu jefe solicitó ajustes</p>
+            {cicloEstado?.comentario_jefe && (
+              <p className="text-xs text-amber-700 mt-0.5 italic">"{cicloEstado.comentario_jefe}"</p>
+            )}
+            <p className="text-xs text-amber-600 mt-1">
+              Realiza los cambios necesarios y vuelve a enviar a revisión.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Banner importación del Coach */}
       {importedSuggestion && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3">
@@ -138,9 +220,21 @@ export default function PicdEditor({
           <button
             onClick={handleSubmit}
             disabled={isPending}
-            className="text-sm bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-[#152e4d] disabled:opacity-50 transition-colors"
+            className="text-sm bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 disabled:opacity-50 transition-colors"
           >
             Enviar a Capital Humano
+          </button>
+        )}
+        {showCerrarBtn && picd?.id && (
+          <button
+            onClick={handleCerrarCiclo}
+            disabled={isPending}
+            className="text-sm bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-[#152e4d] disabled:opacity-50 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Cerrar y enviar a revisión
           </button>
         )}
       </div>

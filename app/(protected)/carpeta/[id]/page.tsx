@@ -68,6 +68,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: sucesionRaw },
     { data: colaboradoresAll },
     { data: candidaturasRaw },
+    { data: ciclosEstadoRaw },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -137,6 +138,10 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .eq("informar_sucesor", true)
       .eq("estado", "aprobado")
       .order("ciclo_año", { ascending: false }),
+    supabase
+      .from("picd_ciclos_estado")
+      .select("*")
+      .eq("id_empleado", colaboradorId),
   ]);
 
   const canEdit = isOwn || isAdmin;
@@ -152,6 +157,17 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
   type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
   const colaboradoresLista = (colaboradoresAll ?? []) as unknown as ColabOption[];
   const candidaturasComoSuccesor = (candidaturasRaw ?? []) as unknown as SucesionItem[];
+
+  // Build ciclosEstado map: Record<ciclo_año, CicloEstado>
+  type CicloEstadoRow = {
+    ciclo_año: number; estado: string; cerrado_at: string | null;
+    decision_at: string | null; decision_nombre: string | null;
+    comentario_jefe: string | null; reabierto_at: string | null; reabierto_nombre: string | null;
+  };
+  const ciclosEstadoMap: Record<number, CicloEstadoRow> = {};
+  for (const row of (ciclosEstadoRaw ?? []) as unknown as CicloEstadoRow[]) {
+    ciclosEstadoMap[row.ciclo_año] = row;
+  }
 
   // Gather all available cycles from EIP + desempeño data
   const ciclosSet = new Set<number>();
@@ -233,6 +249,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         isJefe={rol === "jefe"}
         isAdmin={isAdmin}
         nombreColaborador={colab.nombre_completo}
+        ciclosEstadoMap={ciclosEstadoMap}
       />
     </div>
   );

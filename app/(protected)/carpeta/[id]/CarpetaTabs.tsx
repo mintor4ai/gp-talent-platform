@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { ZONA_COLORS } from "@/lib/types";
 import type { ZonaBand } from "@/lib/types";
 import PicdEditor from "@/app/(protected)/picd/[id]/PicdEditor";
@@ -11,6 +11,7 @@ import SucesionValidacion from "./SucesionValidacion";
 import { TalentMatrixSVG } from "@/app/(protected)/evaluaciones/EIPScatterChart";
 import { registrarAspiracion } from "@/app/actions/sucesion";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { aprobarCicloPicd, rechazarCicloPicd } from "@/app/actions/picd_ciclo";
 
 type EIP = {
   id: string;
@@ -120,6 +121,7 @@ export default function CarpetaTabs({
   isJefe,
   isAdmin,
   nombreColaborador,
+  ciclosEstadoMap,
 }: {
   colaboradorId: string;
   ciclos: number[];
@@ -141,6 +143,11 @@ export default function CarpetaTabs({
   isJefe: boolean;
   isAdmin: boolean;
   nombreColaborador: string;
+  ciclosEstadoMap: Record<number, {
+    ciclo_año: number; estado: string; cerrado_at: string | null;
+    decision_at: string | null; decision_nombre: string | null;
+    comentario_jefe: string | null; reabierto_at: string | null; reabierto_nombre: string | null;
+  }>;
 }) {
   const defaultTab = isOwn ? "evaluacion" : "evaluacion";
   const [mainTab, setMainTab] = useState<"evaluacion" | "picd" | "sucesion">(defaultTab);
@@ -176,6 +183,10 @@ export default function CarpetaTabs({
     if (!bloques[b]) bloques[b] = [];
     bloques[b].push(c);
   }
+
+  const cicloEstado = ciclosEstadoMap[cicloActual] ?? null;
+  const isCycleLocked = cicloEstado?.estado === "enviado_revision" || cicloEstado?.estado === "aprobado";
+  const picdCanEdit = canEdit && !isCycleLocked;
 
   const picdEditorRecord = picdRecord
     ? {
@@ -596,13 +607,26 @@ export default function CarpetaTabs({
             </div>
           )}
 
-          {(isOwn || isAdmin) && (
+          {/* Banner de aprobación — visible solo para jefe/admin cuando hay ciclo enviado_revision */}
+          {(isJefe || isAdmin) && cicloEstado?.estado === "enviado_revision" && (
+            <PicdAprobacionBanner
+              colaboradorId={colaboradorId}
+              cicloAño={cicloActual}
+              nombreColaborador={nombreColaborador}
+              cerradoAt={cicloEstado.cerrado_at}
+            />
+          )}
+
+          {(isOwn || isJefe || isAdmin) && (
             <PicdEditor
               colaboradorId={colaboradorId}
               cicloAño={cicloActual}
               picd={picdEditorRecord}
               acciones={picdAccionesCiclo}
-              canEdit={canEdit}
+              canEdit={picdCanEdit}
+              isOwn={isOwn}
+              isAdmin={isAdmin}
+              cicloEstado={cicloEstado}
             />
           )}
 
@@ -765,6 +789,92 @@ function CandidaturasPanel({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function PicdAprobacionBanner({
+  colaboradorId,
+  cicloAño,
+  nombreColaborador,
+  cerradoAt,
+}: {
+  colaboradorId: string;
+  cicloAño: number;
+  nombreColaborador: string;
+  cerradoAt: string | null;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [showRechazo, setShowRechazo] = useState(false);
+  const [comentario, setComentario] = useState("");
+
+  function handleAprobar() {
+    if (!confirm(`¿Confirmas que apruebas el PICD ${cicloAño} de ${nombreColaborador}?`)) return;
+    startTransition(() => {
+      aprobarCicloPicd(colaboradorId, cicloAño);
+    });
+  }
+
+  function handleRechazar() {
+    if (!comentario.trim()) return;
+    startTransition(() => {
+      rechazarCicloPicd(colaboradorId, cicloAño, comentario).then(() => {
+        setShowRechazo(false);
+        setComentario("");
+      });
+    });
+  }
+
+  return (
+    <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div className="flex-1">
+          <p className="text-sm font-bold text-amber-800">
+            PICD {cicloAño} pendiente de tu aprobación
+          </p>
+          <p className="text-xs text-amber-700 mt-0.5">
+            {nombreColaborador} cerró su ciclo
+            {cerradoAt ? ` el ${new Date(cerradoAt).toLocaleDateString("es-MX")}` : ""} y está esperando tu revisión.
+          </p>
+        </div>
+        <div className="flex gap-2 flex-shrink-0">
+          <button
+            onClick={handleAprobar}
+            disabled={isPending}
+            className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 disabled:opacity-50 font-semibold transition-colors"
+          >
+            Aprobar
+          </button>
+          <button
+            onClick={() => setShowRechazo(!showRechazo)}
+            disabled={isPending}
+            className="text-xs bg-white border border-red-300 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 disabled:opacity-50 font-semibold transition-colors"
+          >
+            Solicitar ajustes
+          </button>
+        </div>
+      </div>
+      {showRechazo && (
+        <div className="flex gap-2 items-end">
+          <textarea
+            value={comentario}
+            onChange={(e) => setComentario(e.target.value)}
+            placeholder="Indica qué debe ajustar el colaborador..."
+            rows={2}
+            className="flex-1 text-sm border border-amber-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+          />
+          <button
+            onClick={handleRechazar}
+            disabled={isPending || !comentario.trim()}
+            className="text-xs bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 font-semibold transition-colors h-fit"
+          >
+            Enviar
+          </button>
+        </div>
+      )}
     </div>
   );
 }

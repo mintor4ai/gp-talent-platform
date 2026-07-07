@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import PicdEditor from "./PicdEditor";
+import { getCicloEstado } from "@/app/actions/picd_ciclo";
 
 export default async function PicdPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -62,7 +63,7 @@ export default async function PicdPage({ params }: { params: Promise<{ id: strin
 
   const cicloAño = (cicloRow as { ciclo_año?: number } | null)?.ciclo_año ?? new Date().getFullYear();
 
-  const [{ data: picdRecord }, { data: acciones }] = await Promise.all([
+  const [{ data: picdRecord }, { data: acciones }, cicloEstado] = await Promise.all([
     supabase
       .from("picd")
       .select("*")
@@ -76,9 +77,13 @@ export default async function PicdPage({ params }: { params: Promise<{ id: strin
       .eq("ciclo_año", cicloAño)
       .order("tipo_accion")
       .order("created_at"),
+    getCicloEstado(id, cicloAño),
   ]);
 
-  const canEdit = isOwn || isAdmin;
+  const isCycleLocked =
+    cicloEstado?.estado === "enviado_revision" || cicloEstado?.estado === "aprobado";
+
+  const canEdit = (isOwn || isAdmin) && !isCycleLocked;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -129,6 +134,9 @@ export default async function PicdPage({ params }: { params: Promise<{ id: strin
         picd={picdRecord ?? null}
         acciones={acciones ?? []}
         canEdit={canEdit}
+        isOwn={isOwn}
+        isAdmin={isAdmin}
+        cicloEstado={cicloEstado}
       />
     </div>
   );
