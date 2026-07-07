@@ -62,7 +62,8 @@ export async function crearNotificacion(params: {
 
 /**
  * Notifica a TODOS los usuarios_app vinculados a un id_empleado.
- * Resuelve el problema de cuentas duplicadas (mismo empleado, varios roles/logins).
+ * Llama a fn_notificar_empleado (SECURITY DEFINER) que bypasea el RLS
+ * de usuarios_app — necesario cuando el llamador no es admin/superadmin.
  */
 export async function notificarEmpleado(params: {
   id_empleado: string;
@@ -72,18 +73,11 @@ export async function notificarEmpleado(params: {
   url?: string;
 }) {
   const supabase = await createClient();
-  const { data: users } = await supabase
-    .from("usuarios_app")
-    .select("id")
-    .eq("id_empleado", params.id_empleado);
-  if (!users?.length) return;
-  await supabase.from("notificaciones").insert(
-    users.map((u) => ({
-      user_id: u.id,
-      tipo:    params.tipo,
-      titulo:  params.titulo,
-      cuerpo:  params.cuerpo ?? null,
-      url:     params.url ?? null,
-    }))
-  );
+  await supabase.rpc("fn_notificar_empleado", {
+    p_id_empleado: params.id_empleado,
+    p_tipo:        params.tipo,
+    p_titulo:      params.titulo,
+    p_cuerpo:      params.cuerpo ?? null,
+    p_url:         params.url ?? null,
+  });
 }
