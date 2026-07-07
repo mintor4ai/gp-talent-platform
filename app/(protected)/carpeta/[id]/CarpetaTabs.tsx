@@ -398,34 +398,61 @@ export default function CarpetaTabs({
               zona: eip.zona_evaluacion,
             };
             return (
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Posición en Mapa de Talento — {cicloActual}
-                  </p>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-gray-400">Desempeño <span className="font-semibold text-gray-700">{eip.desempeno_logra.toFixed(1)}</span></span>
-                      <span className="text-xs text-gray-400">Potencial <span className="font-semibold text-gray-700">{eip.evaluacion_potencial_total.toFixed(1)}</span></span>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${zonaColors?.bg ?? "bg-gray-100"} ${zonaColors?.text ?? "text-gray-700"}`}>
-                        {eip.zona_evaluacion}
-                      </span>
+              <div
+                className="bg-white rounded-xl border border-gray-200 overflow-hidden"
+                style={{ animation: "carpetaMatrixIn 0.55s cubic-bezier(0.22,1,0.36,1) both" }}
+              >
+                <style>{`
+                  @keyframes carpetaMatrixIn {
+                    from { opacity: 0; transform: translateY(16px) scale(0.97); }
+                    to   { opacity: 1; transform: translateY(0)     scale(1);    }
+                  }
+                `}</style>
+
+                {/* Header */}
+                <div className="px-6 pt-5 pb-3 flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                      Posición en Mapa de Talento — {cicloActual}
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <div className="text-center">
+                        <p className="text-xs text-gray-400 mb-0.5">Desempeño</p>
+                        <p className="text-2xl font-bold text-gray-900">{eip.desempeno_logra.toFixed(1)}</p>
+                      </div>
+                      <div className="w-px h-8 bg-gray-200" />
+                      <div className="text-center">
+                        <p className="text-xs text-gray-400 mb-0.5">Potencial</p>
+                        <p className="text-2xl font-bold text-gray-900">{eip.evaluacion_potencial_total.toFixed(1)}</p>
+                      </div>
+                      <div className="w-px h-8 bg-gray-200" />
+                      <div>
+                        <p className="text-xs text-gray-400 mb-1">Zona</p>
+                        <span className={`text-sm font-bold px-3 py-1 rounded-full ${zonaColors?.bg ?? "bg-gray-100"} ${zonaColors?.text ?? "text-gray-700"}`}>
+                          {eip.zona_evaluacion}
+                        </span>
+                      </div>
                     </div>
-                    {isAdmin && (
-                      <a href="/evaluaciones" className="text-xs text-[#1a3a5c] hover:underline">
-                        Ver mapa completo →
-                      </a>
-                    )}
                   </div>
+                  {isAdmin && (
+                    <a href="/evaluaciones" className="text-xs text-[#1a3a5c] hover:underline self-end mb-1">
+                      Ver mapa completo →
+                    </a>
+                  )}
                 </div>
-                <div className="overflow-x-auto">
-                  <TalentMatrixSVG
-                    zonaBands={zonaBands}
-                    points={[point]}
-                    width={560}
-                    height={480}
-                    showTitle={false}
-                  />
+
+                {/* Matrix */}
+                <div className="flex justify-center px-4 pb-5">
+                  <div style={{ maxWidth: 560, width: "100%" }}>
+                    <TalentMatrixSVG
+                      zonaBands={zonaBands}
+                      points={[point]}
+                      width={560}
+                      height={480}
+                      showTitle={false}
+                      highlightPoint
+                    />
+                  </div>
                 </div>
               </div>
             );

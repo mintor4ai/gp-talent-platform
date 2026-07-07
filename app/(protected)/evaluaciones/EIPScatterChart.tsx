@@ -128,6 +128,7 @@ export function TalentMatrixSVG({
   height = CH,
   showTitle = true,
   interactive = false,
+  highlightPoint = false,
   onPointClick,
   onPointHover,
 }: {
@@ -137,6 +138,8 @@ export function TalentMatrixSVG({
   height?: number;
   showTitle?: boolean;
   interactive?: boolean;
+  /** When true (single-point carpeta view) renders the dot larger with glow + pulse ring */
+  highlightPoint?: boolean;
   onPointClick?: (p: EIPPoint) => void;
   onPointHover?: (p: EIPPoint | null, x: number, y: number) => void;
 }) {
@@ -144,10 +147,25 @@ export function TalentMatrixSVG({
   const boundaryLines = sortedZones.slice(0, -1).map((z) => z.umbral_superior);
   const gridLines = [80, 85, 90, 95, 100, 105, 110, 115, 120];
 
-  const scale = width / CW;
+  // Zone that the single highlighted point sits in (for stronger fill)
+  const highlightZona = highlightPoint && points.length === 1 ? points[0].zona : null;
 
   return (
     <svg viewBox={`0 0 ${CW} ${CH}`} width={width} height={height} style={{ display: "block" }}>
+      <defs>
+        {/* Glow filter for the highlighted dot */}
+        <filter id="dot-glow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="4" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        {/* Subtle drop shadow for the chart area */}
+        <filter id="chart-shadow" x="-2%" y="-2%" width="104%" height="104%">
+          <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#00000010" />
+        </filter>
+      </defs>
 
       {/* White background */}
       <rect x={0} y={0} width={CW} height={CH} fill="white" />
@@ -166,16 +184,17 @@ export function TalentMatrixSVG({
         </text>
       )}
 
-      {/* Zone fills */}
+      {/* Zone fills — highlighted zone gets stronger fill */}
       {sortedZones.map((z) => {
         const poly = diagonalPolygon(z.umbral_inferior, z.umbral_superior);
         if (!poly) return null;
+        const isHighlighted = highlightZona === z.zona;
         return (
           <polygon
             key={z.zona}
             points={poly}
             fill={ZONA_FILL[z.zona] ?? "#f5f5f5"}
-            opacity={0.55}
+            opacity={isHighlighted ? 0.75 : 0.45}
           />
         );
       })}
@@ -197,7 +216,8 @@ export function TalentMatrixSVG({
             key={sum}
             x1={line[0]} y1={line[1]} x2={line[2]} y2={line[3]}
             stroke={ZONE_LINE_COLOR}
-            strokeWidth={1.4}
+            strokeWidth={1.6}
+            strokeLinecap="round"
           />
         );
       })}
@@ -207,8 +227,9 @@ export function TalentMatrixSVG({
         x={PAD.left} y={PAD.top}
         width={W} height={H}
         fill="none"
-        stroke="#9ca3af"
-        strokeWidth={1}
+        stroke="#d1d5db"
+        strokeWidth={1.2}
+        filter="url(#chart-shadow)"
       />
 
       {/* Axis tick labels */}
@@ -250,16 +271,18 @@ export function TalentMatrixSVG({
       {sortedZones.map((z) => {
         const pos = zoneLabelPos(z);
         if (!pos) return null;
+        const isHighlighted = highlightZona === z.zona;
         return (
           <text
             key={`lbl-${z.zona}`}
             x={toX(pos.d)}
             y={toY(pos.p)}
             textAnchor="start"
-            fontSize={11.5}
-            fill={ZONE_LABEL_COLOR}
+            fontSize={isHighlighted ? 13 : 11.5}
+            fontWeight={isHighlighted ? "700" : "400"}
+            fill={isHighlighted ? (ZONA_DOT[z.zona] ?? ZONE_LABEL_COLOR) : ZONE_LABEL_COLOR}
             fontStyle="italic"
-            opacity={0.95}
+            opacity={isHighlighted ? 1 : 0.85}
           >
             {z.zona}
           </text>
@@ -272,6 +295,55 @@ export function TalentMatrixSVG({
         const cy = toY(p.potencial);
         const color = ZONA_DOT[p.zona ?? ""] ?? "#6b7280";
         const label = abbrevName(p.nombre);
+        const isHighlight = highlightPoint && points.length === 1;
+
+        if (isHighlight) {
+          // Large highlighted dot: outer glow ring + inner fill
+          const labelX = cx + 14;
+          const labelY = cy + 4;
+          const labelW = label.length * 6.2 + 10;
+          return (
+            <g key={p.id}>
+              {/* Outer pulse ring (SVG animate) */}
+              <circle cx={cx} cy={cy} r={14} fill={color} opacity={0.15}>
+                <animate attributeName="r" values="10;18;10" dur="2.4s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.2;0;0.2" dur="2.4s" repeatCount="indefinite" />
+              </circle>
+              {/* Mid ring */}
+              <circle cx={cx} cy={cy} r={10} fill={color} opacity={0.18} />
+              {/* Main dot with glow */}
+              <circle
+                cx={cx} cy={cy} r={7}
+                fill={color}
+                stroke="white"
+                strokeWidth={2.5}
+                filter="url(#dot-glow)"
+              />
+              {/* Label pill */}
+              <rect
+                x={labelX - 2}
+                y={labelY - 10}
+                width={labelW}
+                height={14}
+                rx={7}
+                fill={color}
+                opacity={0.9}
+              />
+              <text
+                x={labelX + labelW / 2 - 2}
+                y={labelY + 1}
+                textAnchor="middle"
+                fontSize={8.5}
+                fill="white"
+                fontWeight="700"
+              >
+                {label}
+              </text>
+            </g>
+          );
+        }
+
+        // Normal multi-point rendering
         const labelX = cx + 8;
         const labelY = cy + 3.5;
         const labelW = label.length * 5.5 + 6;
@@ -287,7 +359,6 @@ export function TalentMatrixSVG({
             }}
             onMouseLeave={() => onPointHover?.(null, 0, 0)}
           >
-            {/* Label box */}
             <rect
               x={labelX - 1}
               y={labelY - 9}
@@ -302,7 +373,6 @@ export function TalentMatrixSVG({
             <text x={labelX + 2} y={labelY} fontSize={8} fill="#374151" fontWeight="500">
               {label}
             </text>
-            {/* Dot */}
             <circle cx={cx} cy={cy} r={4.5} fill={color} stroke="white" strokeWidth={1.2} />
           </g>
         );
