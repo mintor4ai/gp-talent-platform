@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Rol } from "@/lib/types";
+import type { Rol, ZonaBand } from "@/lib/types";
 import CarpetaTabs from "./CarpetaTabs";
 
 export default async function CarpetaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -63,6 +63,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: entrevistas },
     { data: comentarios },
     { data: rutas },
+    { data: zonasRaw },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -112,9 +113,19 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .eq("id_empleado", colaboradorId)
       .eq("activa", true)
       .order("created_at"),
+    supabase
+      .from("config_zonas_eip")
+      .select("ciclo_año, zona, umbral_inferior, umbral_superior"),
   ]);
 
   const canEdit = isOwn || isAdmin;
+
+  // Build zones map: Record<ciclo_año, ZonaBand[]>
+  const zonasMap: Record<number, ZonaBand[]> = {};
+  for (const row of (zonasRaw ?? []) as unknown as { ciclo_año: number; zona: string; umbral_inferior: number; umbral_superior: number }[]) {
+    if (!zonasMap[row.ciclo_año]) zonasMap[row.ciclo_año] = [];
+    zonasMap[row.ciclo_año].push({ zona: row.zona, umbral_inferior: row.umbral_inferior, umbral_superior: row.umbral_superior });
+  }
 
   // Gather all available cycles from EIP + desempeño data
   const ciclosSet = new Set<number>();
@@ -187,6 +198,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         entrevistas={(entrevistas ?? []) as any[]}
         comentarios={(comentarios ?? []) as any[]}
         rutas={(rutas ?? []) as any[]}
+        zonasMap={zonasMap}
         canEdit={canEdit}
         isOwn={isOwn}
         isJefe={rol === "jefe"}

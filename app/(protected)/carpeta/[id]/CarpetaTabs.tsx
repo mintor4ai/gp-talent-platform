@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { ZONA_COLORS } from "@/lib/types";
+import type { ZonaBand } from "@/lib/types";
 import PicdEditor from "@/app/(protected)/picd/[id]/PicdEditor";
 import EntrevistaThread from "./EntrevistaThread";
 import RutaCarreraEditor from "./RutaCarreraEditor";
+import { TalentMatrixSVG } from "@/app/(protected)/evaluaciones/EIPScatterChart";
 
 type EIP = {
   id: string;
@@ -78,6 +80,8 @@ type Entrevista = {
   ciclo_ano: number;
   notas: string;
   estado: string;
+  fecha_entrevista: string | null;
+  participantes: string;
   created_at: string;
   updated_at: string;
 };
@@ -103,6 +107,7 @@ export default function CarpetaTabs({
   entrevistas,
   comentarios,
   rutas,
+  zonasMap,
   canEdit,
   isOwn,
   isJefe,
@@ -120,6 +125,7 @@ export default function CarpetaTabs({
   entrevistas: Entrevista[];
   comentarios: Comentario[];
   rutas: any[];
+  zonasMap: Record<number, ZonaBand[]>;
   canEdit: boolean;
   isOwn: boolean;
   isJefe: boolean;
@@ -376,34 +382,54 @@ export default function CarpetaTabs({
             </div>
           )}
 
-          {/* Section 5: EIP 9-box position */}
-          {eip?.zona_evaluacion && eip.desempeno_logra != null && eip.evaluacion_potencial_total != null && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-                Posición en Mapa de Talento — {cicloActual}
-              </p>
-              <div className="flex items-center gap-6 flex-wrap">
-                <div className="flex gap-8">
-                  <Stat label="Desempeño" value={eip.desempeno_logra.toFixed(1)} />
-                  <Stat label="Potencial" value={eip.evaluacion_potencial_total.toFixed(1)} />
+          {/* Section 5: Talent Matrix */}
+          {eip?.zona_evaluacion && eip.desempeno_logra != null && eip.evaluacion_potencial_total != null && (() => {
+            const zonaBands = zonasMap[cicloActual] ?? [];
+            const point = {
+              id: eip.id,
+              id_empleado: colaboradorId,
+              nombre: nombreColaborador,
+              puesto: "",
+              area: null,
+              uen: null,
+              jefe: null,
+              desempeno: eip.desempeno_logra,
+              potencial: eip.evaluacion_potencial_total,
+              zona: eip.zona_evaluacion,
+            };
+            return (
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    Posición en Mapa de Talento — {cicloActual}
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400">Desempeño <span className="font-semibold text-gray-700">{eip.desempeno_logra.toFixed(1)}</span></span>
+                      <span className="text-xs text-gray-400">Potencial <span className="font-semibold text-gray-700">{eip.evaluacion_potencial_total.toFixed(1)}</span></span>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${zonaColors?.bg ?? "bg-gray-100"} ${zonaColors?.text ?? "text-gray-700"}`}>
+                        {eip.zona_evaluacion}
+                      </span>
+                    </div>
+                    {isAdmin && (
+                      <a href="/evaluaciones" className="text-xs text-[#1a3a5c] hover:underline">
+                        Ver mapa completo →
+                      </a>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">Zona</p>
-                  <span className={`inline-flex items-center text-sm font-semibold px-3 py-1.5 rounded-full ${zonaColors?.bg ?? "bg-gray-100"} ${zonaColors?.text ?? "text-gray-700"}`}>
-                    {eip.zona_evaluacion}
-                  </span>
+                <div className="overflow-x-auto">
+                  <TalentMatrixSVG
+                    zonaBands={zonaBands}
+                    points={[point]}
+                    width={560}
+                    height={480}
+                    showTitle={false}
+                  />
                 </div>
-                {isAdmin && (
-                  <a
-                    href="/evaluaciones"
-                    className="text-xs text-[#1a3a5c] hover:underline ml-auto"
-                  >
-                    Ver mapa completo →
-                  </a>
-                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
