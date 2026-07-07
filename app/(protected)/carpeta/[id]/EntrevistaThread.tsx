@@ -56,6 +56,8 @@ export default function EntrevistaThread({
   const [fechaValue, setFechaValue] = useState(entrevista?.fecha_entrevista ?? "");
   const [participantesValue, setParticipantesValue] = useState(entrevista?.participantes ?? "");
   const [commentText, setCommentText] = useState("");
+  const [ajustesText, setAjustesText] = useState("");
+  const [showAjustesForm, setShowAjustesForm] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const threadEndRef = useRef<HTMLDivElement>(null);
@@ -92,14 +94,17 @@ export default function EntrevistaThread({
     });
   }
 
-  function handleChangeEstado(estado: string) {
+  function handleChangeEstado(estado: string, comentario?: string) {
     if (!entrevista) return;
     const fd = new FormData();
     fd.set("id_entrevista", entrevista.id);
     fd.set("id_empleado", colaboradorId);
     fd.set("estado", estado);
+    if (comentario) fd.set("comentario", comentario);
     startTransition(async () => {
       await updateEstadoEntrevista(fd);
+      setShowAjustesForm(false);
+      setAjustesText("");
     });
   }
 
@@ -305,24 +310,60 @@ export default function EntrevistaThread({
 
               {/* Estado actions for jefe/admin */}
               {canChangeEstado && entrevista.estado !== "acordado" && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <span className="text-xs text-gray-400 self-center">Marcar como:</span>
-                  {entrevista.estado !== "ajustes_solicitados" && (
-                    <button
-                      onClick={() => handleChangeEstado("ajustes_solicitados")}
-                      disabled={isPending}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors disabled:opacity-50"
-                    >
-                      Solicitar ajustes
-                    </button>
+                <div className="space-y-2 pt-1">
+                  {/* Formulario inline de ajustes */}
+                  {showAjustesForm ? (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-orange-800">
+                        Indica qué debe ajustar el colaborador:
+                      </p>
+                      <textarea
+                        value={ajustesText}
+                        onChange={(e) => setAjustesText(e.target.value)}
+                        rows={3}
+                        placeholder="Describe los cambios o mejoras necesarias en la entrevista..."
+                        className="w-full px-3 py-2 text-sm border border-orange-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none bg-white"
+                        autoFocus
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => { setShowAjustesForm(false); setAjustesText(""); }}
+                          className="text-xs text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleChangeEstado("ajustes_solicitados", ajustesText)}
+                          disabled={isPending || !ajustesText.trim()}
+                          className="text-xs bg-orange-600 text-white px-3 py-1.5 rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors font-medium"
+                        >
+                          {isPending ? "Enviando..." : "Enviar solicitud de ajustes"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-xs text-gray-400 self-center">Marcar como:</span>
+                      {entrevista.estado !== "ajustes_solicitados" && (
+                        <button
+                          onClick={() => setShowAjustesForm(true)}
+                          disabled={isPending}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors disabled:opacity-50"
+                        >
+                          Solicitar ajustes
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleChangeEstado("acordado")}
+                        disabled={isPending}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
+                      >
+                        Marcar como acordado ✓
+                      </button>
+                    </div>
                   )}
-                  <button
-                    onClick={() => handleChangeEstado("acordado")}
-                    disabled={isPending}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
-                  >
-                    Marcar como acordado ✓
-                  </button>
                 </div>
               )}
 

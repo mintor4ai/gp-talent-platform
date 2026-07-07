@@ -145,6 +145,7 @@ export async function updateEstadoEntrevista(formData: FormData) {
   const id_entrevista = formData.get("id_entrevista") as string;
   const estado = formData.get("estado") as string;
   const id_empleado = formData.get("id_empleado") as string;
+  const comentario = ((formData.get("comentario") as string) ?? "").trim();
 
   const isAdmin = perfil.rol === "capital_humano" || perfil.rol === "superadmin";
   const isJefe = perfil.rol === "jefe";
@@ -155,19 +156,37 @@ export async function updateEstadoEntrevista(formData: FormData) {
     .update({ estado, updated_at: new Date().toISOString() })
     .eq("id", id_entrevista);
 
-  // Notificar al empleado cuando el jefe cambia el estado de su entrevista
+  // Si hay comentario (obligatorio en ajustes_solicitados), insertarlo en el thread
+  if (comentario) {
+    let autor_nombre = "Jefe";
+    if (perfil.id_empleado) {
+      const { data: colab } = await supabase
+        .from("colaboradores").select("nombre_completo").eq("id", perfil.id_empleado).single();
+      if (colab) autor_nombre = colab.nombre_completo;
+    }
+    await supabase.from("picd_comentarios").insert({
+      id_entrevista,
+      autor_id:    user.id,
+      autor_rol:   perfil.rol,
+      autor_nombre,
+      texto:       comentario,
+    });
+  }
+
+  // Notificar al empleado cuando el jefe cambia el estado
   const ESTADO_LABELS: Record<string, { titulo: string; tipo: "accion" | "informativo" }> = {
     ajustes_solicitados: { titulo: "Tu entrevista de desarrollo requiere ajustes", tipo: "accion" },
-    aprobado:            { titulo: "Tu entrevista de desarrollo fue aprobada",    tipo: "informativo" },
-    en_revision:         { titulo: "Tu entrevista está en revisión",              tipo: "informativo" },
+    acordado:            { titulo: "Tu entrevista de desarrollo fue acordada",     tipo: "informativo" },
+    en_revision:         { titulo: "Tu entrevista está en revisión",               tipo: "informativo" },
   };
   const estadoInfo = ESTADO_LABELS[estado];
   if (estadoInfo) {
     await notificarEmpleado({
       id_empleado,
-      tipo: estadoInfo.tipo,
+      tipo:   estadoInfo.tipo,
       titulo: estadoInfo.titulo,
-      url: `/carpeta/${id_empleado}`,
+      cuerpo: comentario || undefined,
+      url:    `/carpeta/${id_empleado}`,
     });
   }
 
