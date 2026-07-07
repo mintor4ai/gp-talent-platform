@@ -77,6 +77,10 @@ export default async function ColaboradoresPage() {
         </p>
       </div>
 
+      {isAdmin && picdCiclosRows.length > 0 && (
+        <PicdCiclosAdmin rows={picdCiclosRows} cicloAño={cicloAño} />
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -124,9 +128,6 @@ export default async function ColaboradoresPage() {
         </div>
       </div>
 
-      {isAdmin && picdCiclosRows.length > 0 && (
-        <PicdCiclosAdmin rows={picdCiclosRows} cicloAño={cicloAño} />
-      )}
     </div>
   );
 }
