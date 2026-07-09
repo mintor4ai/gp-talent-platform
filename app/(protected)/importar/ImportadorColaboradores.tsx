@@ -14,6 +14,7 @@ type PreviewRow = {
   correo: string | null;
   activo: boolean;
   esNuevo: boolean;
+  puesto_catalogo_id: string | null;
   error?: string;
 };
 
@@ -22,6 +23,7 @@ type ImportResult = {
   total: number;
   upserted: number;
   jefeLinked: number;
+  catalogoLinked: number;
   errores: number;
   errors: string[];
 };
@@ -220,7 +222,14 @@ export default function ImportadorColaboradores() {
                       <td className="px-3 py-2 text-gray-500 max-w-[120px] truncate">
                         {[row.organización, row.area].filter(Boolean).join(" / ") || "—"}
                       </td>
-                      <td className="px-3 py-2 text-gray-500 max-w-[120px] truncate">{row.puesto || "—"}</td>
+                      <td className="px-3 py-2 text-gray-500 max-w-[120px] truncate">
+                        <span className="flex items-center gap-1">
+                          {row.puesto || "—"}
+                          {row.puesto_catalogo_id && (
+                            <span title="Vinculado al catálogo de puestos" className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                          )}
+                        </span>
+                      </td>
                       <td className="px-3 py-2 text-gray-500 max-w-[120px] truncate">{row.jefe_inmediato_nombre || "—"}</td>
                       <td className="px-3 py-2 text-gray-400 max-w-[120px] truncate">{row.correo || "—"}</td>
                       <td className="px-3 py-2 text-center">
@@ -250,11 +259,17 @@ export default function ImportadorColaboradores() {
             <StatCard label="Total filas" value={result.total} color="gray" />
             <StatCard label="Insertados / actualizados" value={result.upserted} color="green" />
             <StatCard label="Jefes vinculados" value={result.jefeLinked} color="blue" />
+            <StatCard label="Catálogo vinculado" value={result.catalogoLinked ?? 0} color="blue" />
             <StatCard label="Errores" value={result.errores} color={result.errores > 0 ? "red" : "gray"} />
           </div>
           {result.jefeLinked > 0 && (
             <p className="text-sm text-green-700">
               {result.jefeLinked} colaborador(es) quedaron vinculados a su jefe por UUID.
+            </p>
+          )}
+          {(result.catalogoLinked ?? 0) > 0 && (
+            <p className="text-sm text-green-700">
+              {result.catalogoLinked} colaborador(es) vinculados a su puesto en el catálogo.
             </p>
           )}
           {result.errors.length > 0 && (

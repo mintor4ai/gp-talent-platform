@@ -81,7 +81,8 @@ export type ColabPreviewRow = {
   nivel_academico: string | null;
   dispuesto_cambiar_residencia: boolean;
   activo: boolean;
-  esNuevo: boolean;   // set during preview: true if not in DB yet
+  esNuevo: boolean;
+  puesto_catalogo_id: string | null;
   error?: string;
 };
 
@@ -114,6 +115,28 @@ export async function POST(req: NextRequest) {
     .from("colaboradores").select("id_empleado");
   const existingIds = new Set((existingRaw ?? []).map((r) => String(r.id_empleado).trim()));
 
+  // Load catalogo_puestos for matching (by clave and by nombre+organización)
+  // Use select("*") to avoid Supabase TS parser issue with accented column names
+  const { data: catalogoRaw } = await supabase
+    .from("catalogo_puestos")
+    .select("*")
+    .eq("activo", true);
+
+  type CatalogRow = { id: string; clave: string; nombre: string; [key: string]: unknown };
+  const catalogoByClave     = new Map<string, string>(); // clave.upper → id
+  const catalogoByNombreOrg = new Map<string, string>(); // nombre.upper|org.upper → id
+  const catalogoByNombre    = new Map<string, string[]>(); // nombre.upper → [ids] (for unique fallback)
+  for (const raw of catalogoRaw ?? []) {
+    const c = raw as unknown as CatalogRow;
+    const org = String(c["organización"] ?? "").trim();
+    if (c.clave) catalogoByClave.set(c.clave.trim().toUpperCase(), c.id);
+    const key = `${(c.nombre ?? "").trim().toUpperCase()}|${org.toUpperCase()}`;
+    catalogoByNombreOrg.set(key, c.id);
+    const n = (c.nombre ?? "").trim().toUpperCase();
+    if (!catalogoByNombre.has(n)) catalogoByNombre.set(n, []);
+    catalogoByNombre.get(n)!.push(c.id);
+  }
+
   const results: ColabPreviewRow[] = [];
 
   for (let i = 0; i < rows.length; i++) {
@@ -133,17 +156,36 @@ export async function POST(req: NextRequest) {
         fecha_antiguedad: null, fecha_ingreso_posicion: null, fecha_ingreso_grupo: null,
         correo: null, sexo: null, edad: null, nivel_academico: null,
         dispuesto_cambiar_residencia: false, activo: true, esNuevo: true,
+        puesto_catalogo_id: null,
         error: !id_empleado ? "Falta no_empleado" : "Falta nombre_completo",
       });
       continue;
+    }
+
+    const organización_val = str(col(row, "organización", "organizacion", "uen", "unidad"));
+    const puesto_val       = str(col(row, "puesto", "cargo", "posicion_nombre"));
+    const clave_val        = str(col(row, "clave", "clave_puesto", "codigo_puesto", "q_code"));
+
+    // Match against catalog: clave > nombre+org > nombre-only (unique)
+    let puesto_catalogo_id: string | null = null;
+    if (clave_val) {
+      puesto_catalogo_id = catalogoByClave.get(clave_val.trim().toUpperCase()) ?? null;
+    }
+    if (!puesto_catalogo_id && puesto_val) {
+      const nomOrg = `${puesto_val.trim().toUpperCase()}|${(organización_val ?? "").trim().toUpperCase()}`;
+      puesto_catalogo_id = catalogoByNombreOrg.get(nomOrg) ?? null;
+    }
+    if (!puesto_catalogo_id && puesto_val) {
+      const candidates = catalogoByNombre.get(puesto_val.trim().toUpperCase()) ?? [];
+      if (candidates.length === 1) puesto_catalogo_id = candidates[0];
     }
 
     results.push({
       fila,
       id_empleado,
       nombre_completo: nombre_completo.toUpperCase(),
-      organización:            str(col(row, "organización", "organizacion", "uen", "unidad")),
-      puesto:                  str(col(row, "puesto", "cargo", "posicion_nombre")),
+      organización:            organización_val,
+      puesto:                  puesto_val,
       nivel:                   str(col(row, "nivel", "nivel_puesto")),
       nivel_num:               num(col(row, "nivel_num", "nivel_numero", "num_nivel")),
       area:                    str(col(row, "area", "área")),
@@ -165,6 +207,7 @@ export async function POST(req: NextRequest) {
       dispuesto_cambiar_residencia: !!col(row, "dispuesto_cambiar_residencia", "cambio_residencia"),
       activo:                  bool(col(row, "activo", "estatus", "status")),
       esNuevo:                 !existingIds.has(id_empleado),
+      puesto_catalogo_id,
     });
   }
 
@@ -212,6 +255,7 @@ export async function POST(req: NextRequest) {
         dispuesto_cambiar_residencia: r.dispuesto_cambiar_residencia,
         activo:                   r.activo,
         estatus_empleado:         r.activo ? 1 : 0,
+        puesto_catalogo_id:       r.puesto_catalogo_id,
       },
       { onConflict: "id_empleado" }
     );
@@ -243,6 +287,7 @@ export async function POST(req: NextRequest) {
     total: results.length,
     upserted,
     jefeLinked,
+    catalogoLinked: validos.filter((r) => r.puesto_catalogo_id !== null).length,
     errores: results.filter((r) => !!r.error).length,
     errors: errors.slice(0, 10),
   });
