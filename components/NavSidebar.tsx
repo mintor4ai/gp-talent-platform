@@ -14,6 +14,7 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/colaboradores",  label: "Colaboradores",        icon: "👥" },
   { href: "/evaluaciones",   label: "Carpetas individuales", icon: "📊" },
   { href: "/sucesion",       label: "Plan de Sucesión",     icon: "🔄" },
+  { href: "/configuracion/catalogo-puestos", label: "Catálogo de Puestos", icon: "🗂️" },
   { href: "/importar",       label: "Importar datos",       icon: "📥" },
   { href: "/coach",          label: "Coach IA",             icon: "✦" },
 ];
