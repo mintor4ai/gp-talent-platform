@@ -2,6 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { ZONA_COLORS } from "@/lib/types";
+
+const ZONA_ORDER: Record<string, number> = {
+  Inicio: 1,
+  "Revisión": 2,
+  Estabilidad: 3,
+  Desarrollo: 4,
+  Sobresaliente: 5,
+};
 import type { ZonaBand } from "@/lib/types";
 import PicdEditor from "@/app/(protected)/picd/[id]/PicdEditor";
 import EntrevistaThread from "./EntrevistaThread";
@@ -301,6 +309,57 @@ export default function CarpetaTabs({
               </div>
             </div>
           )}
+
+          {/* Zone history timeline — shown when 2+ EIP records with zone */}
+          {(() => {
+            const withZone = [...eips]
+              .filter((e) => e.zona_evaluacion)
+              .sort((a, b) => a.ciclo_año - b.ciclo_año);
+            if (withZone.length < 2) return null;
+            return (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  Evolución por Ciclo
+                </p>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {withZone.map((e, idx) => {
+                    const zona = e.zona_evaluacion!;
+                    const colors = ZONA_COLORS[zona] ?? { bg: "bg-gray-100", text: "text-gray-700" };
+                    const prev = idx > 0 ? withZone[idx - 1].zona_evaluacion : null;
+                    const prevRank = prev ? (ZONA_ORDER[prev] ?? 0) : null;
+                    const curRank = ZONA_ORDER[zona] ?? 0;
+                    let arrow: { icon: string; color: string } | null = null;
+                    if (prevRank !== null) {
+                      if (curRank > prevRank)       arrow = { icon: "↑", color: "text-green-600" };
+                      else if (curRank < prevRank)  arrow = { icon: "↓", color: "text-red-500" };
+                      else                          arrow = { icon: "=", color: "text-gray-400" };
+                    }
+                    const isCurrent = e.ciclo_año === cicloActual;
+                    return (
+                      <div key={e.id} className="flex items-center gap-1">
+                        {arrow && (
+                          <span className={`text-sm font-bold ${arrow.color}`}>{arrow.icon}</span>
+                        )}
+                        <button
+                          onClick={() => setCicloActual(e.ciclo_año)}
+                          className={`flex flex-col items-center px-2.5 py-1.5 rounded-lg border transition-all ${
+                            isCurrent
+                              ? "border-[#1a3a5c] ring-1 ring-[#1a3a5c]/30 shadow-sm"
+                              : "border-gray-200 hover:border-gray-300"
+                          }`}
+                        >
+                          <span className="text-[10px] text-gray-400 font-medium mb-0.5">{e.ciclo_año}</span>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
+                            {zona}
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Section 1: Datos personales / posición */}
           <SectionHeader label={`Datos del Ciclo ${cicloActual}`} />
