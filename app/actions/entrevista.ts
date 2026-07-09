@@ -44,6 +44,24 @@ export async function upsertEntrevista(formData: FormData) {
       { onConflict: "id_empleado,ciclo_ano" }
     );
 
+  // Notificar al jefe cuando el colaborador envía o actualiza su entrevista
+  if (!isAdmin) {
+    const { data: colab } = await supabase
+      .from("colaboradores")
+      .select("nombre_completo, jefe_inmediato_id")
+      .eq("id", id_empleado)
+      .single();
+    if (colab?.jefe_inmediato_id) {
+      await notificarEmpleado({
+        id_empleado: colab.jefe_inmediato_id,
+        tipo: "accion",
+        titulo: `${colab.nombre_completo} documentó su entrevista de desarrollo`,
+        cuerpo: `Entrevista ${ciclo_ano} pendiente de revisión.`,
+        url: `/carpeta/${id_empleado}`,
+      });
+    }
+  }
+
   revalidatePath(`/carpeta/${id_empleado}`);
 }
 

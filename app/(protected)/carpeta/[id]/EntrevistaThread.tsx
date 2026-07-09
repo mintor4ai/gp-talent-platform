@@ -122,15 +122,15 @@ export default function EntrevistaThread({
         </div>
         <div className="flex items-center gap-2">
           {savedMsg && <span className="text-xs text-green-600 font-medium">{savedMsg}</span>}
-          {!entrevista && isOwn && (
+          {!entrevista && (isOwn || isAdmin) && (
             <button
               onClick={() => { setOpen(true); setEditingNotas(true); }}
               className="text-sm bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-[#152e4d] transition-colors"
             >
-              Documentar entrevista
+              {isAdmin && !isOwn ? "Documentar como admin" : "Documentar entrevista"}
             </button>
           )}
-          {entrevista && isOwn && !editingNotas && entrevista.estado !== "acordado" && (
+          {entrevista && (isOwn || isAdmin) && !editingNotas && entrevista.estado !== "acordado" && (
             <button
               onClick={() => setEditingNotas(true)}
               className="text-xs text-[#1a3a5c] hover:underline"
@@ -151,8 +151,8 @@ export default function EntrevistaThread({
 
       {open && (
         <div className="p-5 space-y-5">
-          {/* Notes form (colaborador) */}
-          {(editingNotas || !entrevista) && isOwn ? (
+          {/* Notes form (colaborador or admin) */}
+          {(editingNotas || !entrevista) && (isOwn || isAdmin) ? (
             <form onSubmit={handleSaveNotas} className="space-y-4">
               <input type="hidden" name="id_empleado" value={colaboradorId} />
               <input type="hidden" name="ciclo_ano" value={cicloAno} />

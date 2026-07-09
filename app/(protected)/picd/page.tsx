@@ -14,6 +14,10 @@ export default async function PicdRedirectPage() {
     .eq("id", user.id)
     .single();
 
+  // Admins go to the PICD management panel in Colaboradores
+  const isAdmin = perfil?.rol === "capital_humano" || perfil?.rol === "superadmin";
+  if (isAdmin) redirect("/colaboradores");
+
   if (!perfil?.id_empleado) {
     return (
       <div className="text-center py-16 text-gray-500 text-sm">

@@ -256,12 +256,20 @@ export default function PicdCiclosAdmin({
                         : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <a
-                        href={`/carpeta/${r.id_empleado}`}
-                        className="text-[#1a3a5c] hover:underline text-xs font-medium"
-                      >
-                        Ver →
-                      </a>
+                      <div className="flex gap-3">
+                        <a
+                          href={`/picd/${r.id_empleado}`}
+                          className="text-[#1a3a5c] hover:underline text-xs font-medium"
+                        >
+                          PICD →
+                        </a>
+                        <a
+                          href={`/carpeta/${r.id_empleado}`}
+                          className="text-gray-400 hover:underline text-xs font-medium"
+                        >
+                          Carpeta
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 );
