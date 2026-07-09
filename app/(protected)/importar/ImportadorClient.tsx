@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import ImportadorColaboradores from "./ImportadorColaboradores";
 
 const ZONA_COLORS: Record<string, string> = {
   Sobresaliente: "bg-purple-100 text-purple-800",
@@ -40,6 +41,7 @@ type ImportResult = {
 };
 
 export default function ImportadorClient() {
+  const [tab, setTab] = useState<"colaboradores" | "evaluaciones">("colaboradores");
   const [cicloAño, setCicloAño] = useState<number>(new Date().getFullYear());
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewRow[] | null>(null);
@@ -108,9 +110,38 @@ export default function ImportadorClient() {
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Importación de Evaluaciones</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Importación de Datos</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Carga un archivo Excel con los resultados de evaluación para un ciclo.
+          Carga archivos Excel para importar colaboradores o evaluaciones.
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {([
+          { id: "colaboradores", label: "Colaboradores" },
+          { id: "evaluaciones",  label: "Evaluaciones EIP / Desempeño" },
+        ] as const).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              tab === t.id
+                ? "border-[#1a3a5c] text-[#1a3a5c]"
+                : "border-transparent text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "colaboradores" && <ImportadorColaboradores />}
+
+      {tab === "evaluaciones" && (<>
+      <div>
+        <p className="text-sm text-gray-500">
+          Importa resultados de evaluación EIP y Desempeño por ciclo.
         </p>
       </div>
 
@@ -307,6 +338,7 @@ export default function ImportadorClient() {
           </button>
         </div>
       )}
+      </>)}
     </div>
   );
 }
