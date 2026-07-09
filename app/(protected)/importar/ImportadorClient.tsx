@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import ImportadorColaboradores from "./ImportadorColaboradores";
+import ImportadorUsuarios from "./ImportadorUsuarios";
 
 const ZONA_COLORS: Record<string, string> = {
   Sobresaliente: "bg-purple-100 text-purple-800",
@@ -41,7 +42,7 @@ type ImportResult = {
 };
 
 export default function ImportadorClient() {
-  const [tab, setTab] = useState<"colaboradores" | "evaluaciones">("colaboradores");
+  const [tab, setTab] = useState<"colaboradores" | "usuarios" | "evaluaciones">("colaboradores");
   const [cicloAño, setCicloAño] = useState<number>(new Date().getFullYear());
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewRow[] | null>(null);
@@ -120,6 +121,7 @@ export default function ImportadorClient() {
       <div className="flex gap-1 border-b border-gray-200">
         {([
           { id: "colaboradores", label: "Colaboradores" },
+          { id: "usuarios",      label: "Usuarios de Acceso" },
           { id: "evaluaciones",  label: "Evaluaciones EIP / Desempeño" },
         ] as const).map((t) => (
           <button
@@ -137,6 +139,8 @@ export default function ImportadorClient() {
       </div>
 
       {tab === "colaboradores" && <ImportadorColaboradores />}
+
+      {tab === "usuarios" && <ImportadorUsuarios />}
 
       {tab === "evaluaciones" && (<>
       <div>
