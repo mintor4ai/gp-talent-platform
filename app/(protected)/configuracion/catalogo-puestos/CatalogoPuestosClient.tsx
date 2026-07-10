@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useRef, useEffect, useCallback } from "react";
 import { togglePuestoCritico, togglePuestoActivo } from "@/app/actions/catalogo-puestos";
 import type { PuestoCatalogo } from "./page";
 
@@ -106,11 +106,11 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <input
+          <PuestoAutocomplete
+            puestos={puestos}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre o clave..."
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] col-span-full sm:col-span-2 lg:col-span-1"
+            onChange={setSearch}
+            className="col-span-full sm:col-span-2 lg:col-span-1"
           />
           <select value={filterUen} onChange={(e) => setFilterUen(e.target.value)}
             className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
@@ -247,6 +247,184 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+const TIPO_COLORS_AC: Record<string, string> = {
+  Gerencial:      "text-purple-700",
+  Administrativa: "text-blue-700",
+  Operativa:      "text-orange-600",
+};
+
+function PuestoAutocomplete({
+  puestos,
+  value,
+  onChange,
+  className,
+}: {
+  puestos: PuestoCatalogo[];
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  const [open, setOpen]           = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const inputRef  = useRef<HTMLInputElement>(null);
+  const listRef   = useRef<HTMLUListElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const suggestions = useMemo(() => {
+    const q = value.trim().toLowerCase();
+    if (!q || q.length < 1) return [];
+    return puestos
+      .filter((p) =>
+        p.nombre.toLowerCase().includes(q) ||
+        p.clave.toLowerCase().includes(q)
+      )
+      .slice(0, 10);
+  }, [puestos, value]);
+
+  useEffect(() => {
+    setActiveIdx(-1);
+    setOpen(suggestions.length > 0);
+  }, [suggestions]);
+
+  // Close on outside click
+  useEffect(() => {
+    function onClickOut(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOut);
+    return () => document.removeEventListener("mousedown", onClickOut);
+  }, []);
+
+  const select = useCallback((p: PuestoCatalogo) => {
+    onChange(p.nombre);
+    setOpen(false);
+    setActiveIdx(-1);
+    inputRef.current?.focus();
+  }, [onChange]);
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!open) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.max(i - 1, -1));
+    } else if (e.key === "Enter") {
+      if (activeIdx >= 0 && suggestions[activeIdx]) {
+        e.preventDefault();
+        select(suggestions[activeIdx]);
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setActiveIdx(-1);
+    }
+  }
+
+  // Scroll active item into view
+  useEffect(() => {
+    if (activeIdx >= 0 && listRef.current) {
+      const el = listRef.current.children[activeIdx] as HTMLElement | undefined;
+      el?.scrollIntoView({ block: "nearest" });
+    }
+  }, [activeIdx]);
+
+  function highlight(text: string, q: string) {
+    if (!q) return <>{text}</>;
+    const idx = text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx === -1) return <>{text}</>;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark className="bg-yellow-100 text-yellow-900 rounded-sm">{text.slice(idx, idx + q.length)}</mark>
+        {text.slice(idx + q.length)}
+      </>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className={`relative ${className ?? ""}`}>
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+        </span>
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => { if (suggestions.length > 0) setOpen(true); }}
+          onKeyDown={onKeyDown}
+          placeholder="Buscar por nombre o clave..."
+          autoComplete="off"
+          className="w-full text-sm border border-gray-200 rounded-lg pl-8 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]"
+          aria-expanded={open}
+          aria-autocomplete="list"
+          aria-controls="puesto-suggestions"
+          role="combobox"
+        />
+        {value && (
+          <button
+            onClick={() => { onChange(""); setOpen(false); inputRef.current?.focus(); }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
+            tabIndex={-1}
+            aria-label="Limpiar búsqueda"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <ul
+          id="puesto-suggestions"
+          ref={listRef}
+          role="listbox"
+          className="absolute z-50 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto"
+        >
+          {suggestions.map((p, i) => (
+            <li
+              key={p.id}
+              role="option"
+              aria-selected={i === activeIdx}
+              onMouseDown={(e) => { e.preventDefault(); select(p); }}
+              onMouseEnter={() => setActiveIdx(i)}
+              className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
+                i === activeIdx ? "bg-[#1a3a5c] text-white" : "hover:bg-gray-50"
+              }`}
+            >
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-medium truncate ${i === activeIdx ? "text-white" : "text-gray-800"}`}>
+                  {i === activeIdx ? p.nombre : highlight(p.nombre, value.trim())}
+                </p>
+                <div className={`flex items-center gap-2 mt-0.5 text-[10px] ${i === activeIdx ? "text-blue-200" : "text-gray-400"}`}>
+                  <span className="font-mono">{p.clave}</span>
+                  {p.organización && <><span>·</span><span className="truncate">{p.organización}</span></>}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                {p.es_critico && (
+                  <span className={`text-[9px] font-bold ${i === activeIdx ? "text-red-200" : "text-red-500"}`}>★ crítico</span>
+                )}
+                {p.tipo_vacante && (
+                  <span className={`text-[10px] font-medium ${i === activeIdx ? "text-blue-100" : (TIPO_COLORS_AC[p.tipo_vacante] ?? "text-gray-500")}`}>
+                    {p.tipo_vacante}
+                  </span>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
