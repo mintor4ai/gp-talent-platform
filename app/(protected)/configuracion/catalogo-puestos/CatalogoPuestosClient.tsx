@@ -150,21 +150,86 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
         )}
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* ── Mobile cards (< md) ─────────────────────────────────────────── */}
+      <div className="md:hidden space-y-2">
+        {filtered.length === 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 px-4 py-8 text-center text-sm text-gray-400">
+            No hay puestos que coincidan con los filtros
+          </div>
+        )}
+        {filtered.map((p) => {
+          const esCritico = getField(p, "es_critico");
+          const esActivo  = getField(p, "activo");
+          return (
+            <div key={p.id}
+              className={`bg-white rounded-xl border px-4 py-3 space-y-2 transition-opacity ${
+                !esActivo ? "opacity-50 border-gray-100" : esCritico ? "border-red-200" : "border-gray-200"
+              }`}
+            >
+              {/* Nombre + clave */}
+              <div className="flex items-start gap-2">
+                {esCritico && <span className="text-red-500 text-xs font-bold mt-0.5 flex-shrink-0">★</span>}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 leading-snug">{p.nombre}</p>
+                  <p className="text-[11px] font-mono text-gray-400 mt-0.5">{p.clave}</p>
+                </div>
+              </div>
+              {/* Meta row */}
+              <div className="flex flex-wrap gap-1.5 text-[11px]">
+                {p.organización && (
+                  <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{p.organización}</span>
+                )}
+                {p.segmento_organizacional && (
+                  <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{p.segmento_organizacional}</span>
+                )}
+                {p.tipo_vacante && (
+                  <span className={`px-2 py-0.5 rounded-full font-medium ${TIPO_COLORS[p.tipo_vacante] ?? "bg-gray-100 text-gray-700"}`}>
+                    {p.tipo_vacante}
+                  </span>
+                )}
+                {p.titulares_count > 0 && (
+                  <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{p.titulares_count} titular{p.titulares_count !== 1 ? "es" : ""}</span>
+                )}
+                {p.sucesion_count > 0 && (
+                  <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{p.sucesion_count} plan{p.sucesion_count !== 1 ? "es" : ""}</span>
+                )}
+              </div>
+              {/* Switches */}
+              <div className="flex items-center gap-4 pt-1 border-t border-gray-50">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <Toggle on={esCritico} onColor="bg-red-500" onClick={() => handleToggleCritico(p)} />
+                  <span className="text-xs text-gray-500">Crítico</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <Toggle on={esActivo} onColor="bg-green-500" onClick={() => handleToggleActivo(p)} />
+                  <span className="text-xs text-gray-500">Activo</span>
+                </label>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length > 0 && (
+          <p className="text-xs text-gray-400 text-center pt-1">
+            Mostrando {filtered.length} de {puestos.length} puestos
+          </p>
+        )}
+      </div>
+
+      {/* ── Desktop table (≥ md) ─────────────────────────────────────────── */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-gray-400 border-b border-gray-100 bg-gray-50">
-                <th className="px-4 py-3 font-medium">Clave</th>
-                <th className="px-4 py-3 font-medium">Nombre</th>
-                <th className="px-4 py-3 font-medium">UEN</th>
-                <th className="px-4 py-3 font-medium">Segmento</th>
-                <th className="px-4 py-3 font-medium">Tipo</th>
-                <th className="px-4 py-3 font-medium text-center">Titulares</th>
-                <th className="px-4 py-3 font-medium text-center">Planes</th>
-                <th className="px-4 py-3 font-medium text-center">Crítico</th>
-                <th className="px-4 py-3 font-medium text-center">Activo</th>
+                <th className="px-4 py-3 font-medium whitespace-nowrap">Clave</th>
+                <th className="px-4 py-3 font-medium min-w-[260px]">Nombre</th>
+                <th className="px-4 py-3 font-medium min-w-[140px]">UEN</th>
+                <th className="px-4 py-3 font-medium min-w-[120px]">Segmento</th>
+                <th className="px-4 py-3 font-medium whitespace-nowrap">Tipo</th>
+                <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Titulares</th>
+                <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Planes</th>
+                <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Crítico</th>
+                <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Activo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -179,17 +244,17 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
                 const esCritico = getField(p, "es_critico");
                 const esActivo  = getField(p, "activo");
                 return (
-                  <tr key={p.id} className={`hover:bg-gray-50/50 transition-colors ${!esActivo ? "opacity-50" : ""} ${esCritico ? "bg-red-50/20" : ""}`}>
-                    <td className="px-4 py-2.5 font-mono text-gray-500 whitespace-nowrap">{p.clave}</td>
-                    <td className="px-4 py-2.5 font-medium text-gray-800 max-w-[220px]">
-                      <div className="flex items-center gap-1.5">
-                        {esCritico && <span className="text-red-500 text-[10px] font-bold">★</span>}
-                        <span className="truncate">{p.nombre}</span>
+                  <tr key={p.id} className={`hover:bg-gray-50/60 transition-colors ${!esActivo ? "opacity-50" : ""} ${esCritico ? "bg-red-50/20" : ""}`}>
+                    <td className="px-4 py-3 font-mono text-gray-500 whitespace-nowrap">{p.clave}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800">
+                      <div className="flex items-start gap-1.5">
+                        {esCritico && <span className="text-red-500 text-[10px] font-bold mt-0.5 flex-shrink-0">★</span>}
+                        <span className="leading-snug">{p.nombre}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5 text-gray-500 max-w-[160px] truncate">{p.organización ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-gray-500 max-w-[120px] truncate">{p.segmento_organizacional ?? "—"}</td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-3 text-gray-500 leading-snug">{p.organización ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 leading-snug">{p.segmento_organizacional ?? "—"}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
                       {p.tipo_vacante
                         ? <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${TIPO_COLORS[p.tipo_vacante] ?? "bg-gray-100 text-gray-700"}`}>
                             {p.tipo_vacante}
@@ -197,43 +262,29 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
                         : <span className="text-gray-300">—</span>
                       }
                     </td>
-                    <td className="px-4 py-2.5 text-center">
+                    <td className="px-4 py-3 text-center">
                       {p.titulares_count > 0
                         ? <span className="text-gray-700 font-medium">{p.titulares_count}</span>
                         : <span className="text-gray-300">—</span>
                       }
                     </td>
-                    <td className="px-4 py-2.5 text-center">
+                    <td className="px-4 py-3 text-center">
                       {p.sucesion_count > 0
                         ? <span className="text-green-600 font-medium">{p.sucesion_count}</span>
                         : <span className="text-gray-300">—</span>
                       }
                     </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <button
+                    <td className="px-4 py-3 text-center">
+                      <Toggle on={esCritico} onColor="bg-red-500"
                         onClick={() => handleToggleCritico(p)}
                         title={esCritico ? "Quitar de críticos" : "Marcar como crítico"}
-                        className={`w-8 h-5 rounded-full transition-colors relative ${
-                          esCritico ? "bg-red-500" : "bg-gray-200"
-                        }`}
-                      >
-                        <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                          esCritico ? "translate-x-3.5" : "translate-x-0.5"
-                        }`} />
-                      </button>
+                      />
                     </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <button
+                    <td className="px-4 py-3 text-center">
+                      <Toggle on={esActivo} onColor="bg-green-500"
                         onClick={() => handleToggleActivo(p)}
                         title={esActivo ? "Desactivar" : "Activar"}
-                        className={`w-8 h-5 rounded-full transition-colors relative ${
-                          esActivo ? "bg-green-500" : "bg-gray-200"
-                        }`}
-                      >
-                        <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                          esActivo ? "translate-x-3.5" : "translate-x-0.5"
-                        }`} />
-                      </button>
+                      />
                     </td>
                   </tr>
                 );
@@ -248,6 +299,23 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
         )}
       </div>
     </div>
+  );
+}
+
+function Toggle({ on, onColor, onClick, title }: { on: boolean; onColor: string; onClick: () => void; title?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`relative inline-flex w-10 h-[22px] rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[#1a3a5c] ${
+        on ? onColor : "bg-gray-300"
+      }`}
+    >
+      <span className={`absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-200 ${
+        on ? "translate-x-[22px]" : "translate-x-[3px]"
+      }`} />
+    </button>
   );
 }
 
