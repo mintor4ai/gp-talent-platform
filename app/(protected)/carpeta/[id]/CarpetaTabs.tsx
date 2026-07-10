@@ -700,7 +700,7 @@ export default function CarpetaTabs({
             nombreColaborador={nombreColaborador}
           />
 
-          {(isOwn || isAdmin) && (
+          {(isOwn || isJefe || isAdmin) && (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
               <RutaCarreraEditor
                 colaboradorId={colaboradorId}
