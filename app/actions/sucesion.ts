@@ -37,6 +37,10 @@ export async function upsertSucesor(params: {
       throw new Error("No se puede editar un plan ya enviado a validación");
   }
 
+  // Resolve catalog position from titular's colaborador record
+  const { data: titular } = await supabase
+    .from("colaboradores").select("puesto_catalogo_id").eq("id", params.id_empleado).single();
+
   const row = {
     id_empleado:         params.id_empleado,
     ciclo_año:           params.ciclo_año,
@@ -48,6 +52,7 @@ export async function upsertSucesor(params: {
     acciones_desarrollo: params.acciones_desarrollo.trim() || null,
     fecha_objetivo:      params.fecha_objetivo || null,
     notas:               params.notas.trim() || null,
+    puesto_catalogo_id:  titular?.puesto_catalogo_id ?? null,
     estado:              "borrador",
     updated_at:          new Date().toISOString(),
   };

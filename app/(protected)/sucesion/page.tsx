@@ -49,10 +49,33 @@ export default async function SucesionPage() {
   const ciclos = Array.from(new Set(planes.map((p) => p.ciclo_año))).sort((a, b) => b - a);
 
   // Build cobertura data
-  // Map colaborador.id → puesto_catalogo_id for inferring catalog position from titular
+  // Build catalog name lookup maps for fallback matching (when puesto_catalogo_id is null)
+  type CatalogEntry = { id: string; nombre: string; organización: string | null };
+  const catalogoByNombreOrg = new Map<string, string>(); // "NOMBRE|ORG" → id
+  const catalogoByNombre    = new Map<string, string[]>(); // "NOMBRE" → [ids]
+  for (const raw of catalogoRaw ?? []) {
+    const c = raw as unknown as CatalogEntry & Record<string, unknown>;
+    const org = String(c["organización"] ?? "").trim().toUpperCase();
+    const nom = (c.nombre ?? "").trim().toUpperCase();
+    catalogoByNombreOrg.set(`${nom}|${org}`, c.id);
+    if (!catalogoByNombre.has(nom)) catalogoByNombre.set(nom, []);
+    catalogoByNombre.get(nom)!.push(c.id);
+  }
+
+  // Map colaborador.id → puesto_catalogo_id (FK first, then name-based fallback)
   const colabToCatalog = new Map<string, string>();
   for (const c of colabs) {
-    if (c.puesto_catalogo_id) colabToCatalog.set(c.id, c.puesto_catalogo_id);
+    if (c.puesto_catalogo_id) {
+      colabToCatalog.set(c.id, c.puesto_catalogo_id);
+      continue;
+    }
+    if (!c.puesto) continue;
+    const nom = c.puesto.trim().toUpperCase();
+    const org = (c.organización ?? "").trim().toUpperCase();
+    const byNomOrg = catalogoByNombreOrg.get(`${nom}|${org}`);
+    if (byNomOrg) { colabToCatalog.set(c.id, byNomOrg); continue; }
+    const byNom = catalogoByNombre.get(nom);
+    if (byNom?.length === 1) colabToCatalog.set(c.id, byNom[0]);
   }
 
   // Group titulares by puesto_catalogo_id
