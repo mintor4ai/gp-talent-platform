@@ -127,10 +127,10 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .eq("id_empleado", colaboradorId)
       .order("ciclo_año", { ascending: false })
       .order("created_at"),
-    supabase
-      .from("colaboradores")
-      .select("id, nombre_completo, puesto")
-      .order("nombre_completo"),
+    // Use RPC (SECURITY DEFINER) so any authenticated role can see the full
+    // directory for the succession successor picker — RLS would otherwise
+    // restrict colaboradores to only their own row.
+    supabase.rpc("colaboradores_picker"),
     supabase
       .from("plan_sucesion")
       .select("*")
