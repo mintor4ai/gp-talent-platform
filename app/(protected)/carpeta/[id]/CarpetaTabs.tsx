@@ -20,6 +20,30 @@ import { TalentMatrixSVG } from "@/app/(protected)/evaluaciones/EIPScatterChart"
 import { registrarAspiracion } from "@/app/actions/sucesion";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { aprobarCicloPicd, rechazarCicloPicd } from "@/app/actions/picd_ciclo";
+import { actualizarPerfilColaborador } from "@/app/actions/colaborador";
+
+type ColaboradorPerfil = {
+  id: string;
+  nombre_completo: string;
+  no_empleado: string | null;
+  puesto: string | null;
+  nivel: string | null;
+  area: string | null;
+  organización: string | null;
+  departamento: string | null;
+  entidad: string | null;
+  centro_trabajo: string | null;
+  razon_social: string | null;
+  jefe_inmediato_nombre: string | null;
+  unidad_costo: string | null;
+  tipo_plantilla: string | null;
+  segmento_organizacional: string | null;
+  fecha_antiguedad: string | null;
+  correo: string | null;
+  sexo: string | null;
+  edad: number | null;
+  nivel_academico: string | null;
+};
 
 type EIP = {
   id: string;
@@ -130,6 +154,7 @@ export default function CarpetaTabs({
   isAdmin,
   nombreColaborador,
   ciclosEstadoMap,
+  perfil,
 }: {
   colaboradorId: string;
   ciclos: number[];
@@ -156,9 +181,10 @@ export default function CarpetaTabs({
     decision_at: string | null; decision_nombre: string | null;
     comentario_jefe: string | null; reabierto_at: string | null; reabierto_nombre: string | null;
   }>;
+  perfil: ColaboradorPerfil;
 }) {
-  const defaultTab = isOwn ? "evaluacion" : "evaluacion";
-  const [mainTab, setMainTab] = useState<"evaluacion" | "picd" | "sucesion">(defaultTab);
+  const defaultTab = "perfil";
+  const [mainTab, setMainTab] = useState<"perfil" | "evaluacion" | "picd" | "sucesion">(defaultTab);
   const [cicloActual, setCicloActual] = useState<number>(ciclos[0] ?? new Date().getFullYear());
   const [sucesionItems, setSucesionItems] = useState<SucesionItem[]>(sucesion);
   const [candidaturas, setCandidaturas]   = useState<SucesionItem[]>(candidaturasComoSuccesor);
@@ -210,10 +236,20 @@ export default function CarpetaTabs({
   return (
     <div className="space-y-4">
       {/* Main tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
+      <div className="flex gap-1 border-b border-gray-200 overflow-x-auto">
+        <button
+          onClick={() => setMainTab("perfil")}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+            mainTab === "perfil"
+              ? "border-[#1a3a5c] text-[#1a3a5c]"
+              : "border-transparent text-gray-500 hover:text-gray-800"
+          }`}
+        >
+          Perfil
+        </button>
         <button
           onClick={() => setMainTab("evaluacion")}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
             mainTab === "evaluacion"
               ? "border-[#1a3a5c] text-[#1a3a5c]"
               : "border-transparent text-gray-500 hover:text-gray-800"
@@ -285,6 +321,16 @@ export default function CarpetaTabs({
           </button>
         )}
       </div>
+
+      {mainTab === "perfil" && (
+        <PerfilTab
+          perfil={perfil}
+          eips={eips}
+          desempenos={desempenos}
+          eals={eals}
+          isAdmin={isAdmin}
+        />
+      )}
 
       {mainTab === "evaluacion" && (
         <div className="space-y-5">
@@ -377,7 +423,7 @@ export default function CarpetaTabs({
                       </span>
                     </div>
                   )}
-                  {eip.ev_exp != null && <Stat label="Experiencia" value={eip.ev_exp.toFixed(1)} />}
+                  {eip.ev_exp != null && <Stat label="Punt. Experiencia" value={eip.ev_exp.toFixed(1)} />}
                   {eip.ev_form_acad != null && <Stat label="Formación" value={eip.ev_form_acad.toFixed(1)} />}
                   {eip.ev_comp != null && <Stat label="Competencias" value={eip.ev_comp.toFixed(1)} />}
                   {eip.tuvo_eal != null && (
@@ -710,6 +756,233 @@ export default function CarpetaTabs({
               />
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PerfilTab({
+  perfil,
+  eips,
+  desempenos,
+  eals,
+  isAdmin,
+}: {
+  perfil: ColaboradorPerfil;
+  eips: EIP[];
+  desempenos: Desempeno[];
+  eals: EAL[];
+  isAdmin: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    puesto: perfil.puesto ?? "",
+    nivel: perfil.nivel ?? "",
+    area: perfil.area ?? "",
+    jefe_inmediato_nombre: perfil.jefe_inmediato_nombre ?? "",
+    segmento_organizacional: perfil.segmento_organizacional ?? "",
+    nivel_academico: perfil.nivel_academico ?? "",
+    correo: perfil.correo ?? "",
+    tipo_plantilla: perfil.tipo_plantilla ?? "",
+    unidad_costo: perfil.unidad_costo ?? "",
+    departamento: perfil.departamento ?? "",
+  });
+
+  const antiguedad = perfil.fecha_antiguedad
+    ? Math.floor((Date.now() - new Date(perfil.fecha_antiguedad).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+    : null;
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveError(null);
+    const result = await actualizarPerfilColaborador(perfil.id, {
+      puesto: form.puesto || null,
+      nivel: form.nivel || null,
+      area: form.area || null,
+      jefe_inmediato_nombre: form.jefe_inmediato_nombre || null,
+      segmento_organizacional: form.segmento_organizacional || null,
+      nivel_academico: form.nivel_academico || null,
+      correo: form.correo || null,
+      tipo_plantilla: form.tipo_plantilla || null,
+      unidad_costo: form.unidad_costo || null,
+      departamento: form.departamento || null,
+    });
+    setSaving(false);
+    if (result.error) { setSaveError(result.error); return; }
+    setEditing(false);
+  }
+
+  const Field = ({ label, value }: { label: string; value: string | null | undefined }) => (
+    <div>
+      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-sm text-gray-800">{value || "—"}</p>
+    </div>
+  );
+
+  const Input = ({ label, field }: { label: string; field: keyof typeof form }) => (
+    <div>
+      <label className="text-xs text-gray-400 font-medium uppercase tracking-wide block mb-0.5">{label}</label>
+      <input
+        type="text"
+        value={form[field]}
+        onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
+        className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 focus:border-[#1a3a5c]"
+      />
+    </div>
+  );
+
+  // All cycles available across eips + desempenos
+  const allCiclos = Array.from(new Set([...eips.map((e) => e.ciclo_año), ...desempenos.map((d) => d.ciclo_año)])).sort((a, b) => b - a);
+
+  return (
+    <div className="space-y-5">
+      {/* Identification block — always read-only */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Identificación</p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <Field label="No. Empleado" value={perfil.no_empleado} />
+          <Field label="Sexo" value={perfil.sexo} />
+          <Field label="Edad" value={perfil.edad != null ? String(perfil.edad) : null} />
+          <Field label="Antigüedad" value={antiguedad != null ? `${antiguedad} año${antiguedad !== 1 ? "s" : ""}` : null} />
+          <Field label="Fecha Ingreso" value={perfil.fecha_antiguedad
+            ? new Date(perfil.fecha_antiguedad + "T00:00:00").toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })
+            : null} />
+          <Field label="Entidad" value={perfil.entidad} />
+        </div>
+      </div>
+
+      {/* Editable labour block */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Datos Laborales</p>
+          {isAdmin && !editing && (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="text-xs text-[#1a3a5c] hover:underline font-medium"
+            >
+              Editar
+            </button>
+          )}
+        </div>
+
+        {saveError && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{saveError}</p>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {editing ? (
+            <>
+              <Input label="Puesto" field="puesto" />
+              <Input label="Nivel" field="nivel" />
+              <Input label="Área" field="area" />
+              <Input label="Departamento" field="departamento" />
+              <Input label="UEN / Organización" field="unidad_costo" />
+              <Input label="Tipo Plantilla" field="tipo_plantilla" />
+              <Input label="Jefe Inmediato" field="jefe_inmediato_nombre" />
+              <Input label="Segmento" field="segmento_organizacional" />
+              <Input label="Correo" field="correo" />
+              <Input label="Escolaridad" field="nivel_academico" />
+            </>
+          ) : (
+            <>
+              <Field label="Puesto" value={perfil.puesto} />
+              <Field label="Nivel" value={perfil.nivel} />
+              <Field label="Área" value={perfil.area} />
+              <Field label="Departamento" value={perfil.departamento} />
+              <Field label="UEN / Organización" value={perfil.organización} />
+              <Field label="Tipo Plantilla" value={perfil.tipo_plantilla} />
+              <Field label="Jefe Inmediato" value={perfil.jefe_inmediato_nombre} />
+              <Field label="Segmento" value={perfil.segmento_organizacional} />
+              <Field label="Correo" value={perfil.correo} />
+              <Field label="Escolaridad" value={perfil.nivel_academico} />
+            </>
+          )}
+        </div>
+
+        {editing && (
+          <div className="flex gap-2 mt-5 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 text-sm font-medium bg-[#1a3a5c] text-white rounded-lg hover:bg-[#1a3a5c]/90 disabled:opacity-50 transition-colors"
+            >
+              {saving ? "Guardando…" : "Guardar cambios"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEditing(false); setSaveError(null); }}
+              className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Evaluation history summary */}
+      {allCiclos.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Historial de Evaluaciones</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
+                  <th className="px-5 py-3 font-medium">Ciclo</th>
+                  <th className="px-5 py-3 font-medium">Zona EIP</th>
+                  <th className="px-5 py-3 font-medium">Potencial</th>
+                  <th className="px-5 py-3 font-medium">Desempeño</th>
+                  <th className="px-5 py-3 font-medium">Tuvo EAL</th>
+                  <th className="px-5 py-3 font-medium">Entregó PICD</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {allCiclos.map((ciclo) => {
+                  const eip = eips.find((e) => e.ciclo_año === ciclo);
+                  const desemp = desempenos.find((d) => d.ciclo_año === ciclo);
+                  const eal = eals.find((e) => e.ciclo_año === ciclo);
+                  const zona = eip?.zona_evaluacion ?? null;
+                  const zonaColors = zona ? (ZONA_COLORS[zona] ?? { bg: "bg-gray-100", text: "text-gray-600" }) : null;
+                  return (
+                    <tr key={ciclo} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-5 py-3 font-semibold text-gray-800">{ciclo}</td>
+                      <td className="px-5 py-3">
+                        {zona && zonaColors ? (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${zonaColors.bg} ${zonaColors.text}`}>{zona}</span>
+                        ) : "—"}
+                      </td>
+                      <td className="px-5 py-3 text-gray-700">{eip?.evaluacion_potencial_total?.toFixed(1) ?? "—"}</td>
+                      <td className="px-5 py-3 text-gray-700">{desemp?.resultado_logra?.toFixed(1) ?? eip?.desempeno_logra?.toFixed(1) ?? "—"}</td>
+                      <td className="px-5 py-3">
+                        {eip?.tuvo_eal != null ? (
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${eip.tuvo_eal || eal ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                            {eip.tuvo_eal || eal ? "Sí" : "No"}
+                          </span>
+                        ) : eal ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Sí</span>
+                        ) : "—"}
+                      </td>
+                      <td className="px-5 py-3">
+                        {eip?.entrego_picd != null ? (
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${eip.entrego_picd ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                            {eip.entrego_picd ? "Sí" : "No"}
+                          </span>
+                        ) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

@@ -250,6 +250,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         isAdmin={isAdmin}
         nombreColaborador={colab.nombre_completo}
         ciclosEstadoMap={ciclosEstadoMap}
+        perfil={colab as any}
       />
     </div>
   );
