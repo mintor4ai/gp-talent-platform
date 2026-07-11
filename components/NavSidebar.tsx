@@ -2,42 +2,53 @@
 
 import { usePathname } from "next/navigation";
 
-type NavItem = {
+type SubItem = {
   href: string;
+  label: string;
+};
+
+type NavItem = {
+  href?: string;       // omit to make it a non-clickable section header
   label: string;
   icon: string;
   exact?: boolean;
+  children?: SubItem[];
 };
 
 const ADMIN_NAV: NavItem[] = [
-  { href: "/dashboard",      label: "Inicio",               icon: "⊞",  exact: true },
-  { href: "/colaboradores",  label: "Colaboradores",        icon: "👥" },
-  { href: "/evaluaciones",   label: "Carpetas individuales", icon: "📊" },
-  { href: "/sucesion",       label: "Plan de Sucesión",     icon: "🔄" },
+  { href: "/dashboard",     label: "Inicio",          icon: "⊞", exact: true },
+  { href: "/colaboradores", label: "Colaboradores",   icon: "👥" },
+  {
+    label: "Carpetas individuales",
+    icon: "📊",
+    children: [
+      { href: "/evaluaciones", label: "Mapa de Talento" },
+    ],
+  },
+  { href: "/sucesion",      label: "Plan de Sucesión", icon: "🔄" },
   { href: "/configuracion/catalogo-puestos", label: "Catálogo de Puestos", icon: "🗂️" },
-  { href: "/importar",       label: "Importar datos",       icon: "📥" },
-  { href: "/coach",          label: "Coach IA",             icon: "✦" },
+  { href: "/importar",      label: "Importar datos",   icon: "📥" },
+  { href: "/coach",         label: "Coach IA",         icon: "✦" },
 ];
 
 const SUPERADMIN_EXTRA: NavItem = { href: "/configuracion", label: "Configuración", icon: "⚙️" };
 
 const COLABORADOR_NAV: NavItem[] = [
-  { href: "/dashboard",  label: "Inicio",             icon: "⊞",  exact: true },
-  { href: "/carpeta",    label: "Mi Carpeta",          icon: "📁" },
-  { href: "/coach",      label: "Coach IA",            icon: "✦" },
+  { href: "/dashboard", label: "Inicio",    icon: "⊞", exact: true },
+  { href: "/carpeta",   label: "Mi Carpeta", icon: "📁" },
+  { href: "/coach",     label: "Coach IA",   icon: "✦" },
 ];
 
 const JEFE_NAV: NavItem[] = [
-  { href: "/dashboard",  label: "Inicio",             icon: "⊞", exact: true },
-  { href: "/carpeta",    label: "Mi Carpeta",          icon: "📁" },
-  { href: "/equipo",     label: "Mi Equipo",           icon: "👥" },
-  { href: "/coach",      label: "Coach IA",            icon: "✦" },
+  { href: "/dashboard", label: "Inicio",    icon: "⊞", exact: true },
+  { href: "/carpeta",   label: "Mi Carpeta", icon: "📁" },
+  { href: "/equipo",    label: "Mi Equipo",  icon: "👥" },
+  { href: "/coach",     label: "Coach IA",   icon: "✦" },
 ];
 
 export default function NavSidebar({
   rol,
   coachHabilitado,
-  idEmpleado,
 }: {
   rol: string;
   coachHabilitado: boolean;
@@ -55,19 +66,32 @@ export default function NavSidebar({
     items = COLABORADOR_NAV;
   }
 
-  // Add Configuración for superadmin
-  if (rol === "superadmin") {
-    items = [...items, SUPERADMIN_EXTRA];
-  }
+  if (rol === "superadmin") items = [...items, SUPERADMIN_EXTRA];
+  if (!isAdmin && !coachHabilitado) items = items.filter((i) => i.href !== "/coach");
 
-  // Filter Coach IA if not enabled (non-admin)
-  if (!isAdmin && !coachHabilitado) {
-    items = items.filter((i) => i.href !== "/coach");
-  }
-
-  function isActive(item: NavItem) {
+  function isActive(item: NavItem): boolean {
+    if (!item.href) return false;
     if (item.exact) return pathname === item.href;
     return pathname.startsWith(item.href);
+  }
+
+  function isSectionActive(item: NavItem): boolean {
+    if (isActive(item)) return true;
+    return (item.children ?? []).some((c) =>
+      pathname === c.href || pathname.startsWith(c.href + "/")
+    );
+  }
+
+  // Flat list for mobile bottom nav (skip section-only items, use children instead)
+  const mobileItems: { href: string; label: string; icon: string }[] = [];
+  for (const item of items) {
+    if (item.href) {
+      mobileItems.push({ href: item.href, label: item.label, icon: item.icon });
+    } else if (item.children) {
+      for (const child of item.children) {
+        mobileItems.push({ href: child.href, label: child.label, icon: item.icon });
+      }
+    }
   }
 
   return (
@@ -75,7 +99,44 @@ export default function NavSidebar({
       {/* Desktop sidebar */}
       <nav className="hidden md:flex flex-col w-52 flex-shrink-0">
         <div className="space-y-0.5">
-          {items.map((item) => {
+          {items.map((item, idx) => {
+            const sectionActive = isSectionActive(item);
+
+            if (item.children) {
+              // Section with children
+              return (
+                <div key={idx}>
+                  {/* Section header — not clickable */}
+                  <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium select-none ${
+                    sectionActive ? "text-[#1a3a5c]" : "text-gray-500"
+                  }`}>
+                    <span className="text-base leading-none">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </div>
+                  {/* Children — always visible */}
+                  <div className="ml-4 space-y-0.5 border-l border-gray-200 pl-3">
+                    {item.children.map((child) => {
+                      const childActive = pathname === child.href || pathname.startsWith(child.href + "/");
+                      return (
+                        <a
+                          key={child.href}
+                          href={child.href}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                            childActive
+                              ? "bg-[#1a3a5c] text-white font-medium"
+                              : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                          }`}
+                        >
+                          {child.label}
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            }
+
+            // Regular item
             const active = isActive(item);
             return (
               <a
@@ -97,8 +158,8 @@ export default function NavSidebar({
 
       {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 px-2 py-1 flex justify-around">
-        {items.slice(0, 5).map((item) => {
-          const active = isActive(item);
+        {mobileItems.slice(0, 5).map((item) => {
+          const active = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <a
               key={item.href}
