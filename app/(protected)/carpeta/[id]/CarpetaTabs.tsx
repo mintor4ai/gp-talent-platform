@@ -53,11 +53,25 @@ type EIP = {
   evaluacion_potencial_total: number | null;
   tuvo_eal: boolean | null;
   entrego_picd: boolean | null;
+  ev_años: number | null;
+  ev_mov: number | null;
+  ev_exp: number | null;
+  ev_form_acad: number | null;
+  ev_cursos: number | null;
   ev_comp: number | null;
   ev_eal: number | null;
   ev_picd: number | null;
-  ev_exp: number | null;
-  ev_form_acad: number | null;
+  calif_ponderada: number | null;
+  tipo_matriz: string | null;
+  años_exp_total: number | null;
+  movilidad: number | null;
+  num_puestos: number | null;
+};
+
+type PonderacionRow = {
+  ciclo_año: number; calif_ponderada: number;
+  w_exp: number; w_form_acad: number; w_cursos: number;
+  w_comp: number; w_eal: number; w_picd: number;
 };
 
 type Desempeno = {
@@ -154,6 +168,7 @@ export default function CarpetaTabs({
   isAdmin,
   nombreColaborador,
   ciclosEstadoMap,
+  ponderacionesMap,
   perfil,
 }: {
   colaboradorId: string;
@@ -181,6 +196,7 @@ export default function CarpetaTabs({
     decision_at: string | null; decision_nombre: string | null;
     comentario_jefe: string | null; reabierto_at: string | null; reabierto_nombre: string | null;
   }>;
+  ponderacionesMap: Record<number, Record<number, PonderacionRow>>;
   perfil: ColaboradorPerfil;
 }) {
   const defaultTab = "perfil";
@@ -407,38 +423,19 @@ export default function CarpetaTabs({
             );
           })()}
 
-          {/* Section 1: Datos personales / posición */}
-          <SectionHeader label={`Datos del Ciclo ${cicloActual}`} />
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {eip && (
-                <>
-                  <Stat label="Potencial EIP" value={eip.evaluacion_potencial_total?.toFixed(1) ?? "—"} />
-                  <Stat label="Desempeño" value={eip.desempeno_logra?.toFixed(1) ?? "—"} />
-                  {eip.zona_evaluacion && zonaColors && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Zona</p>
-                      <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${zonaColors.bg} ${zonaColors.text}`}>
-                        {eip.zona_evaluacion}
-                      </span>
-                    </div>
-                  )}
-                  {eip.ev_exp != null && <Stat label="Punt. Experiencia" value={eip.ev_exp.toFixed(1)} />}
-                  {eip.ev_form_acad != null && <Stat label="Formación" value={eip.ev_form_acad.toFixed(1)} />}
-                  {eip.ev_comp != null && <Stat label="Competencias" value={eip.ev_comp.toFixed(1)} />}
-                  {eip.tuvo_eal != null && (
-                    <Stat label="Tuvo EAL" value={eip.tuvo_eal ? "Sí" : "No"} />
-                  )}
-                  {eip.entrego_picd != null && (
-                    <Stat label="Entregó PICD" value={eip.entrego_picd ? "Sí" : "No"} />
-                  )}
-                </>
-              )}
-              {!eip && (
-                <p className="text-sm text-gray-400 col-span-3">Sin evaluación registrada para {cicloActual}.</p>
-              )}
+          {/* Section 1: Potencial EIP */}
+          <SectionHeader label={`Evaluación Integral de Potencial — ${cicloActual}`} />
+          {eip ? (
+            <EIPDesgloseCard
+              eip={eip}
+              ponderaciones={ponderacionesMap[cicloActual] ?? {}}
+              zonaColors={zonaColors}
+            />
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <p className="text-sm text-gray-400">Sin evaluación registrada para {cicloActual}.</p>
             </div>
-          </div>
+          )}
 
           {/* Section 2: Evaluación del Desempeño */}
           {desemp && (
@@ -1205,6 +1202,201 @@ function PicdAprobacionBanner({
           >
             Enviar
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EIPDesgloseCard({
+  eip,
+  ponderaciones,
+  zonaColors,
+}: {
+  eip: EIP;
+  ponderaciones: Record<number, PonderacionRow>;
+  zonaColors: { bg: string; text: string } | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const cp = eip.calif_ponderada;
+  const pond = cp != null ? ponderaciones[cp] : null;
+
+  const rows: { label: string; valor: number | null; peso: number | null; subtotal: number | null; note?: string }[] = [
+    {
+      label: "Años de experiencia",
+      valor: eip.ev_años,
+      peso: null,
+      subtotal: null,
+      note: eip.años_exp_total != null ? `${eip.años_exp_total.toFixed(1)} años` : undefined,
+    },
+    {
+      label: "Movilidad",
+      valor: eip.ev_mov,
+      peso: null,
+      subtotal: null,
+      note: eip.num_puestos != null ? `${eip.num_puestos} puesto${eip.num_puestos !== 1 ? "s" : ""}` : undefined,
+    },
+    {
+      label: "Experiencia (Años × Mov / 100)",
+      valor: eip.ev_exp,
+      peso: pond ? pond.w_exp : null,
+      subtotal: pond && eip.ev_exp != null ? eip.ev_exp * pond.w_exp : null,
+    },
+    {
+      label: "Formación Académica",
+      valor: eip.ev_form_acad,
+      peso: pond ? pond.w_form_acad : null,
+      subtotal: pond && eip.ev_form_acad != null ? eip.ev_form_acad * pond.w_form_acad : null,
+    },
+    {
+      label: "Horas de Cursos",
+      valor: eip.ev_cursos,
+      peso: pond ? pond.w_cursos : null,
+      subtotal: pond && eip.ev_cursos != null ? eip.ev_cursos * pond.w_cursos : null,
+    },
+    {
+      label: "Competencias",
+      valor: eip.ev_comp,
+      peso: pond ? pond.w_comp : null,
+      subtotal: pond && eip.ev_comp != null ? eip.ev_comp * pond.w_comp : null,
+    },
+    {
+      label: "Evaluación Anual de Liderazgo (EAL)",
+      valor: eip.tuvo_eal ? eip.ev_eal : null,
+      peso: eip.tuvo_eal && pond ? pond.w_eal : null,
+      subtotal: eip.tuvo_eal && pond && eip.ev_eal != null ? eip.ev_eal * pond.w_eal : null,
+      note: !eip.tuvo_eal ? "No aplica" : undefined,
+    },
+    {
+      label: "Cumplimiento PICD",
+      valor: eip.entrego_picd ? eip.ev_picd : null,
+      peso: eip.entrego_picd && pond ? pond.w_picd : null,
+      subtotal: eip.entrego_picd && pond && eip.ev_picd != null ? eip.ev_picd * pond.w_picd : null,
+      note: !eip.entrego_picd ? "No aplica" : undefined,
+    },
+  ];
+
+  // Rows that go into the weighted sum (have peso)
+  const weightedRows = rows.filter((r) => r.peso != null);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Summary header */}
+      <div className="p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex gap-6">
+            <Stat label="Potencial EIP" value={eip.evaluacion_potencial_total?.toFixed(1) ?? "—"} />
+            <Stat label="Desempeño" value={eip.desempeno_logra?.toFixed(1) ?? "—"} />
+            {eip.zona_evaluacion && zonaColors && (
+              <div>
+                <p className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-1">Zona</p>
+                <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${zonaColors.bg} ${zonaColors.text}`}>
+                  {eip.zona_evaluacion}
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="sm:ml-auto flex items-center gap-3 text-xs text-gray-400">
+            {eip.tipo_matriz && (
+              <span className="px-2 py-0.5 bg-gray-100 rounded-full text-gray-500 font-medium">
+                {eip.tipo_matriz.replace(/_/g, " ")}
+              </span>
+            )}
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="flex items-center gap-1 text-[#1a3a5c] font-semibold hover:underline text-xs"
+            >
+              {expanded ? "Ocultar desglose" : "Ver desglose"}
+              <svg
+                className={`w-3.5 h-3.5 transition-transform ${expanded ? "rotate-180" : ""}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Expandable desglose */}
+      {expanded && (
+        <div className="border-t border-gray-100">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
+                  <th className="px-5 py-2.5 font-medium">Componente</th>
+                  <th className="px-5 py-2.5 font-medium text-right">Puntuación</th>
+                  <th className="px-5 py-2.5 font-medium text-right">Ponderación</th>
+                  <th className="px-5 py-2.5 font-medium text-right">Resultado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {rows.map((row, i) => {
+                  const isWeighted = row.peso != null;
+                  const isInfo = !isWeighted;
+                  return (
+                    <tr key={i} className={isInfo ? "bg-gray-50/50 text-gray-400" : "hover:bg-gray-50/50"}>
+                      <td className={`px-5 py-2.5 ${isInfo ? "pl-8 text-xs italic" : "font-medium text-gray-700"}`}>
+                        {row.label}
+                        {row.note && (
+                          <span className="ml-2 text-xs text-gray-400 font-normal">({row.note})</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-2.5 text-right tabular-nums">
+                        {row.valor != null ? (
+                          <span className={isWeighted ? "font-semibold text-gray-800" : "text-gray-400 text-xs"}>
+                            {row.valor.toFixed(1)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-2.5 text-right tabular-nums text-gray-500">
+                        {row.peso != null ? (
+                          <span className="text-xs bg-[#1a3a5c]/8 text-[#1a3a5c] px-1.5 py-0.5 rounded font-semibold">
+                            {(row.peso * 100).toFixed(0)}%
+                          </span>
+                        ) : (
+                          <span className="text-gray-200">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-2.5 text-right tabular-nums">
+                        {row.subtotal != null ? (
+                          <span className="font-bold text-[#1a3a5c]">{row.subtotal.toFixed(2)}</span>
+                        ) : (
+                          <span className="text-gray-200">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-200 bg-gray-50">
+                  <td colSpan={2} className="px-5 py-3 text-sm font-bold text-gray-700">
+                    Total Potencial
+                    {pond && (
+                      <span className="ml-2 text-xs font-normal text-gray-400">
+                        (suma de ponderaciones: {(weightedRows.reduce((s, r) => s + (r.peso ?? 0), 0) * 100).toFixed(0)}%)
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-right" />
+                  <td className="px-5 py-3 text-right">
+                    <span className="text-lg font-bold text-[#1a3a5c]">
+                      {eip.evaluacion_potencial_total?.toFixed(2) ?? "—"}
+                    </span>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          {!pond && (
+            <p className="text-xs text-amber-600 px-5 py-3 bg-amber-50 border-t border-amber-100">
+              Las ponderaciones para el ciclo {eip.ciclo_año} no están configuradas. Contacta a Capital Humano.
+            </p>
+          )}
         </div>
       )}
     </div>

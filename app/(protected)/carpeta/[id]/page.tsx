@@ -69,6 +69,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: colaboradoresAll },
     { data: candidaturasRaw },
     { data: ciclosEstadoRaw },
+    { data: ponderacionesRaw },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -142,6 +143,9 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .from("picd_ciclos_estado")
       .select("*")
       .eq("id_empleado", colaboradorId),
+    supabase
+      .from("eip_ponderaciones")
+      .select("ciclo_año, calif_ponderada, w_exp, w_form_acad, w_cursos, w_comp, w_eal, w_picd"),
   ]);
 
   const canEdit = isOwn || isAdmin;
@@ -157,6 +161,18 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
   type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
   const colaboradoresLista = (colaboradoresAll ?? []) as unknown as ColabOption[];
   const candidaturasComoSuccesor = (candidaturasRaw ?? []) as unknown as SucesionItem[];
+
+  // Build ponderaciones map: Record<ciclo_año, Record<calif_ponderada, weights>>
+  type PonderacionRow = {
+    ciclo_año: number; calif_ponderada: number;
+    w_exp: number; w_form_acad: number; w_cursos: number;
+    w_comp: number; w_eal: number; w_picd: number;
+  };
+  const ponderacionesMap: Record<number, Record<number, PonderacionRow>> = {};
+  for (const row of (ponderacionesRaw ?? []) as unknown as PonderacionRow[]) {
+    if (!ponderacionesMap[row.ciclo_año]) ponderacionesMap[row.ciclo_año] = {};
+    ponderacionesMap[row.ciclo_año][row.calif_ponderada] = row;
+  }
 
   // Build ciclosEstado map: Record<ciclo_año, CicloEstado>
   type CicloEstadoRow = {
@@ -250,6 +266,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         isAdmin={isAdmin}
         nombreColaborador={colab.nombre_completo}
         ciclosEstadoMap={ciclosEstadoMap}
+        ponderacionesMap={ponderacionesMap}
         perfil={colab as any}
       />
     </div>
