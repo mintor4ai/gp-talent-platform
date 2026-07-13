@@ -19,7 +19,7 @@ export default async function ConfiguracionPage() {
   if (perfil?.rol !== "superadmin") redirect("/dashboard");
 
   // Distinct group values from colaboradores (trim whitespace)
-  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes] =
+  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes, ponderacionesRes] =
     await Promise.all([
       supabase.from("colaboradores").select("razon_social").not("razon_social", "is", null),
       supabase.from("colaboradores").select("departamento").not("departamento", "is", null),
@@ -33,6 +33,7 @@ export default async function ConfiguracionPage() {
       supabase.from("config_zonas_eip").select("*").order("ciclo_año", { ascending: false }),
       supabase.from("periodos").select("*").order("ciclo_año", { ascending: false }),
       supabase.from("vw_auth_usuarios").select("*").order("auth_created_at", { ascending: false }),
+      supabase.from("eip_ponderaciones").select("*").order("ciclo_año", { ascending: false }).order("calif_ponderada"),
     ]);
 
   type Raw = { [key: string]: string | null };
@@ -51,6 +52,17 @@ export default async function ConfiguracionPage() {
   const availableZonaCycles = Object.keys(zonasMap).map(Number).sort((a, b) => b - a);
   const periodos = (periodosRes.data as unknown as Periodo[]) ?? [];
   const authUsuarios = (authUsersRes.data as unknown as AuthUsuario[]) ?? [];
+
+  type PonderacionRow = {
+    ciclo_año: number; calif_ponderada: number;
+    w_exp: number; w_form_acad: number; w_cursos: number;
+    w_comp: number; w_eal: number; w_picd: number;
+  };
+  const ponderacionesMap: Record<number, PonderacionRow[]> = {};
+  for (const row of ((ponderacionesRes.data as unknown as PonderacionRow[]) ?? [])) {
+    if (!ponderacionesMap[row.ciclo_año]) ponderacionesMap[row.ciclo_año] = [];
+    ponderacionesMap[row.ciclo_año].push(row);
+  }
 
   // Merge user + colaborador data for individual exceptions panel
   type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; razon_social: string | null };
@@ -82,6 +94,7 @@ export default async function ConfiguracionPage() {
         periodos={periodos}
         authUsuarios={authUsuarios}
         colaboradores={colaboradoresAll}
+        ponderacionesMap={ponderacionesMap}
       />
     </div>
   );

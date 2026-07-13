@@ -11,6 +11,7 @@ import {
 } from "@/app/actions/configuracion";
 import { saveZonaBandsArray, copyZonaBandsFromCycle } from "@/app/actions/zonas";
 import { upsertPeriodo, setPeriodoActivo, deletePeriodo } from "@/app/actions/periodos";
+import { savePonderaciones, type PonderacionInput } from "@/app/actions/ponderaciones";
 import type { ZonaBand, Periodo } from "@/lib/types";
 import ZoneBoundaryEditor from "./ZoneBoundaryEditor";
 import UsuariosTab, { type AuthUsuario } from "./UsuariosTab";
@@ -18,6 +19,11 @@ import UsuariosTab, { type AuthUsuario } from "./UsuariosTab";
 type Regla = { id: string; nivel: string; valor: string; habilitado: boolean };
 type Prompt = { id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string };
 type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; razon_social: string | null };
+type PonderacionRow = {
+  ciclo_año: number; calif_ponderada: number;
+  w_exp: number; w_form_acad: number; w_cursos: number;
+  w_comp: number; w_eal: number; w_picd: number;
+};
 type Usuario = { id: string; rol: string; coach_habilitado: boolean | null; id_empleado: string | null; colab: ColabRow | null };
 export type { AuthUsuario };
 
@@ -45,6 +51,7 @@ export default function ConfigTabs({
   periodos,
   authUsuarios,
   colaboradores,
+  ponderacionesMap,
 }: {
   grupos: { uens: string[]; departamentos: string[]; areas: string[]; segmentos: string[] };
   reglasAcceso: Regla[];
@@ -56,8 +63,9 @@ export default function ConfigTabs({
   periodos: Periodo[];
   authUsuarios: AuthUsuario[];
   colaboradores: ColabRow[];
+  ponderacionesMap: Record<number, PonderacionRow[]>;
 }) {
-  const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos">("usuarios");
+  const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones">("usuarios");
 
   return (
     <div>
@@ -68,8 +76,9 @@ export default function ConfigTabs({
           { key: "access",   label: "Acceso Coach IA" },
           { key: "prompts",  label: "Prompts" },
           { key: "api",      label: "API / Modelo" },
-          { key: "periodos", label: "Períodos" },
-          { key: "zonas",    label: "Zonas EIP" },
+          { key: "periodos",       label: "Períodos" },
+          { key: "zonas",          label: "Zonas EIP" },
+          { key: "ponderaciones",  label: "Ponderaciones EIP" },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -89,8 +98,9 @@ export default function ConfigTabs({
       {tab === "access"   && <CoachAccessTab grupos={grupos} reglasAcceso={reglasAcceso} usuarios={usuarios} />}
       {tab === "prompts"  && <PromptsTab prompts={prompts} />}
       {tab === "api"      && <ApiTab apiConfig={apiConfig} />}
-      {tab === "periodos" && <PeriodosTab periodos={periodos} />}
-      {tab === "zonas"    && <ZonasEipTab zonasMap={zonasMap} availableCycles={availableZonaCycles} periodos={periodos} />}
+      {tab === "periodos"      && <PeriodosTab periodos={periodos} />}
+      {tab === "zonas"         && <ZonasEipTab zonasMap={zonasMap} availableCycles={availableZonaCycles} periodos={periodos} />}
+      {tab === "ponderaciones" && <PonderacionesEipTab ponderacionesMap={ponderacionesMap} periodos={periodos} />}
     </div>
   );
 }
@@ -753,6 +763,257 @@ function PeriodoEditRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+// ── Ponderaciones EIP Tab ────────────────────────────────────────────────────
+
+const CP_LABELS: Record<number, { label: string; desc: string; lockEal: boolean; lockPicd: boolean }> = {
+  1: { label: "Sin EAL · Sin PICD", desc: "Colaboradores sin evaluación de liderazgo ni PICD", lockEal: true,  lockPicd: true  },
+  2: { label: "Con EAL · Con PICD", desc: "Líderes con evaluación de liderazgo y PICD entregado", lockEal: false, lockPicd: false },
+  3: { label: "Sin EAL · Con PICD", desc: "Colaboradores sin EAL pero que entregaron PICD",     lockEal: true,  lockPicd: false },
+  4: { label: "Con EAL · Sin PICD", desc: "Líderes con EAL pero sin PICD",                       lockEal: false, lockPicd: true  },
+};
+
+const BLANK_ROW: PonderacionInput = { calif_ponderada: 0, w_exp: 0, w_form_acad: 0, w_cursos: 0, w_comp: 0, w_eal: 0, w_picd: 0 };
+
+function pctToW(pct: string): number {
+  const n = parseFloat(pct);
+  return isNaN(n) ? 0 : Math.round(n * 10) / 1000;
+}
+
+function wToPct(w: number): string {
+  return (w * 100).toFixed(1);
+}
+
+function PonderacionesEipTab({
+  ponderacionesMap,
+  periodos,
+}: {
+  ponderacionesMap: Record<number, PonderacionRow[]>;
+  periodos: Periodo[];
+}) {
+  const currentYear = new Date().getFullYear();
+  const periodCycles = periodos.map((p) => p.ciclo_año);
+  const configuredCycles = Object.keys(ponderacionesMap).map(Number);
+  const allCycleSet = new Set([...configuredCycles, ...periodCycles, currentYear]);
+  const allCycles = Array.from(allCycleSet).sort((a, b) => b - a);
+  const periodoMap = new Map(periodos.map((p) => [p.ciclo_año, p]));
+
+  const [cicloAño, setCicloAño] = useState(allCycles[0] ?? currentYear);
+  const [isPending, startTransition] = useTransition();
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  function buildInitial(ciclo: number): Record<number, PonderacionInput> {
+    const rows = ponderacionesMap[ciclo] ?? [];
+    const map: Record<number, PonderacionInput> = {};
+    for (const cp of [1, 2, 3, 4]) {
+      const found = rows.find((r) => r.calif_ponderada === cp);
+      map[cp] = found
+        ? { ...found }
+        : { ...BLANK_ROW, calif_ponderada: cp };
+    }
+    return map;
+  }
+
+  const [form, setForm] = useState<Record<number, PonderacionInput>>(() => buildInitial(cicloAño));
+
+  function handleCicloChange(año: number) {
+    setCicloAño(año);
+    setForm(buildInitial(año));
+    setMsg(null);
+  }
+
+  function setField(cp: number, field: keyof PonderacionInput, pct: string) {
+    setForm((prev) => ({
+      ...prev,
+      [cp]: { ...prev[cp], [field]: pctToW(pct) },
+    }));
+  }
+
+  function rowSum(cp: number): number {
+    const r = form[cp];
+    return r.w_exp + r.w_form_acad + r.w_cursos + r.w_comp + r.w_eal + r.w_picd;
+  }
+
+  function flash(text: string, ok = true) {
+    setMsg({ text, ok });
+    setTimeout(() => setMsg(null), 4000);
+  }
+
+  function handleSave() {
+    for (const cp of [1, 2, 3, 4]) {
+      const sum = rowSum(cp);
+      if (Math.abs(sum - 1) > 0.001) {
+        flash(`Tipo ${cp} suma ${(sum * 100).toFixed(1)}% — debe ser exactamente 100%.`, false);
+        return;
+      }
+    }
+    startTransition(async () => {
+      const res = await savePonderaciones(cicloAño, [1, 2, 3, 4].map((cp) => form[cp]));
+      if (res.error) flash(res.error, false);
+      else flash(`Ponderaciones ${cicloAño} guardadas correctamente.`);
+    });
+  }
+
+  function handleCopy(sourceCiclo: number) {
+    setForm(buildInitialFrom(sourceCiclo));
+    flash(`Valores copiados desde ${sourceCiclo}. Guarda para confirmar.`);
+  }
+
+  function buildInitialFrom(ciclo: number): Record<number, PonderacionInput> {
+    return buildInitial(ciclo);
+  }
+
+  const sourceCycles = allCycles.filter((y) => y !== cicloAño && configuredCycles.includes(y));
+  const [sourceCiclo, setSourceCiclo] = useState(sourceCycles[0] ?? currentYear - 1);
+
+  function cycleLabel(año: number) {
+    const p = periodoMap.get(año);
+    const hasData = configuredCycles.includes(año);
+    if (!p) return `${año}${!hasData ? " (nuevo)" : ""}`;
+    const badge = p.activo ? " · Vigente" : p.estado === "cerrado" ? " · Cerrado" : "";
+    return `${p.nombre}${badge}`;
+  }
+
+  const FIELDS: { key: keyof PonderacionInput; label: string }[] = [
+    { key: "w_exp",      label: "Experiencia" },
+    { key: "w_form_acad",label: "Formación" },
+    { key: "w_cursos",   label: "Cursos" },
+    { key: "w_comp",     label: "Competencias" },
+    { key: "w_eal",      label: "EAL" },
+    { key: "w_picd",     label: "PICD" },
+  ];
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      {msg && (
+        <div className={`text-sm border rounded-lg px-4 py-2.5 ${msg.ok ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* Cycle selector */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">Ciclo</label>
+        <select
+          value={cicloAño}
+          onChange={(e) => handleCicloChange(Number(e.target.value))}
+          className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white"
+        >
+          {allCycles.map((y) => (
+            <option key={y} value={y}>{cycleLabel(y)}</option>
+          ))}
+        </select>
+        {!configuredCycles.includes(cicloAño) && (
+          <p className="text-xs text-amber-600 mt-2">
+            Este ciclo no tiene ponderaciones aún. Configúralas abajo y guarda.
+          </p>
+        )}
+      </div>
+
+      {/* Weight editor — one card per calif_ponderada */}
+      <div className="space-y-4">
+        {[1, 2, 3, 4].map((cp) => {
+          const meta = CP_LABELS[cp];
+          const row = form[cp];
+          const sum = rowSum(cp);
+          const sumOk = Math.abs(sum - 1) <= 0.001;
+          const sumPct = (sum * 100).toFixed(1);
+
+          return (
+            <div key={cp} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{meta.label}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{meta.desc}</p>
+                </div>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${sumOk ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                  {sumPct}%
+                </span>
+              </div>
+
+              <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {FIELDS.map(({ key, label }) => {
+                  const locked =
+                    (key === "w_eal"  && meta.lockEal) ||
+                    (key === "w_picd" && meta.lockPicd);
+                  return (
+                    <div key={key}>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        {label}
+                        {locked && <span className="ml-1 text-gray-300">(fijo)</span>}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.1}
+                          value={wToPct(row[key] as number)}
+                          readOnly={locked}
+                          onChange={(e) => setField(cp, key, e.target.value)}
+                          className={`w-full px-3 py-1.5 pr-7 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/40 focus:border-[#1a3a5c] tabular-nums ${
+                            locked ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "border-gray-200"
+                          }`}
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {!sumOk && (
+                <div className="px-5 pb-3 text-xs text-red-500">
+                  La suma debe ser 100% — actualmente {sumPct}% (diferencia: {((sum - 1) * 100).toFixed(1)}%)
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Save button */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={isPending}
+          className="px-5 py-2 text-sm font-semibold bg-[#1a3a5c] text-white rounded-lg hover:bg-[#152e4d] disabled:opacity-40 transition-colors"
+        >
+          {isPending ? "Guardando…" : `Guardar ponderaciones ${cicloAño}`}
+        </button>
+      </div>
+
+      {/* Copy from another cycle */}
+      {sourceCycles.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-700 mb-0.5">Copiar desde otro ciclo</p>
+            <p className="text-xs text-gray-400">
+              Pre-rellena los valores desde un ciclo existente. Aún debes guardar para confirmar.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <select
+              value={sourceCiclo}
+              onChange={(e) => setSourceCiclo(Number(e.target.value))}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white"
+            >
+              {sourceCycles.map((y) => (
+                <option key={y} value={y}>{cycleLabel(y)}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => handleCopy(sourceCiclo)}
+              className="text-sm border border-[#1a3a5c] text-[#1a3a5c] px-4 py-2 rounded-lg hover:bg-[#1a3a5c] hover:text-white transition-colors"
+            >
+              Copiar valores
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
