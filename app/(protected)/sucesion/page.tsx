@@ -139,10 +139,11 @@ export default async function SucesionPage() {
   const matches: MatchRow[] = (matchesRaw ?? []).map((m) => {
     const raw = m as unknown as MatchRow;
     const puesto = catalogById.get(raw.puesto_catalogo_id);
+    const titularIds: string[] = (raw.titular_ids as unknown as string[] | null) ?? [];
     return {
       ...raw,
       colaborador_nombre: raw.colaborador_id ? (colabById.get(raw.colaborador_id) ?? null) : null,
-      titular_nombre: raw.titular_id ? (colabById.get(raw.titular_id) ?? null) : null,
+      titular_nombres: titularIds.map((id) => colabById.get(id) ?? id).filter(Boolean),
       puesto_nombre: puesto?.nombre ?? null,
       puesto_org: puesto?.org || null,
     };

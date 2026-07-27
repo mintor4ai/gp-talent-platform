@@ -7,7 +7,7 @@ export type MatchRow = {
   id: string;
   ciclo_año: number;
   colaborador_id: string | null;
-  titular_id: string | null;
+  titular_ids: string[];
   puesto_catalogo_id: string;
   tipo_match: "bidireccional" | "aspiracion" | "propuesta" | "gap_critico";
   readiness: string | null;
@@ -21,7 +21,7 @@ export type MatchRow = {
   created_at: string;
   // joined fields (populated server-side)
   colaborador_nombre?: string | null;
-  titular_nombre?: string | null;
+  titular_nombres?: string[];
   puesto_nombre?: string | null;
   puesto_org?: string | null;
 };
@@ -105,10 +105,12 @@ function MatchCard({
                 <span className="font-medium">{match.colaborador_nombre}</span>
               </div>
             )}
-            {match.titular_nombre && (
-              <div className="flex items-center gap-1.5">
-                <span className="opacity-60">Titular actual:</span>
-                <span className="font-medium">{match.titular_nombre}</span>
+            {match.titular_nombres && match.titular_nombres.length > 0 && (
+              <div className="flex items-start gap-1.5">
+                <span className="opacity-60 flex-shrink-0">
+                  {match.titular_nombres.length > 1 ? "Titulares:" : "Titular actual:"}
+                </span>
+                <span className="font-medium">{match.titular_nombres.join(", ")}</span>
               </div>
             )}
             {match.readiness && (
