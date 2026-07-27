@@ -208,10 +208,9 @@ export default function MatchingView({
       if (result.ok) {
         const counts = result.counts ?? {};
         setRecalcMsg(
-          `Recálculo completado: ${counts.bidireccional ?? 0} bidireccional, ${counts.aspiracion ?? 0} aspiración, ${counts.propuesta ?? 0} propuesta, ${counts.gap_critico ?? 0} gap crítico.`
+          `Ciclo ${recalcCiclo}: ${counts.bidireccional ?? 0} bidireccional · ${counts.aspiracion ?? 0} aspiración · ${counts.propuesta ?? 0} propuesta · ${counts.gap_critico ?? 0} gap crítico`
         );
-        // Reload via full page refresh since server data changed
-        window.location.reload();
+        setTimeout(() => window.location.reload(), 1800);
       } else {
         setRecalcMsg(`Error: ${result.error}`);
       }
