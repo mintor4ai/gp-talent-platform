@@ -408,7 +408,7 @@ function MatchCard({
     </div>
   );
 
-  const cardH = showDiscardForm ? 380 : 260;
+  const cardH = showDiscardForm ? 420 : 300;
 
   return (
     <div style={{ perspective: "1000px", height: cardH }}>
