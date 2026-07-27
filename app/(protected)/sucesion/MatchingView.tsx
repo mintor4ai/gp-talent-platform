@@ -242,89 +242,90 @@ function MatchCard({
         </span>
       </div>
 
-      {loadingProfile ? (
-        <div className="flex-1 flex items-center justify-center text-xs text-gray-400">
-          Cargando perfil…
-        </div>
-      ) : profile ? (
-        <div className="flex-1 flex flex-col gap-3 overflow-auto">
-          {/* Nombre + puesto */}
-          <div>
-            <p className="font-bold text-sm text-gray-900 break-words leading-snug">
-              {profile.nombre_completo}
-            </p>
-            <p className="text-xs text-gray-500 mt-0.5 break-words">
-              {profile.puesto}{profile.nivel ? ` · ${profile.nivel}` : ""}
-            </p>
+      <div className="flex-1 flex flex-col gap-3 overflow-auto">
+        {loadingProfile ? (
+          <div className="flex-1 flex items-center justify-center text-xs text-gray-400">
+            Cargando perfil…
           </div>
-
-          {/* Datos demográficos */}
-          <div className="grid grid-cols-2 gap-2">
-            <StatChip label="Edad" value={profile.edad !== null ? `${profile.edad} años` : "—"} />
-            <StatChip label="Antigüedad" value={profile.antiguedad !== null ? `${profile.antiguedad} año${profile.antiguedad !== 1 ? "s" : ""}` : "—"} />
-          </div>
-
-          {/* EIP + Desempeño */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
-                Potencial{profile.eip ? ` ${profile.eip.ciclo_año}` : ""}
+        ) : profile ? (
+          <>
+            {/* Nombre + puesto */}
+            <div>
+              <p className="font-bold text-sm text-gray-900 break-words leading-snug">
+                {profile.nombre_completo}
               </p>
-              {profile.eip ? (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="text-sm font-bold text-gray-800">
-                    {profile.eip.total !== null ? profile.eip.total.toFixed(1) : "—"}
-                  </span>
-                  {profile.eip.zona && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${ZONA_COLORS[profile.eip.zona] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
-                      {profile.eip.zona}
+              <p className="text-xs text-gray-500 mt-0.5 break-words">
+                {profile.puesto}{profile.nivel ? ` · ${profile.nivel}` : ""}
+              </p>
+            </div>
+
+            {/* Datos demográficos */}
+            <div className="grid grid-cols-2 gap-2">
+              <StatChip label="Edad" value={profile.edad !== null ? `${profile.edad} años` : "—"} />
+              <StatChip label="Antigüedad" value={profile.antiguedad !== null ? `${profile.antiguedad} año${profile.antiguedad !== 1 ? "s" : ""}` : "—"} />
+            </div>
+
+            {/* EIP + Desempeño */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+                  Potencial{profile.eip ? ` ${profile.eip.ciclo_año}` : ""}
+                </p>
+                {profile.eip ? (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-sm font-bold text-gray-800">
+                      {profile.eip.total !== null ? profile.eip.total.toFixed(1) : "—"}
                     </span>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm font-bold text-gray-300 mt-1">—</p>
-              )}
+                    {profile.eip.zona && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${ZONA_COLORS[profile.eip.zona] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                        {profile.eip.zona}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm font-bold text-gray-300 mt-1">—</p>
+                )}
+              </div>
+              <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+                  Desempeño{profile.desempeno ? ` ${profile.desempeno.ciclo_año}` : ""}
+                </p>
+                <p className="text-sm font-bold text-gray-800 mt-1">
+                  {profile.desempeno?.calificacion !== null && profile.desempeno?.calificacion !== undefined
+                    ? profile.desempeno.calificacion.toFixed(2)
+                    : "—"}
+                </p>
+              </div>
             </div>
-            <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
-                Desempeño{profile.desempeno ? ` ${profile.desempeno.ciclo_año}` : ""}
-              </p>
-              <p className="text-sm font-bold text-gray-800 mt-1">
-                {profile.desempeno?.calificacion !== null && profile.desempeno?.calificacion !== undefined
-                  ? profile.desempeno.calificacion.toFixed(2)
-                  : "—"}
-              </p>
-            </div>
-          </div>
+          </>
+        ) : (
+          <p className="text-xs text-gray-400 text-center py-2">Sin datos de evaluación.</p>
+        )}
 
-          {/* Readiness */}
-          <div>
-            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-1.5">
-              Readiness para este puesto {savingReadiness && <span className="normal-case">(guardando…)</span>}
-            </p>
-            <div className="flex gap-1.5 flex-wrap">
-              {READINESS_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => handleReadiness(opt.value)}
-                  disabled={savingReadiness}
-                  className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all disabled:opacity-50 ${
-                    localReadiness === opt.value
-                      ? opt.color + " ring-2 ring-offset-1 ring-current"
-                      : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+        {/* Readiness — siempre visible */}
+        <div className="pt-2 border-t border-gray-100">
+          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-1.5">
+            Readiness para este puesto
+            {savingReadiness && <span className="normal-case ml-1 text-gray-300">(guardando…)</span>}
+          </p>
+          <div className="flex gap-1.5 flex-wrap">
+            {READINESS_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleReadiness(opt.value)}
+                disabled={savingReadiness}
+                className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all disabled:opacity-50 ${
+                  localReadiness === opt.value
+                    ? opt.color + " ring-2 ring-offset-1 ring-current"
+                    : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-center text-xs text-gray-400">
-          No se pudo cargar el perfil.
-        </div>
-      )}
+      </div>
     </div>
   );
 

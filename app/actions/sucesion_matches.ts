@@ -142,19 +142,19 @@ export async function getColaboradorMatchProfile(
     const [{ data: colab }, { data: eipRow }, { data: desRow }] = await Promise.all([
       supabase
         .from("colaboradores")
-        .select("nombre_completo, puesto, nivel, area, fecha_nacimiento, fecha_antiguedad")
+        .select("nombre_completo, puesto, nivel, area, edad, fecha_antiguedad")
         .eq("id", colaboradorId)
         .single(),
       supabase
         .from("evaluacion_integral_personal")
-        .select("ciclo_año, evaluacion_potencial_total, zona_evaluacion")
+        .select("ciclo_año, evaluacion_potencial_total, zona_evaluacion, años_experiencia")
         .eq("id_empleado", colaboradorId)
         .order("ciclo_año", { ascending: false })
         .limit(1)
         .maybeSingle(),
       supabase
         .from("evaluacion_desempeno_anual")
-        .select("ciclo_año, calificacion_final")
+        .select("ciclo_año, resultado_logra")
         .eq("id_empleado", colaboradorId)
         .order("ciclo_año", { ascending: false })
         .limit(1)
@@ -163,15 +163,9 @@ export async function getColaboradorMatchProfile(
 
     if (!colab) throw new Error("Colaborador no encontrado");
 
-    const now = Date.now();
     const msYear = 1000 * 60 * 60 * 24 * 365.25;
-
-    const edad = (colab as any).fecha_nacimiento
-      ? Math.floor((now - new Date((colab as any).fecha_nacimiento).getTime()) / msYear)
-      : null;
-
     const antiguedad = (colab as any).fecha_antiguedad
-      ? Math.floor((now - new Date((colab as any).fecha_antiguedad).getTime()) / msYear)
+      ? Math.floor((Date.now() - new Date((colab as any).fecha_antiguedad).getTime()) / msYear)
       : null;
 
     return {
@@ -181,7 +175,7 @@ export async function getColaboradorMatchProfile(
         puesto: (colab as any).puesto ?? null,
         nivel: (colab as any).nivel ?? null,
         area: (colab as any).area ?? null,
-        edad,
+        edad: (colab as any).edad ?? null,
         antiguedad,
         eip: eipRow
           ? {
@@ -193,7 +187,7 @@ export async function getColaboradorMatchProfile(
         desempeno: desRow
           ? {
               ciclo_año: (desRow as any).ciclo_año,
-              calificacion: (desRow as any).calificacion_final ?? null,
+              calificacion: (desRow as any).resultado_logra ?? null,
             }
           : null,
       },
