@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
-import { recalcularMatches, validarMatch, descartarMatch, reactivarMatch } from "@/app/actions/sucesion_matches";
+import {
+  recalcularMatches,
+  validarMatch,
+  descartarMatch,
+  reactivarMatch,
+  updateMatchReadiness,
+  getColaboradorMatchProfile,
+} from "@/app/actions/sucesion_matches";
+import type { ColaboradorMatchProfile } from "@/app/actions/sucesion_matches";
 
 export type MatchRow = {
   id: string;
@@ -67,68 +75,101 @@ const READINESS_LABEL: Record<string, string> = {
   tres_mas_anios: "3+ años",
 };
 
+const ZONA_COLORS: Record<string, string> = {
+  A: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  B: "bg-blue-100 text-blue-700 border-blue-200",
+  C: "bg-amber-100 text-amber-700 border-amber-200",
+  D: "bg-red-100 text-red-700 border-red-200",
+};
+
+const READINESS_OPTIONS = [
+  { value: "listo_ahora",    label: "Listo ahora",  color: "bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200" },
+  { value: "uno_dos_anios",  label: "1-2 años",     color: "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200" },
+  { value: "tres_mas_anios", label: "3+ años",      color: "bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200" },
+];
+
 function MatchCard({
   match,
   onValidar,
   onDescartar,
   onReactivar,
+  onReadinessChange,
 }: {
   match: MatchRow;
   onValidar: (id: string) => void;
   onDescartar: (id: string) => void;
   onReactivar: (id: string) => void;
+  onReadinessChange: (id: string, readiness: string | null) => void;
 }) {
+  const [flipped, setFlipped] = useState(false);
+  const [profile, setProfile] = useState<ColaboradorMatchProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [savingReadiness, setSavingReadiness] = useState(false);
+  const [localReadiness, setLocalReadiness] = useState<string | null>(match.readiness);
+
   const cfg = TIPO_CONFIG[match.tipo_match];
   const isGap = match.tipo_match === "gap_critico";
 
-  return (
+  const handleFlip = async () => {
+    if (!flipped && !profile && match.colaborador_id) {
+      setLoadingProfile(true);
+      const result = await getColaboradorMatchProfile(match.colaborador_id);
+      if (result.ok && result.data) setProfile(result.data);
+      setLoadingProfile(false);
+    }
+    setFlipped((v) => !v);
+  };
+
+  const handleReadiness = async (value: string) => {
+    const next = localReadiness === value ? null : value;
+    setLocalReadiness(next);
+    setSavingReadiness(true);
+    const result = await updateMatchReadiness(match.id, next);
+    if (result.ok) onReadinessChange(match.id, next);
+    setSavingReadiness(false);
+  };
+
+  // ── Front face ──────────────────────────────────────────────────────────
+  const front = (
     <div
-      className={`rounded-xl border p-4 transition-opacity ${cfg.color} ${
+      className={`absolute inset-0 rounded-xl border p-4 flex flex-col ${cfg.color} ${
         match.descartado ? "opacity-50" : ""
       }`}
+      style={{ backfaceVisibility: "hidden" }}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3 flex-1">
         <div className="flex-1 min-w-0">
-          {/* Puesto */}
           <p className="font-semibold text-sm break-words leading-snug">
             {match.puesto_nombre ?? "Puesto desconocido"}
           </p>
           {match.puesto_org && (
             <p className="text-xs opacity-70 mt-0.5">{match.puesto_org}</p>
           )}
-
-          {/* Colaborador / gap info */}
           <div className="mt-2 space-y-0.5 text-xs">
             {!isGap && match.colaborador_nombre && (
-              <div className="flex items-center gap-1.5">
-                <span className="opacity-60">Colaborador:</span>
-                <span className="font-medium">{match.colaborador_nombre}</span>
+              <div className="flex items-start gap-1.5">
+                <span className="opacity-60 flex-shrink-0">Colaborador:</span>
+                <span className="font-medium break-words">{match.colaborador_nombre}</span>
               </div>
             )}
             {match.titular_nombres && match.titular_nombres.length > 0 && (
               <div className="flex items-start gap-1.5">
                 <span className="opacity-60 flex-shrink-0">
-                  {match.titular_nombres.length > 1 ? "Titulares:" : "Titular actual:"}
+                  {match.titular_nombres.length > 1 ? "Titulares:" : "Titular:"}
                 </span>
-                <span className="font-medium">{match.titular_nombres.join(", ")}</span>
+                <span className="font-medium break-words">{match.titular_nombres.join(", ")}</span>
               </div>
             )}
-            {match.readiness && (
+            {localReadiness && (
               <div className="flex items-center gap-1.5">
                 <span className="opacity-60">Readiness:</span>
-                <span className="font-medium">
-                  {READINESS_LABEL[match.readiness] ?? match.readiness}
-                </span>
+                <span className="font-medium">{READINESS_LABEL[localReadiness] ?? localReadiness}</span>
               </div>
             )}
           </div>
         </div>
-
-        {/* Badges */}
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-          <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${cfg.badge}`}
-          >
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${cfg.badge}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
             {cfg.label}
           </span>
@@ -151,34 +192,166 @@ function MatchCard({
       </div>
 
       {/* Actions */}
-      {!match.descartado && (
-        <div className="mt-3 pt-3 border-t border-current border-opacity-10 flex gap-2">
-          {!match.validado_ch && (
-            <button
-              onClick={() => onValidar(match.id)}
-              className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20"
-            >
-              Validar
-            </button>
-          )}
+      <div className="mt-3 pt-3 border-t border-current border-opacity-10 flex items-center gap-2">
+        {!isGap && match.colaborador_id && (
           <button
-            onClick={() => onDescartar(match.id)}
-            className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-40 hover:bg-opacity-70 transition-colors border border-current border-opacity-20 text-opacity-70"
+            onClick={handleFlip}
+            className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-70 hover:bg-opacity-100 transition-colors border border-current border-opacity-20"
           >
-            Descartar
+            {loadingProfile ? "…" : "Ver perfil →"}
           </button>
-        </div>
-      )}
-      {match.descartado && (
-        <div className="mt-3 pt-3 border-t border-current border-opacity-10">
-          <button
-            onClick={() => onReactivar(match.id)}
-            className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20"
-          >
+        )}
+        {!match.descartado ? (
+          <>
+            {!match.validado_ch && (
+              <button onClick={() => onValidar(match.id)}
+                className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
+                Validar
+              </button>
+            )}
+            <button onClick={() => onDescartar(match.id)}
+              className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-40 hover:bg-opacity-70 transition-colors border border-current border-opacity-20">
+              Descartar
+            </button>
+          </>
+        ) : (
+          <button onClick={() => onReactivar(match.id)}
+            className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
             Reactivar
           </button>
+        )}
+      </div>
+    </div>
+  );
+
+  // ── Back face ───────────────────────────────────────────────────────────
+  const back = (
+    <div
+      className="absolute inset-0 rounded-xl border border-gray-200 bg-white p-4 flex flex-col"
+      style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <button onClick={() => setFlipped(false)}
+          className="text-xs text-gray-400 hover:text-gray-700 transition-colors flex items-center gap-1">
+          ← Volver
+        </button>
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${cfg.badge}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+          {cfg.label}
+        </span>
+      </div>
+
+      {loadingProfile ? (
+        <div className="flex-1 flex items-center justify-center text-xs text-gray-400">
+          Cargando perfil…
+        </div>
+      ) : profile ? (
+        <div className="flex-1 flex flex-col gap-3 overflow-auto">
+          {/* Nombre + puesto */}
+          <div>
+            <p className="font-bold text-sm text-gray-900 break-words leading-snug">
+              {profile.nombre_completo}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5 break-words">
+              {profile.puesto}{profile.nivel ? ` · ${profile.nivel}` : ""}
+            </p>
+          </div>
+
+          {/* Datos demográficos */}
+          <div className="grid grid-cols-2 gap-2">
+            <StatChip label="Edad" value={profile.edad !== null ? `${profile.edad} años` : "—"} />
+            <StatChip label="Antigüedad" value={profile.antiguedad !== null ? `${profile.antiguedad} año${profile.antiguedad !== 1 ? "s" : ""}` : "—"} />
+          </div>
+
+          {/* EIP + Desempeño */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
+              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+                Potencial{profile.eip ? ` ${profile.eip.ciclo_año}` : ""}
+              </p>
+              {profile.eip ? (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-sm font-bold text-gray-800">
+                    {profile.eip.total !== null ? profile.eip.total.toFixed(1) : "—"}
+                  </span>
+                  {profile.eip.zona && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${ZONA_COLORS[profile.eip.zona] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                      {profile.eip.zona}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm font-bold text-gray-300 mt-1">—</p>
+              )}
+            </div>
+            <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
+              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+                Desempeño{profile.desempeno ? ` ${profile.desempeno.ciclo_año}` : ""}
+              </p>
+              <p className="text-sm font-bold text-gray-800 mt-1">
+                {profile.desempeno?.calificacion !== null && profile.desempeno?.calificacion !== undefined
+                  ? profile.desempeno.calificacion.toFixed(2)
+                  : "—"}
+              </p>
+            </div>
+          </div>
+
+          {/* Readiness */}
+          <div>
+            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-1.5">
+              Readiness para este puesto {savingReadiness && <span className="normal-case">(guardando…)</span>}
+            </p>
+            <div className="flex gap-1.5 flex-wrap">
+              {READINESS_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => handleReadiness(opt.value)}
+                  disabled={savingReadiness}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all disabled:opacity-50 ${
+                    localReadiness === opt.value
+                      ? opt.color + " ring-2 ring-offset-1 ring-current"
+                      : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-xs text-gray-400">
+          No se pudo cargar el perfil.
         </div>
       )}
+    </div>
+  );
+
+  return (
+    <div style={{ perspective: "1000px" }} className="min-h-[260px]">
+      <div
+        style={{
+          transformStyle: "preserve-3d",
+          transition: "transform 0.45s ease",
+          transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
+          position: "relative",
+          height: "100%",
+          minHeight: "260px",
+        }}
+      >
+        {front}
+        {back}
+      </div>
+    </div>
+  );
+}
+
+function StatChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
+      <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">{label}</p>
+      <p className="text-sm font-bold text-gray-800 mt-0.5">{value}</p>
     </div>
   );
 }
@@ -257,6 +430,12 @@ export default function MatchingView({
         );
       }
     });
+  };
+
+  const handleReadinessChange = (id: string, readiness: string | null) => {
+    setMatches((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, readiness } : m))
+    );
   };
 
   const filtered = useMemo(() => {
@@ -451,6 +630,7 @@ export default function MatchingView({
                 onValidar={handleValidar}
                 onDescartar={handleDescartar}
                 onReactivar={handleReactivar}
+                onReadinessChange={handleReadinessChange}
               />
             ))}
         </div>

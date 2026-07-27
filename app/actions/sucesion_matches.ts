@@ -3,6 +3,18 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
+// ── Tipos públicos ─────────────────────────────────────────────────────────
+export type ColaboradorMatchProfile = {
+  nombre_completo: string | null;
+  puesto: string | null;
+  nivel: string | null;
+  area: string | null;
+  edad: number | null;
+  antiguedad: number | null;
+  eip: { ciclo_año: number; total: number | null; zona: string | null } | null;
+  desempeno: { ciclo_año: number; calificacion: number | null } | null;
+};
+
 async function getAdminUser() {
   const supabase = await createClient();
   const {
@@ -98,6 +110,96 @@ export async function descartarMatch(matchId: string): Promise<{ ok: boolean; er
       err instanceof Error
         ? err.message
         : (err as any)?.message ?? String(err);
+    return { ok: false, error: msg };
+  }
+}
+
+export async function updateMatchReadiness(
+  matchId: string,
+  readiness: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { supabase } = await getAdminUser();
+    const { error } = await supabase
+      .from("sucesion_matches")
+      .update({ readiness })
+      .eq("id", matchId);
+    if (error) throw error;
+    revalidatePath("/sucesion");
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : (err as any)?.message ?? String(err);
+    return { ok: false, error: msg };
+  }
+}
+
+export async function getColaboradorMatchProfile(
+  colaboradorId: string
+): Promise<{ ok: boolean; data?: ColaboradorMatchProfile; error?: string }> {
+  try {
+    const { supabase } = await getAdminUser();
+
+    const [{ data: colab }, { data: eipRow }, { data: desRow }] = await Promise.all([
+      supabase
+        .from("colaboradores")
+        .select("nombre_completo, puesto, nivel, area, fecha_nacimiento, fecha_antiguedad")
+        .eq("id", colaboradorId)
+        .single(),
+      supabase
+        .from("evaluacion_integral_personal")
+        .select("ciclo_año, evaluacion_potencial_total, zona_evaluacion")
+        .eq("id_empleado", colaboradorId)
+        .order("ciclo_año", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("evaluacion_desempeno_anual")
+        .select("ciclo_año, calificacion_final")
+        .eq("id_empleado", colaboradorId)
+        .order("ciclo_año", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    if (!colab) throw new Error("Colaborador no encontrado");
+
+    const now = Date.now();
+    const msYear = 1000 * 60 * 60 * 24 * 365.25;
+
+    const edad = (colab as any).fecha_nacimiento
+      ? Math.floor((now - new Date((colab as any).fecha_nacimiento).getTime()) / msYear)
+      : null;
+
+    const antiguedad = (colab as any).fecha_antiguedad
+      ? Math.floor((now - new Date((colab as any).fecha_antiguedad).getTime()) / msYear)
+      : null;
+
+    return {
+      ok: true,
+      data: {
+        nombre_completo: (colab as any).nombre_completo ?? null,
+        puesto: (colab as any).puesto ?? null,
+        nivel: (colab as any).nivel ?? null,
+        area: (colab as any).area ?? null,
+        edad,
+        antiguedad,
+        eip: eipRow
+          ? {
+              ciclo_año: (eipRow as any).ciclo_año,
+              total: (eipRow as any).evaluacion_potencial_total ?? null,
+              zona: (eipRow as any).zona_evaluacion ?? null,
+            }
+          : null,
+        desempeno: desRow
+          ? {
+              ciclo_año: (desRow as any).ciclo_año,
+              calificacion: (desRow as any).calificacion_final ?? null,
+            }
+          : null,
+      },
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : (err as any)?.message ?? String(err);
     return { ok: false, error: msg };
   }
 }
