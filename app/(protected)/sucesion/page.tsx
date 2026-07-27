@@ -136,16 +136,36 @@ export default async function SucesionPage() {
     })
   );
 
-  const matches: MatchRow[] = (matchesRaw ?? []).map((m) => {
-    const raw = m as unknown as MatchRow;
-    const puesto = catalogById.get(raw.puesto_catalogo_id);
-    const titularIds: string[] = (raw.titular_ids as unknown as string[] | null) ?? [];
+  // Resolve admin UUIDs (validado_por / descartado_por) → nombre via usuarios_app → colaboradores
+  const rawMatches = (matchesRaw ?? []) as unknown as MatchRow[];
+  const adminUuids = Array.from(new Set([
+    ...rawMatches.map((m) => m.validado_por).filter(Boolean),
+    ...rawMatches.map((m) => m.descartado_por).filter(Boolean),
+  ])) as string[];
+
+  const adminNames = new Map<string, string>();
+  if (adminUuids.length > 0) {
+    const { data: adminRows } = await supabase
+      .from("usuarios_app")
+      .select("id, id_empleado")
+      .in("id", adminUuids);
+    for (const a of adminRows ?? []) {
+      const nombre = colabById.get((a as any).id_empleado) ?? "Capital Humano";
+      adminNames.set((a as any).id, nombre);
+    }
+  }
+
+  const matches: MatchRow[] = rawMatches.map((m) => {
+    const puesto = catalogById.get(m.puesto_catalogo_id);
+    const titularIds: string[] = (m.titular_ids as unknown as string[] | null) ?? [];
     return {
-      ...raw,
-      colaborador_nombre: raw.colaborador_id ? (colabById.get(raw.colaborador_id) ?? null) : null,
+      ...m,
+      colaborador_nombre: m.colaborador_id ? (colabById.get(m.colaborador_id) ?? null) : null,
       titular_nombres: titularIds.map((id) => colabById.get(id) ?? id).filter(Boolean),
       puesto_nombre: puesto?.nombre ?? null,
       puesto_org: puesto?.org || null,
+      validado_por_nombre: m.validado_por ? (adminNames.get(m.validado_por) ?? null) : null,
+      descartado_por_nombre: m.descartado_por ? (adminNames.get(m.descartado_por) ?? null) : null,
     };
   });
 

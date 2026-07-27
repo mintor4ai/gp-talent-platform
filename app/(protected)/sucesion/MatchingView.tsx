@@ -26,12 +26,15 @@ export type MatchRow = {
   descartado: boolean;
   descartado_por: string | null;
   fecha_descarte: string | null;
+  motivo_descarte?: string | null;
   created_at: string;
   // joined fields (populated server-side)
   colaborador_nombre?: string | null;
   titular_nombres?: string[];
   puesto_nombre?: string | null;
   puesto_org?: string | null;
+  validado_por_nombre?: string | null;
+  descartado_por_nombre?: string | null;
 };
 
 const TIPO_CONFIG = {
@@ -88,6 +91,11 @@ const READINESS_OPTIONS = [
   { value: "tres_mas_anios", label: "3+ años",      color: "bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200" },
 ];
 
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
+}
+
 function MatchCard({
   match,
   onValidar,
@@ -97,7 +105,7 @@ function MatchCard({
 }: {
   match: MatchRow;
   onValidar: (id: string) => void;
-  onDescartar: (id: string) => void;
+  onDescartar: (id: string, motivo: string | null) => void;
   onReactivar: (id: string) => void;
   onReadinessChange: (id: string, readiness: string | null) => void;
 }) {
@@ -106,6 +114,8 @@ function MatchCard({
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [savingReadiness, setSavingReadiness] = useState(false);
   const [localReadiness, setLocalReadiness] = useState<string | null>(match.readiness);
+  const [showDiscardForm, setShowDiscardForm] = useState(false);
+  const [motivoText, setMotivoText] = useState("");
 
   const cfg = TIPO_CONFIG[match.tipo_match];
   const isGap = match.tipo_match === "gap_critico";
@@ -127,6 +137,13 @@ function MatchCard({
     const result = await updateMatchReadiness(match.id, next);
     if (result.ok) onReadinessChange(match.id, next);
     setSavingReadiness(false);
+  };
+
+  const handleConfirmDiscard = () => {
+    const motivo = motivoText.trim() || null;
+    onDescartar(match.id, motivo);
+    setShowDiscardForm(false);
+    setMotivoText("");
   };
 
   // ── Front face ──────────────────────────────────────────────────────────
@@ -191,36 +208,69 @@ function MatchCard({
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="mt-3 pt-3 border-t border-current border-opacity-10 flex items-center gap-2">
-        {!isGap && match.colaborador_id && (
-          <button
-            onClick={handleFlip}
-            className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-70 hover:bg-opacity-100 transition-colors border border-current border-opacity-20"
-          >
-            {loadingProfile ? "…" : "Ver perfil →"}
-          </button>
-        )}
-        {!match.descartado ? (
-          <>
-            {!match.validado_ch && (
-              <button onClick={() => onValidar(match.id)}
-                className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
-                Validar
-              </button>
-            )}
-            <button onClick={() => onDescartar(match.id)}
-              className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-40 hover:bg-opacity-70 transition-colors border border-current border-opacity-20">
-              Descartar
+      {/* Inline discard form */}
+      {showDiscardForm && !match.descartado && (
+        <div className="mt-3 pt-3 border-t border-current border-opacity-10">
+          <p className="text-xs font-medium mb-1.5 opacity-80">
+            Motivo del descarte{isGap ? <span className="text-red-600"> *</span> : " (opcional)"}
+          </p>
+          <textarea
+            value={motivoText}
+            onChange={(e) => setMotivoText(e.target.value)}
+            placeholder="Ej. No cumple perfil de liderazgo requerido..."
+            rows={2}
+            className="w-full text-xs border border-current border-opacity-20 rounded-lg px-2.5 py-1.5 bg-white bg-opacity-70 focus:outline-none focus:ring-2 focus:ring-current focus:ring-opacity-20 resize-none placeholder-gray-400 text-gray-800"
+          />
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={handleConfirmDiscard}
+              disabled={isGap && !motivoText.trim()}
+              className="text-xs px-3 py-1 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Confirmar descarte
             </button>
-          </>
-        ) : (
-          <button onClick={() => onReactivar(match.id)}
-            className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
-            Reactivar
-          </button>
-        )}
-      </div>
+            <button
+              onClick={() => { setShowDiscardForm(false); setMotivoText(""); }}
+              className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Actions */}
+      {!showDiscardForm && (
+        <div className="mt-3 pt-3 border-t border-current border-opacity-10 flex items-center gap-2 flex-wrap">
+          {!isGap && match.colaborador_id && (
+            <button
+              onClick={handleFlip}
+              className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-70 hover:bg-opacity-100 transition-colors border border-current border-opacity-20"
+            >
+              {loadingProfile ? "…" : "Ver perfil →"}
+            </button>
+          )}
+          {!match.descartado ? (
+            <>
+              {!match.validado_ch && (
+                <button onClick={() => onValidar(match.id)}
+                  className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
+                  Validar
+                </button>
+              )}
+              <button onClick={() => setShowDiscardForm(true)}
+                className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-40 hover:bg-opacity-70 transition-colors border border-current border-opacity-20">
+                Descartar
+              </button>
+            </>
+          ) : (
+            <button onClick={() => onReactivar(match.id)}
+              className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
+              Reactivar
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -325,6 +375,35 @@ function MatchCard({
             ))}
           </div>
         </div>
+
+        {/* Audit trail */}
+        {(match.validado_ch || match.descartado) && (
+          <div className="pt-2 border-t border-gray-100">
+            {match.validado_ch && match.validado_por_nombre && (
+              <div className="flex items-start gap-1.5 text-[10px] text-green-700">
+                <span className="font-medium flex-shrink-0">✓ Validado por</span>
+                <span>{match.validado_por_nombre}</span>
+                {match.fecha_validacion && (
+                  <span className="text-green-500 ml-auto flex-shrink-0">{fmtDate(match.fecha_validacion)}</span>
+                )}
+              </div>
+            )}
+            {match.descartado && match.descartado_por_nombre && (
+              <div className="mt-1">
+                <div className="flex items-start gap-1.5 text-[10px] text-gray-500">
+                  <span className="font-medium flex-shrink-0">✕ Descartado por</span>
+                  <span>{match.descartado_por_nombre}</span>
+                  {match.fecha_descarte && (
+                    <span className="text-gray-400 ml-auto flex-shrink-0">{fmtDate(match.fecha_descarte)}</span>
+                  )}
+                </div>
+                {match.motivo_descarte && (
+                  <p className="text-[10px] text-gray-400 mt-0.5 italic ml-4">"{match.motivo_descarte}"</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -357,6 +436,84 @@ function StatChip({ label, value }: { label: string; value: string }) {
   );
 }
 
+function DescartadosPanel({
+  matches,
+  onReactivar,
+}: {
+  matches: MatchRow[];
+  onReactivar: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (matches.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-gray-400" />
+          Descartados
+          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-gray-200 text-gray-600 text-[10px] font-bold">
+            {matches.length}
+          </span>
+        </span>
+        <span className="text-gray-400 text-xs">{open ? "▲ Ocultar" : "▼ Ver"}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-200">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-gray-100 text-gray-400">
+                <th className="px-4 py-2 font-medium text-left">Puesto</th>
+                <th className="px-4 py-2 font-medium text-left">Colaborador</th>
+                <th className="px-4 py-2 font-medium text-left">Motivo</th>
+                <th className="px-4 py-2 font-medium text-left">Descartado por</th>
+                <th className="px-4 py-2 font-medium text-left">Fecha</th>
+                <th className="px-4 py-2" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 bg-white">
+              {matches.map((m) => (
+                <tr key={m.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2.5 font-medium text-gray-700 max-w-[200px]">
+                    <p className="break-words leading-snug">{m.puesto_nombre ?? "—"}</p>
+                    {m.puesto_org && <p className="text-gray-400 text-[10px]">{m.puesto_org}</p>}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-600">
+                    {m.colaborador_nombre ?? <span className="text-gray-300 italic">Gap crítico</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-500 max-w-[220px]">
+                    {m.motivo_descarte
+                      ? <span className="italic">"{m.motivo_descarte}"</span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-500">
+                    {m.descartado_por_nombre ?? <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-400 whitespace-nowrap">
+                    {fmtDate(m.fecha_descarte)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button
+                      onClick={() => onReactivar(m.id)}
+                      className="text-[11px] px-2.5 py-1 rounded-lg font-medium border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+                    >
+                      Reactivar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MatchingView({
   matches: initialMatches,
   ciclosDisponibles,
@@ -372,7 +529,6 @@ export default function MatchingView({
   const [selectedCiclo, setSelectedCiclo] = useState<number | "all">("all");
   const [selectedTipo, setSelectedTipo] = useState<string>("all");
   const [selectedUen, setSelectedUen] = useState<string>("all");
-  const [showDescartados, setShowDescartados] = useState(false);
   const [soloCriticos, setSoloCriticos] = useState(false);
   const [recalcCiclo, setRecalcCiclo] = useState<number>(
     ciclosDisponibles[0] ?? new Date().getFullYear()
@@ -399,21 +555,21 @@ export default function MatchingView({
       const result = await validarMatch(id);
       if (result.ok) {
         setMatches((prev) =>
-          prev.map((m) =>
-            m.id === id ? { ...m, validado_ch: true } : m
-          )
+          prev.map((m) => (m.id === id ? { ...m, validado_ch: true } : m))
         );
       }
     });
   };
 
-  const handleDescartar = (id: string) => {
+  const handleDescartar = (id: string, motivo: string | null) => {
     startTransition(async () => {
-      const result = await descartarMatch(id);
+      const result = await descartarMatch(id, motivo);
       if (result.ok) {
         setMatches((prev) =>
           prev.map((m) =>
-            m.id === id ? { ...m, descartado: true } : m
+            m.id === id
+              ? { ...m, descartado: true, motivo_descarte: motivo, fecha_descarte: new Date().toISOString() }
+              : m
           )
         );
       }
@@ -426,7 +582,9 @@ export default function MatchingView({
       if (result.ok) {
         setMatches((prev) =>
           prev.map((m) =>
-            m.id === id ? { ...m, descartado: false } : m
+            m.id === id
+              ? { ...m, descartado: false, descartado_por: null, fecha_descarte: null, motivo_descarte: null }
+              : m
           )
         );
       }
@@ -439,29 +597,29 @@ export default function MatchingView({
     );
   };
 
+  // Active (non-discarded) matches for display
+  const activeMatches = useMemo(() => matches.filter((m) => !m.descartado), [matches]);
+  const discardedMatches = useMemo(() => matches.filter((m) => m.descartado), [matches]);
+
   const filtered = useMemo(() => {
-    return matches.filter((m) => {
-      if (!showDescartados && m.descartado) return false;
+    return activeMatches.filter((m) => {
       if (selectedCiclo !== "all" && m.ciclo_año !== selectedCiclo) return false;
       if (selectedTipo !== "all" && m.tipo_match !== selectedTipo) return false;
       if (selectedUen !== "all" && m.puesto_org !== selectedUen) return false;
       if (soloCriticos && !m.es_puesto_critico) return false;
       return true;
     });
-  }, [matches, showDescartados, selectedCiclo, selectedTipo, selectedUen, soloCriticos]);
+  }, [activeMatches, selectedCiclo, selectedTipo, selectedUen, soloCriticos]);
 
   // Summary counts (active only)
-  const activeCounts = useMemo(() => {
-    const base = matches.filter((m) => !m.descartado);
-    return {
-      bidireccional: base.filter((m) => m.tipo_match === "bidireccional").length,
-      aspiracion: base.filter((m) => m.tipo_match === "aspiracion").length,
-      propuesta: base.filter((m) => m.tipo_match === "propuesta").length,
-      gap_critico: base.filter((m) => m.tipo_match === "gap_critico").length,
-    };
-  }, [matches]);
+  const activeCounts = useMemo(() => ({
+    bidireccional: activeMatches.filter((m) => m.tipo_match === "bidireccional").length,
+    aspiracion:    activeMatches.filter((m) => m.tipo_match === "aspiracion").length,
+    propuesta:     activeMatches.filter((m) => m.tipo_match === "propuesta").length,
+    gap_critico:   activeMatches.filter((m) => m.tipo_match === "gap_critico").length,
+  }), [activeMatches]);
 
-  const gapsCriticos = filtered.filter((m) => m.tipo_match === "gap_critico" && !m.descartado);
+  const gapsCriticos = filtered.filter((m) => m.tipo_match === "gap_critico");
 
   return (
     <div className="space-y-5">
@@ -476,7 +634,7 @@ export default function MatchingView({
           }`}
         >
           Todos
-          <span className="font-bold">{matches.filter((m) => !m.descartado).length}</span>
+          <span className="font-bold">{activeMatches.length}</span>
         </button>
 
         {(Object.keys(TIPO_CONFIG) as (keyof typeof TIPO_CONFIG)[]).map((tipo) => {
@@ -544,16 +702,6 @@ export default function MatchingView({
             ))}
           </select>
         )}
-
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={showDescartados}
-            onChange={(e) => setShowDescartados(e.target.checked)}
-            className="rounded"
-          />
-          Mostrar descartados
-        </label>
 
         <div className="ml-auto flex items-center gap-2">
           <select
@@ -636,6 +784,9 @@ export default function MatchingView({
             ))}
         </div>
       )}
+
+      {/* Descartados panel */}
+      <DescartadosPanel matches={discardedMatches} onReactivar={handleReactivar} />
     </div>
   );
 }

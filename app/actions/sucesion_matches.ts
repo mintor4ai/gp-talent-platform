@@ -88,7 +88,10 @@ export async function validarMatch(matchId: string): Promise<{ ok: boolean; erro
   }
 }
 
-export async function descartarMatch(matchId: string): Promise<{ ok: boolean; error?: string }> {
+export async function descartarMatch(
+  matchId: string,
+  motivo: string | null
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const { supabase, userId } = await getAdminUser();
 
@@ -98,6 +101,7 @@ export async function descartarMatch(matchId: string): Promise<{ ok: boolean; er
         descartado: true,
         descartado_por: userId,
         fecha_descarte: new Date().toISOString(),
+        motivo_descarte: motivo || null,
       })
       .eq("id", matchId);
 
