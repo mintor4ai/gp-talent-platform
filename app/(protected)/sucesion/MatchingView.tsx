@@ -408,18 +408,17 @@ function MatchCard({
     </div>
   );
 
-  const cardMinH = showDiscardForm ? 380 : 260;
+  const cardH = showDiscardForm ? 380 : 260;
 
   return (
-    <div style={{ perspective: "1000px", minHeight: cardMinH }}>
+    <div style={{ perspective: "1000px", height: cardH }}>
       <div
         style={{
           transformStyle: "preserve-3d",
           transition: "transform 0.45s ease",
           transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
           position: "relative",
-          height: "100%",
-          minHeight: cardMinH,
+          height: cardH,
         }}
       >
         {front}
