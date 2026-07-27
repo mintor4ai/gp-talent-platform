@@ -42,7 +42,10 @@ export async function recalcularMatches(cicloAño: number): Promise<{
     revalidatePath("/sucesion");
     return { ok: true, counts: data as Record<string, number> };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg =
+      err instanceof Error
+        ? err.message
+        : (err as any)?.message ?? String(err);
     return { ok: false, error: msg };
   }
 }
@@ -65,7 +68,10 @@ export async function validarMatch(matchId: string): Promise<{ ok: boolean; erro
     revalidatePath("/sucesion");
     return { ok: true };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg =
+      err instanceof Error
+        ? err.message
+        : (err as any)?.message ?? String(err);
     return { ok: false, error: msg };
   }
 }
@@ -88,7 +94,10 @@ export async function descartarMatch(matchId: string): Promise<{ ok: boolean; er
     revalidatePath("/sucesion");
     return { ok: true };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg =
+      err instanceof Error
+        ? err.message
+        : (err as any)?.message ?? String(err);
     return { ok: false, error: msg };
   }
 }
@@ -111,7 +120,10 @@ export async function reactivarMatch(matchId: string): Promise<{ ok: boolean; er
     revalidatePath("/sucesion");
     return { ok: true };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg =
+      err instanceof Error
+        ? err.message
+        : (err as any)?.message ?? String(err);
     return { ok: false, error: msg };
   }
 }
