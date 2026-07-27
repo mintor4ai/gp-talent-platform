@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { upsertPicd, updateAccionProgress, submitPicd } from "@/app/actions/picd";
 import { cerrarCicloPicd } from "@/app/actions/picd_ciclo";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -70,10 +70,8 @@ export default function PicdEditor({
   // Puestos futuros (solo visible para admin/CH)
   const [pf1Id, setPf1Id] = useState<string>(picd?.puesto_futuro_id1 ?? "");
   const [pf1Text, setPf1Text] = useState<string>(picd?.puesto_futuro_opcion1 ?? "");
-  const [pf1Open, setPf1Open] = useState(false);
   const [pf2Id, setPf2Id] = useState<string>(picd?.puesto_futuro_id2 ?? "");
   const [pf2Text, setPf2Text] = useState<string>(picd?.puesto_futuro_opcion2 ?? "");
-  const [pf2Open, setPf2Open] = useState(false);
 
   useEffect(() => {
     const suggestion = sessionStorage.getItem("coach_picd_import");
@@ -274,11 +272,9 @@ export default function PicdEditor({
               label="Puesto futuro — Opción 1"
               selectedId={pf1Id}
               selectedText={pf1Text}
-              open={pf1Open}
               canEdit={canEdit}
               catalogo={catalogoPuestos}
-              onOpenChange={setPf1Open}
-              onSelect={(id, nombre) => { setPf1Id(id); setPf1Text(nombre); setPf1Open(false); }}
+              onSelect={(id, nombre) => { setPf1Id(id); setPf1Text(nombre); }}
               onTextChange={(t) => { setPf1Text(t); setPf1Id(""); }}
             />
 
@@ -287,11 +283,9 @@ export default function PicdEditor({
               label="Puesto futuro — Opción 2"
               selectedId={pf2Id}
               selectedText={pf2Text}
-              open={pf2Open}
               canEdit={canEdit}
               catalogo={catalogoPuestos}
-              onOpenChange={setPf2Open}
-              onSelect={(id, nombre) => { setPf2Id(id); setPf2Text(nombre); setPf2Open(false); }}
+              onSelect={(id, nombre) => { setPf2Id(id); setPf2Text(nombre); }}
               onTextChange={(t) => { setPf2Text(t); setPf2Id(""); }}
             />
           </div>
@@ -505,33 +499,43 @@ function PuestoFuturoCombobox({
   label,
   selectedId,
   selectedText,
-  open,
   canEdit,
   catalogo,
-  onOpenChange,
   onSelect,
   onTextChange,
 }: {
   label: string;
   selectedId: string;
   selectedText: string;
-  open: boolean;
   canEdit: boolean;
   catalogo: CatalogoPuesto[];
-  onOpenChange: (v: boolean) => void;
   onSelect: (id: string, nombre: string) => void;
   onTextChange: (t: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Cerrar al clic fuera del componente
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const filtered = selectedText.trim().length > 0
     ? catalogo.filter((p) =>
         p.nombre.toLowerCase().includes(selectedText.toLowerCase()) ||
         (p.area ?? "").toLowerCase().includes(selectedText.toLowerCase()) ||
         (p.razon_social ?? "").toLowerCase().includes(selectedText.toLowerCase())
-      ).slice(0, 8)
-    : catalogo.slice(0, 8);
+      ).slice(0, 10)
+    : catalogo.slice(0, 10);
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <label className="block text-xs font-medium text-gray-600 mb-1.5">
         {label}
         {selectedId && (
@@ -551,31 +555,40 @@ function PuestoFuturoCombobox({
         disabled={!canEdit}
         placeholder="Buscar puesto en catálogo o escribir libremente…"
         autoComplete="off"
-        onFocus={() => onOpenChange(true)}
-        onBlur={() => setTimeout(() => onOpenChange(false), 150)}
+        onFocus={() => setOpen(true)}
         onChange={(e) => {
           onTextChange(e.target.value);
-          onOpenChange(true);
+          setOpen(true);
         }}
         className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] disabled:bg-gray-50 disabled:text-gray-500"
       />
-      {open && canEdit && filtered.length > 0 && (
-        <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
-          {filtered.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onMouseDown={() => onSelect(p.id, p.nombre)}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex flex-col gap-0.5"
-            >
-              <span className="font-medium text-gray-900">{p.nombre}</span>
-              {(p.razon_social || p.area) && (
-                <span className="text-xs text-gray-400">
-                  {[p.razon_social, p.area].filter(Boolean).join(" · ")}
-                </span>
-              )}
-            </button>
-          ))}
+      {open && canEdit && (
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+          {filtered.length > 0 ? (
+            filtered.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onSelect(p.id, p.nombre);
+                  setOpen(false);
+                }}
+                className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0 flex flex-col gap-0.5"
+              >
+                <span className="font-medium text-gray-900">{p.nombre}</span>
+                {(p.razon_social || p.area) && (
+                  <span className="text-xs text-gray-400">
+                    {[p.razon_social, p.area].filter(Boolean).join(" · ")}
+                  </span>
+                )}
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-3 text-sm text-gray-400 text-center">
+              Sin coincidencias — se guardará como texto libre
+            </div>
+          )}
         </div>
       )}
     </div>
