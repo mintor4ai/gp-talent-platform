@@ -287,6 +287,18 @@ export default function MatchingView({
     <div className="space-y-5">
       {/* Summary chips + filtro críticos */}
       <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setSelectedTipo("all")}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+            selectedTipo === "all"
+              ? "bg-gray-800 text-white border-gray-800"
+              : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+          }`}
+        >
+          Todos
+          <span className="font-bold">{matches.filter((m) => !m.descartado).length}</span>
+        </button>
+
         {(Object.keys(TIPO_CONFIG) as (keyof typeof TIPO_CONFIG)[]).map((tipo) => {
           const cfg = TIPO_CONFIG[tipo];
           return (
