@@ -165,10 +165,10 @@ export default function CoberturaView({ puestos, uens }: { puestos: PuestoCobert
                 const bestReadiness = getBestReadiness(p.sucesores);
                 return (
                   <tr key={p.id} className={`hover:bg-gray-50/50 transition-colors ${p.es_critico ? "bg-red-50/10" : ""}`}>
-                    <td className="px-4 py-3 font-medium text-gray-800 max-w-[220px]">
-                      <div className="flex items-center gap-1.5">
-                        {p.es_critico && <span className="text-red-500 text-[10px] font-bold">★</span>}
-                        <span className="truncate">{p.nombre}</span>
+                    <td className="px-4 py-3 font-medium text-gray-800 max-w-[260px]">
+                      <div className="flex items-start gap-1.5">
+                        {p.es_critico && <span className="text-red-500 text-[10px] font-bold mt-0.5 flex-shrink-0">★</span>}
+                        <span className="break-words leading-snug">{p.nombre}</span>
                       </div>
                       <span className="font-mono text-gray-400 text-[10px]">{p.clave}</span>
                     </td>
