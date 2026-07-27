@@ -3,8 +3,10 @@
 import { useState } from "react";
 import SucesionAdminView from "./SucesionAdminView";
 import CoberturaView from "./CoberturaView";
+import MatchingView from "./MatchingView";
 import type { SucesionItem } from "../carpeta/[id]/SucesionEditor";
 import type { PuestoCoberturaItem } from "./CoberturaView";
+import type { MatchRow } from "./MatchingView";
 
 type ColabRow = {
   id: string;
@@ -21,14 +23,26 @@ export default function SucesionTabs({
   ciclos,
   puestos,
   uens,
+  matches,
+  matchCiclos,
 }: {
   planes: SucesionItem[];
   colabs: ColabRow[];
   ciclos: number[];
   puestos: PuestoCoberturaItem[];
   uens: string[];
+  matches: MatchRow[];
+  matchCiclos: number[];
 }) {
-  const [tab, setTab] = useState<"planes" | "cobertura">("planes");
+  const [tab, setTab] = useState<"planes" | "cobertura" | "matching">("planes");
+
+  const gapsCriticosCount = puestos.filter(
+    (p) => p.es_critico && p.sucesores.length === 0 && p.titulares.length > 0
+  ).length;
+
+  const activeMatchGaps = matches.filter(
+    (m) => m.tipo_match === "gap_critico" && !m.descartado
+  ).length;
 
   return (
     <div>
@@ -39,9 +53,17 @@ export default function SucesionTabs({
         </TabBtn>
         <TabBtn active={tab === "cobertura"} onClick={() => setTab("cobertura")}>
           Cobertura por Puesto
-          {puestos.filter((p) => p.es_critico && p.sucesores.length === 0 && p.titulares.length > 0).length > 0 && (
+          {gapsCriticosCount > 0 && (
             <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold">
-              {puestos.filter((p) => p.es_critico && p.sucesores.length === 0 && p.titulares.length > 0).length}
+              {gapsCriticosCount}
+            </span>
+          )}
+        </TabBtn>
+        <TabBtn active={tab === "matching"} onClick={() => setTab("matching")}>
+          Motor de Matching
+          {activeMatchGaps > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold">
+              {activeMatchGaps}
             </span>
           )}
         </TabBtn>
@@ -52,6 +74,13 @@ export default function SucesionTabs({
       )}
       {tab === "cobertura" && (
         <CoberturaView puestos={puestos} uens={uens} />
+      )}
+      {tab === "matching" && (
+        <MatchingView
+          matches={matches}
+          ciclosDisponibles={matchCiclos}
+          uens={uens}
+        />
       )}
     </div>
   );

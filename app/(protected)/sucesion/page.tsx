@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import type { SucesionItem } from "../carpeta/[id]/SucesionEditor";
 import type { PuestoCoberturaItem, TitularItem, SucesorItem } from "./CoberturaView";
+import type { MatchRow } from "./MatchingView";
 import SucesionTabs from "./SucesionTabs";
 
 export default async function SucesionPage() {
@@ -23,6 +24,7 @@ export default async function SucesionPage() {
     { data: planesRaw },
     { data: colabsRaw },
     { data: catalogoRaw },
+    { data: matchesRaw },
   ] = await Promise.all([
     supabase
       .from("plan_sucesion")
@@ -40,6 +42,11 @@ export default async function SucesionPage() {
       .eq("activo", true)
       .order("es_critico", { ascending: false })
       .order("nombre", { ascending: true }),
+    supabase
+      .from("sucesion_matches")
+      .select("*")
+      .order("ciclo_año", { ascending: false })
+      .order("tipo_match"),
   ]);
 
   const planes = (planesRaw ?? []) as unknown as SucesionItem[];
@@ -119,6 +126,31 @@ export default async function SucesionPage() {
 
   const uens = Array.from(new Set(puestos.map((p) => p.organización).filter(Boolean))).sort() as string[];
 
+  // Enrich matches with names from in-memory lookups
+  const colabById = new Map(colabs.map((c) => [c.id, c.nombre_completo ?? ""]));
+  type CatalogRow = { id: string; nombre: string; organización?: string | null };
+  const catalogById = new Map(
+    (catalogoRaw ?? []).map((c) => {
+      const row = c as unknown as CatalogRow & Record<string, unknown>;
+      return [row.id, { nombre: row.nombre, org: String(row["organización"] ?? "") }];
+    })
+  );
+
+  const matches: MatchRow[] = (matchesRaw ?? []).map((m) => {
+    const raw = m as unknown as MatchRow;
+    const puesto = catalogById.get(raw.puesto_catalogo_id);
+    return {
+      ...raw,
+      colaborador_nombre: raw.colaborador_id ? (colabById.get(raw.colaborador_id) ?? null) : null,
+      titular_nombre: raw.titular_id ? (colabById.get(raw.titular_id) ?? null) : null,
+      puesto_nombre: puesto?.nombre ?? null,
+      puesto_org: puesto?.org || null,
+    };
+  });
+
+  const matchCiclos = Array.from(new Set(matches.map((m) => m.ciclo_año))).sort((a, b) => b - a);
+  const allCiclos = Array.from(new Set([...ciclos, ...matchCiclos])).sort((a, b) => b - a);
+
   return (
     <SucesionTabs
       planes={planes}
@@ -126,6 +158,8 @@ export default async function SucesionPage() {
       ciclos={ciclos}
       puestos={puestos}
       uens={uens}
+      matches={matches}
+      matchCiclos={allCiclos}
     />
   );
 }
