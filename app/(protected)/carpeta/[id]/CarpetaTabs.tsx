@@ -172,6 +172,7 @@ export default function CarpetaTabs({
   ciclosEstadoMap,
   ponderacionesMap,
   perfil,
+  catalogoPuestos = [],
 }: {
   colaboradorId: string;
   ciclos: number[];
@@ -200,6 +201,7 @@ export default function CarpetaTabs({
   }>;
   ponderacionesMap: Record<number, Record<number, PonderacionRow>>;
   perfil: ColaboradorPerfil;
+  catalogoPuestos?: Array<{ id: string; nombre: string; razon_social: string | null; area: string | null }>;
 }) {
   const defaultTab = "perfil";
   const [mainTab, setMainTab] = useState<"perfil" | "evaluacion" | "picd" | "sucesion">(defaultTab);
@@ -733,7 +735,7 @@ export default function CarpetaTabs({
               isOwn={isOwn}
               isAdmin={isAdmin}
               cicloEstado={cicloEstado}
-              catalogoPuestos={[]}
+              catalogoPuestos={catalogoPuestos}
             />
           )}
 

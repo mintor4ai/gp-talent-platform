@@ -70,6 +70,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: candidaturasRaw },
     { data: ciclosEstadoRaw },
     { data: ponderacionesRaw },
+    { data: catalogoPuestosRaw },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -146,6 +147,11 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     supabase
       .from("eip_ponderaciones")
       .select("ciclo_año, calif_ponderada, w_exp, w_form_acad, w_cursos, w_comp, w_eal, w_picd"),
+    supabase
+      .from("catalogo_puestos")
+      .select("id, nombre, razon_social, area")
+      .eq("activo", true)
+      .order("nombre"),
   ]);
 
   const canEdit = isOwn || isAdmin;
@@ -268,6 +274,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         ciclosEstadoMap={ciclosEstadoMap}
         ponderacionesMap={ponderacionesMap}
         perfil={colab as any}
+        catalogoPuestos={(catalogoPuestosRaw ?? []) as Array<{ id: string; nombre: string; razon_social: string | null; area: string | null }>}
       />
     </div>
   );
