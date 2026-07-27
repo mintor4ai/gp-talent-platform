@@ -90,7 +90,7 @@ function MatchCard({
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           {/* Puesto */}
-          <p className="font-semibold text-sm truncate">
+          <p className="font-semibold text-sm break-words leading-snug">
             {match.puesto_nombre ?? "Puesto desconocido"}
           </p>
           {match.puesto_org && (
@@ -199,6 +199,7 @@ export default function MatchingView({
   const [selectedTipo, setSelectedTipo] = useState<string>("all");
   const [selectedUen, setSelectedUen] = useState<string>("all");
   const [showDescartados, setShowDescartados] = useState(false);
+  const [soloCriticos, setSoloCriticos] = useState(false);
   const [recalcCiclo, setRecalcCiclo] = useState<number>(
     ciclosDisponibles[0] ?? new Date().getFullYear()
   );
@@ -264,9 +265,10 @@ export default function MatchingView({
       if (selectedCiclo !== "all" && m.ciclo_año !== selectedCiclo) return false;
       if (selectedTipo !== "all" && m.tipo_match !== selectedTipo) return false;
       if (selectedUen !== "all" && m.puesto_org !== selectedUen) return false;
+      if (soloCriticos && !m.es_puesto_critico) return false;
       return true;
     });
-  }, [matches, showDescartados, selectedCiclo, selectedTipo, selectedUen]);
+  }, [matches, showDescartados, selectedCiclo, selectedTipo, selectedUen, soloCriticos]);
 
   // Summary counts (active only)
   const activeCounts = useMemo(() => {
@@ -283,8 +285,8 @@ export default function MatchingView({
 
   return (
     <div className="space-y-5">
-      {/* Summary chips */}
-      <div className="flex flex-wrap gap-2">
+      {/* Summary chips + filtro críticos */}
+      <div className="flex flex-wrap items-center gap-2">
         {(Object.keys(TIPO_CONFIG) as (keyof typeof TIPO_CONFIG)[]).map((tipo) => {
           const cfg = TIPO_CONFIG[tipo];
           return (
@@ -303,6 +305,20 @@ export default function MatchingView({
             </button>
           );
         })}
+
+        <div className="w-px h-5 bg-gray-200 mx-1" />
+
+        <button
+          onClick={() => setSoloCriticos((v) => !v)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+            soloCriticos
+              ? "bg-orange-100 text-orange-700 border-orange-200 ring-2 ring-offset-1 ring-orange-300"
+              : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-orange-400" />
+          Solo críticos
+        </button>
       </div>
 
       {/* Filters + Recalcular */}
