@@ -259,37 +259,35 @@ export default function PicdEditor({
 
         <SectionHeader label={`Plan de Desarrollo — Ciclo ${cicloAño}`} />
 
-        {isAdmin && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* hidden fields carry the values for form submission */}
-            <input type="hidden" name="puesto_futuro_id1" value={pf1Id} />
-            <input type="hidden" name="puesto_futuro_opcion1" value={pf1Text} />
-            <input type="hidden" name="puesto_futuro_id2" value={pf2Id} />
-            <input type="hidden" name="puesto_futuro_opcion2" value={pf2Text} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* hidden fields carry the values for form submission */}
+          <input type="hidden" name="puesto_futuro_id1" value={pf1Id} />
+          <input type="hidden" name="puesto_futuro_opcion1" value={pf1Text} />
+          <input type="hidden" name="puesto_futuro_id2" value={pf2Id} />
+          <input type="hidden" name="puesto_futuro_opcion2" value={pf2Text} />
 
-            {/* Puesto futuro 1 */}
-            <PuestoFuturoCombobox
-              label="Puesto futuro — Opción 1"
-              selectedId={pf1Id}
-              selectedText={pf1Text}
-              canEdit={canEdit}
-              catalogo={catalogoPuestos}
-              onSelect={(id, nombre) => { setPf1Id(id); setPf1Text(nombre); }}
-              onTextChange={(t) => { setPf1Text(t); setPf1Id(""); }}
-            />
+          {/* Puesto futuro 1 */}
+          <PuestoFuturoCombobox
+            label="Puesto futuro — Opción 1"
+            selectedId={pf1Id}
+            selectedText={pf1Text}
+            canEdit={canEdit}
+            catalogo={catalogoPuestos}
+            onSelect={(id, nombre) => { setPf1Id(id); setPf1Text(nombre); }}
+            onTextChange={(t) => { setPf1Text(t); setPf1Id(""); }}
+          />
 
-            {/* Puesto futuro 2 */}
-            <PuestoFuturoCombobox
-              label="Puesto futuro — Opción 2"
-              selectedId={pf2Id}
-              selectedText={pf2Text}
-              canEdit={canEdit}
-              catalogo={catalogoPuestos}
-              onSelect={(id, nombre) => { setPf2Id(id); setPf2Text(nombre); }}
-              onTextChange={(t) => { setPf2Text(t); setPf2Id(""); }}
-            />
-          </div>
-        )}
+          {/* Puesto futuro 2 */}
+          <PuestoFuturoCombobox
+            label="Puesto futuro — Opción 2"
+            selectedId={pf2Id}
+            selectedText={pf2Text}
+            canEdit={canEdit}
+            catalogo={catalogoPuestos}
+            onSelect={(id, nombre) => { setPf2Id(id); setPf2Text(nombre); }}
+            onTextChange={(t) => { setPf2Text(t); setPf2Id(""); }}
+          />
+        </div>
 
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1.5">

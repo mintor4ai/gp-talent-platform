@@ -78,9 +78,7 @@ export default async function PicdPage({ params }: { params: Promise<{ id: strin
       .order("tipo_accion")
       .order("created_at"),
     getCicloEstado(id, cicloAño),
-    isAdmin
-      ? supabase.from("catalogo_puestos").select("id, nombre, razon_social, area").eq("activo", true).order("nombre")
-      : Promise.resolve({ data: [] }),
+    supabase.from("catalogo_puestos").select("id, nombre, razon_social, area").eq("activo", true).order("nombre"),
   ]);
 
   const isCycleLocked =
