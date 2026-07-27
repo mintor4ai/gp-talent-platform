@@ -121,6 +121,8 @@ type PicdRecord = {
   estado: string;
   puesto_futuro_opcion1: string | null;
   puesto_futuro_opcion2: string | null;
+  puesto_futuro_id1?: string | null;
+  puesto_futuro_id2?: string | null;
   areas_oportunidad: string | null;
   compromisos: string | null;
 };
@@ -244,6 +246,8 @@ export default function CarpetaTabs({
         estado: picdRecord.estado,
         puesto_futuro_opcion1: picdRecord.puesto_futuro_opcion1,
         puesto_futuro_opcion2: picdRecord.puesto_futuro_opcion2,
+        puesto_futuro_id1: (picdRecord as any).puesto_futuro_id1 ?? null,
+        puesto_futuro_id2: (picdRecord as any).puesto_futuro_id2 ?? null,
         areas_oportunidad: picdRecord.areas_oportunidad,
         compromisos: picdRecord.compromisos,
       }
@@ -729,6 +733,7 @@ export default function CarpetaTabs({
               isOwn={isOwn}
               isAdmin={isAdmin}
               cicloEstado={cicloEstado}
+              catalogoPuestos={[]}
             />
           )}
 

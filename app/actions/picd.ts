@@ -13,11 +13,16 @@ export async function upsertPicd(formData: FormData) {
   const id_empleado = formData.get("id_empleado") as string;
   const ciclo_año = parseInt(formData.get("ciclo_año") as string, 10);
 
+  const rawId1 = formData.get("puesto_futuro_id1") as string | null;
+  const rawId2 = formData.get("puesto_futuro_id2") as string | null;
+
   const payload = {
     id_empleado,
     ciclo_año,
     puesto_futuro_opcion1: formData.get("puesto_futuro_opcion1") as string || null,
     puesto_futuro_opcion2: formData.get("puesto_futuro_opcion2") as string || null,
+    puesto_futuro_id1: rawId1 || null,
+    puesto_futuro_id2: rawId2 || null,
     areas_oportunidad: formData.get("areas_oportunidad") as string || null,
     compromisos: formData.get("compromisos") as string || null,
     origen_dato: "editor_digital",

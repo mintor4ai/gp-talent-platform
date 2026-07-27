@@ -22,9 +22,13 @@ type PicdRecord = {
   estado: string;
   puesto_futuro_opcion1: string | null;
   puesto_futuro_opcion2: string | null;
+  puesto_futuro_id1: string | null;
+  puesto_futuro_id2: string | null;
   areas_oportunidad: string | null;
   compromisos: string | null;
 } | null;
+
+type CatalogoPuesto = { id: string; nombre: string; razon_social: string | null; area: string | null };
 
 type CicloEstado = {
   estado: string;
@@ -45,6 +49,7 @@ export default function PicdEditor({
   isOwn,
   isAdmin,
   cicloEstado,
+  catalogoPuestos = [],
 }: {
   colaboradorId: string;
   cicloAño: number;
@@ -54,12 +59,21 @@ export default function PicdEditor({
   isOwn: boolean;
   isAdmin: boolean;
   cicloEstado: CicloEstado;
+  catalogoPuestos?: CatalogoPuesto[];
 }) {
   const [isPending, startTransition] = useTransition();
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"desarrollo" | "normativo">("desarrollo");
   const [importedSuggestion, setImportedSuggestion] = useState<string | null>(null);
   const [areasValue, setAreasValue] = useState(picd?.areas_oportunidad ?? "");
+
+  // Puestos futuros (solo visible para admin/CH)
+  const [pf1Id, setPf1Id] = useState<string>(picd?.puesto_futuro_id1 ?? "");
+  const [pf1Text, setPf1Text] = useState<string>(picd?.puesto_futuro_opcion1 ?? "");
+  const [pf1Open, setPf1Open] = useState(false);
+  const [pf2Id, setPf2Id] = useState<string>(picd?.puesto_futuro_id2 ?? "");
+  const [pf2Text, setPf2Text] = useState<string>(picd?.puesto_futuro_opcion2 ?? "");
+  const [pf2Open, setPf2Open] = useState(false);
 
   useEffect(() => {
     const suggestion = sessionStorage.getItem("coach_picd_import");
@@ -247,34 +261,41 @@ export default function PicdEditor({
 
         <SectionHeader label={`Plan de Desarrollo — Ciclo ${cicloAño}`} />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">
-              Puesto futuro — Opción 1
-            </label>
-            <input
-              name="puesto_futuro_opcion1"
-              type="text"
-              defaultValue={picd?.puesto_futuro_opcion1 ?? ""}
-              disabled={!canEdit}
-              placeholder="Ej. Gerente de Construcción"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] disabled:bg-gray-50 disabled:text-gray-500"
+        {isAdmin && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* hidden fields carry the values for form submission */}
+            <input type="hidden" name="puesto_futuro_id1" value={pf1Id} />
+            <input type="hidden" name="puesto_futuro_opcion1" value={pf1Text} />
+            <input type="hidden" name="puesto_futuro_id2" value={pf2Id} />
+            <input type="hidden" name="puesto_futuro_opcion2" value={pf2Text} />
+
+            {/* Puesto futuro 1 */}
+            <PuestoFuturoCombobox
+              label="Puesto futuro — Opción 1"
+              selectedId={pf1Id}
+              selectedText={pf1Text}
+              open={pf1Open}
+              canEdit={canEdit}
+              catalogo={catalogoPuestos}
+              onOpenChange={setPf1Open}
+              onSelect={(id, nombre) => { setPf1Id(id); setPf1Text(nombre); setPf1Open(false); }}
+              onTextChange={(t) => { setPf1Text(t); setPf1Id(""); }}
+            />
+
+            {/* Puesto futuro 2 */}
+            <PuestoFuturoCombobox
+              label="Puesto futuro — Opción 2"
+              selectedId={pf2Id}
+              selectedText={pf2Text}
+              open={pf2Open}
+              canEdit={canEdit}
+              catalogo={catalogoPuestos}
+              onOpenChange={setPf2Open}
+              onSelect={(id, nombre) => { setPf2Id(id); setPf2Text(nombre); setPf2Open(false); }}
+              onTextChange={(t) => { setPf2Text(t); setPf2Id(""); }}
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">
-              Puesto futuro — Opción 2
-            </label>
-            <input
-              name="puesto_futuro_opcion2"
-              type="text"
-              defaultValue={picd?.puesto_futuro_opcion2 ?? ""}
-              disabled={!canEdit}
-              placeholder="Ej. Director de Proyectos"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] disabled:bg-gray-50 disabled:text-gray-500"
-            />
-          </div>
-        </div>
+        )}
 
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1.5">
@@ -476,5 +497,87 @@ function AccionCard({
         </div>
       )}
     </form>
+  );
+}
+
+// ── Combobox de búsqueda en catálogo de puestos ──────────────────────────────
+function PuestoFuturoCombobox({
+  label,
+  selectedId,
+  selectedText,
+  open,
+  canEdit,
+  catalogo,
+  onOpenChange,
+  onSelect,
+  onTextChange,
+}: {
+  label: string;
+  selectedId: string;
+  selectedText: string;
+  open: boolean;
+  canEdit: boolean;
+  catalogo: CatalogoPuesto[];
+  onOpenChange: (v: boolean) => void;
+  onSelect: (id: string, nombre: string) => void;
+  onTextChange: (t: string) => void;
+}) {
+  const filtered = selectedText.trim().length > 0
+    ? catalogo.filter((p) =>
+        p.nombre.toLowerCase().includes(selectedText.toLowerCase()) ||
+        (p.area ?? "").toLowerCase().includes(selectedText.toLowerCase()) ||
+        (p.razon_social ?? "").toLowerCase().includes(selectedText.toLowerCase())
+      ).slice(0, 8)
+    : catalogo.slice(0, 8);
+
+  return (
+    <div className="relative">
+      <label className="block text-xs font-medium text-gray-600 mb-1.5">
+        {label}
+        {selectedId && (
+          <span className="ml-2 text-[10px] font-normal text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
+            vinculado al catálogo
+          </span>
+        )}
+        {!selectedId && selectedText && (
+          <span className="ml-2 text-[10px] font-normal text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+            texto libre
+          </span>
+        )}
+      </label>
+      <input
+        type="text"
+        value={selectedText}
+        disabled={!canEdit}
+        placeholder="Buscar puesto en catálogo o escribir libremente…"
+        autoComplete="off"
+        onFocus={() => onOpenChange(true)}
+        onBlur={() => setTimeout(() => onOpenChange(false), 150)}
+        onChange={(e) => {
+          onTextChange(e.target.value);
+          onOpenChange(true);
+        }}
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] disabled:bg-gray-50 disabled:text-gray-500"
+      />
+      {open && canEdit && filtered.length > 0 && (
+        <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+          {filtered.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onMouseDown={() => onSelect(p.id, p.nombre)}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex flex-col gap-0.5"
+            >
+              <span className="font-medium text-gray-900">{p.nombre}</span>
+              {(p.razon_social || p.area) && (
+                <span className="text-xs text-gray-400">
+                  {[p.razon_social, p.area].filter(Boolean).join(" · ")}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -63,7 +63,7 @@ export default async function PicdPage({ params }: { params: Promise<{ id: strin
 
   const cicloAño = (cicloRow as { ciclo_año?: number } | null)?.ciclo_año ?? new Date().getFullYear();
 
-  const [{ data: picdRecord }, { data: acciones }, cicloEstado] = await Promise.all([
+  const [{ data: picdRecord }, { data: acciones }, cicloEstado, { data: catalogoPuestos }] = await Promise.all([
     supabase
       .from("picd")
       .select("*")
@@ -78,6 +78,9 @@ export default async function PicdPage({ params }: { params: Promise<{ id: strin
       .order("tipo_accion")
       .order("created_at"),
     getCicloEstado(id, cicloAño),
+    isAdmin
+      ? supabase.from("catalogo_puestos").select("id, nombre, razon_social, area").eq("activo", true).order("nombre")
+      : Promise.resolve({ data: [] }),
   ]);
 
   const isCycleLocked =
@@ -137,6 +140,7 @@ export default async function PicdPage({ params }: { params: Promise<{ id: strin
         isOwn={isOwn}
         isAdmin={isAdmin}
         cicloEstado={cicloEstado}
+        catalogoPuestos={(catalogoPuestos ?? []) as Array<{ id: string; nombre: string; razon_social: string | null; area: string | null }>}
       />
     </div>
   );
