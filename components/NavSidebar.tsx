@@ -16,22 +16,23 @@ type NavItem = {
 };
 
 const ADMIN_NAV: NavItem[] = [
-  { href: "/dashboard",     label: "Inicio",          icon: "⊞", exact: true },
-  { href: "/colaboradores", label: "Colaboradores",   icon: "👥" },
+  { href: "/dashboard",     label: "Inicio",        icon: "⊞", exact: true },
+  { href: "/colaboradores", label: "Colaboradores", icon: "👥" },
   {
-    label: "Carpetas individuales",
-    icon: "📊",
+    label: "Talent Intelligence",
+    icon: "✦",
     children: [
-      { href: "/evaluaciones",    label: "Mapa de Talento" },
-      { href: "/talento-clave",   label: "Talento Clave" },
+      { href: "/mapa-talento",  label: "Mapa de Talento" },
+      { href: "/carpetas",      label: "Carpetas Individuales" },
+      { href: "/talento-clave", label: "Talento Clave" },
+      { href: "/movilidad",     label: "Movilidad" },
+      { href: "/sucesion",      label: "Plan de Sucesión" },
+      { href: "/picd-admin",    label: "Ciclos PICD" },
     ],
   },
-  { href: "/sucesion",      label: "Plan de Sucesión", icon: "🔄" },
-  { href: "/movilidad",     label: "Movilidad",        icon: "🚦" },
-  { href: "/picd-admin",    label: "Ciclos PICD",      icon: "📋" },
   { href: "/configuracion/catalogo-puestos", label: "Catálogo de Puestos", icon: "🗂️" },
-  { href: "/importar",      label: "Importar datos",   icon: "📥" },
-  { href: "/coach",         label: "Coach IA",         icon: "✦" },
+  { href: "/importar",      label: "Importar datos", icon: "📥" },
+  { href: "/coach",         label: "Coach IA",       icon: "✦" },
 ];
 
 const SUPERADMIN_EXTRA: NavItem = { href: "/configuracion", label: "Configuración", icon: "⚙️" };
