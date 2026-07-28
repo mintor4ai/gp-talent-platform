@@ -8,10 +8,10 @@ import type { ColabMovilidad } from "./page";
 type Semaforo = "verde" | "amarillo" | "rojo" | "sin_datos";
 
 const SEMAFORO_CONFIG: Record<Semaforo, { label: string; sublabel: string; dot: string; row: string; badge: string; order: number }> = {
-  verde:     { label: "Reciente",          sublabel: "Tiempo OK — sin acción requerida",  dot: "bg-green-500",  row: "",               badge: "bg-green-100 text-green-700 border-green-200",  order: 3 },
-  amarillo:  { label: "Próximo a mover",   sublabel: "Acercándose al límite de tiempo",   dot: "bg-amber-400",  row: "bg-amber-50/40", badge: "bg-amber-100 text-amber-700 border-amber-200",   order: 1 },
-  rojo:      { label: "Requiere movilidad",sublabel: "Supera el umbral — acción urgente", dot: "bg-red-500",    row: "bg-red-50/40",   badge: "bg-red-100 text-red-700 border-red-200",         order: 0 },
-  sin_datos: { label: "Sin fecha",         sublabel: "No se registró fecha de ingreso",   dot: "bg-gray-300",   row: "",               badge: "bg-gray-100 text-gray-400 border-gray-200",      order: 2 },
+  verde:     { label: "En adaptación",   sublabel: "Recién ingresó a la posición",          dot: "bg-green-500",  row: "",               badge: "bg-green-100 text-green-700 border-green-200",  order: 3 },
+  amarillo:  { label: "Establecido",     sublabel: "Conoce bien su rol y entorno",           dot: "bg-amber-400",  row: "bg-amber-50/40", badge: "bg-amber-100 text-amber-700 border-amber-200",   order: 1 },
+  rojo:      { label: "Alta permanencia",sublabel: "Larga trayectoria en la misma posición", dot: "bg-red-500",    row: "bg-red-50/40",   badge: "bg-red-100 text-red-700 border-red-200",         order: 0 },
+  sin_datos: { label: "Sin fecha",       sublabel: "No se registró fecha de ingreso",        dot: "bg-gray-300",   row: "",               badge: "bg-gray-100 text-gray-400 border-gray-200",      order: 2 },
 };
 
 function resolveUmbral(
@@ -316,7 +316,7 @@ export default function MovilidadView({
       {/* Header */}
       <div>
         <h2 className="text-xl font-bold text-gray-900">Semáforo de Movilidad</h2>
-        <p className="text-sm text-gray-500 mt-0.5">Tiempo en posición actual por colaborador</p>
+        <p className="text-sm text-gray-500 mt-0.5">Indicador de permanencia en la posición actual · los umbrales varían por segmento y UEN</p>
       </div>
 
       {/* Tabs */}
