@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 
 type Colaborador = {
   id: string;
@@ -35,10 +36,11 @@ export default function ColaboradoresClient({
   const [filterArea, setFilterArea] = useState("");
   const [filterJefe, setFilterJefe] = useState("");
   const [filterSegmento, setFilterSegmento] = useState("");
+  const { sortKey, sortDir, handleSort } = useSortState<"nombre" | "puesto" | "nivel" | "organización" | "area" | "segmento_organizacional">("nombre");
 
   const filtered = useMemo(() => {
     const q = nombre.trim().toLowerCase();
-    return colaboradores.filter((c) => {
+    const base = colaboradores.filter((c) => {
       if (q && !c.nombre_completo.toLowerCase().includes(q)) return false;
       if (filterUen && c.organización !== filterUen) return false;
       if (filterArea && c.area !== filterArea) return false;
@@ -46,7 +48,21 @@ export default function ColaboradoresClient({
       if (filterSegmento && c.segmento_organizacional !== filterSegmento) return false;
       return true;
     });
-  }, [colaboradores, nombre, filterUen, filterArea, filterJefe, filterSegmento]);
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...base].sort((a, b) => {
+      let av: string;
+      let bv: string;
+      switch (sortKey) {
+        case "nombre": av = a.nombre_completo; bv = b.nombre_completo; break;
+        case "puesto": av = a.puesto ?? ""; bv = b.puesto ?? ""; break;
+        case "nivel":  av = a.nivel ?? ""; bv = b.nivel ?? ""; break;
+        case "organización": av = a.organización ?? ""; bv = b.organización ?? ""; break;
+        case "area":   av = a.area ?? ""; bv = b.area ?? ""; break;
+        default:       av = a.segmento_organizacional ?? ""; bv = b.segmento_organizacional ?? "";
+      }
+      return dir * av.localeCompare(bv, "es");
+    });
+  }, [colaboradores, nombre, filterUen, filterArea, filterJefe, filterSegmento, sortKey, sortDir]);
 
   const hasFilters = nombre || filterUen || filterArea || filterJefe || filterSegmento;
 
@@ -127,13 +143,13 @@ export default function ColaboradoresClient({
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-400 border-b border-gray-100 bg-gray-50">
-                <th className="px-5 py-3 font-medium">Nombre</th>
-                <th className="px-5 py-3 font-medium">Puesto</th>
-                <th className="px-5 py-3 font-medium hidden md:table-cell">Nivel</th>
-                <th className="px-5 py-3 font-medium hidden lg:table-cell">UEN</th>
-                <th className="px-5 py-3 font-medium hidden lg:table-cell">Área</th>
+                <SortableTh label="Nombre" sortKey="nombre" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-5 py-3" />
+                <SortableTh label="Puesto" sortKey="puesto" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-5 py-3" />
+                <SortableTh label="Nivel" sortKey="nivel" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-5 py-3 hidden md:table-cell" />
+                <SortableTh label="UEN" sortKey="organización" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-5 py-3 hidden lg:table-cell" />
+                <SortableTh label="Área" sortKey="area" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-5 py-3 hidden lg:table-cell" />
                 {isAdmin && <th className="px-5 py-3 font-medium hidden xl:table-cell">Jefe</th>}
-                {isAdmin && <th className="px-5 py-3 font-medium hidden xl:table-cell">Segmento</th>}
+                {isAdmin && <SortableTh label="Segmento" sortKey="segmento_organizacional" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-5 py-3 hidden xl:table-cell" />}
                 <th className="px-5 py-3 font-medium w-10"></th>
               </tr>
             </thead>

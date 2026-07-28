@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo, useRef, useEffect, useCallback } from "react";
+import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 import { togglePuestoCritico, togglePuestoActivo } from "@/app/actions/catalogo-puestos";
 import type { PuestoCatalogo } from "./page";
 
@@ -26,6 +27,7 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
   const [filterActivo, setFilterActivo] = useState<"" | "activo" | "inactivo">("activo");
   const [optimistic, setOptimistic] = useState<Map<string, Partial<PuestoCatalogo>>>(new Map());
   const [, startTransition] = useTransition();
+  const { sortKey, sortDir, handleSort } = useSortState<"clave" | "nombre" | "organización" | "segmento_organizacional" | "tipo_vacante" | "titulares_count" | "sucesion_count">("nombre");
 
   function getField<K extends keyof PuestoCatalogo>(p: PuestoCatalogo, key: K): PuestoCatalogo[K] {
     return optimistic.get(p.id)?.[key] !== undefined
@@ -35,7 +37,7 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return puestos.filter((p) => {
+    const base = puestos.filter((p) => {
       const critico = getField(p, "es_critico");
       const activo  = getField(p, "activo");
       if (filterActivo === "activo"   && !activo)  return false;
@@ -48,8 +50,14 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
       if (q && !p.nombre.toLowerCase().includes(q) && !p.clave.toLowerCase().includes(q)) return false;
       return true;
     });
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...base].sort((a, b) => {
+      if (sortKey === "titulares_count" || sortKey === "sucesion_count")
+        return dir * (a[sortKey] - b[sortKey]);
+      return dir * ((a[sortKey] ?? "") as string).localeCompare((b[sortKey] ?? "") as string, "es");
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [puestos, search, filterUen, filterSegmento, filterTipo, filterCritico, filterActivo, optimistic]);
+  }, [puestos, search, filterUen, filterSegmento, filterTipo, filterCritico, filterActivo, optimistic, sortKey, sortDir]);
 
   const criticosCount  = filtered.filter((p) => getField(p, "es_critico")).length;
   const sinTitular     = filtered.filter((p) => p.titulares_count === 0).length;
@@ -221,13 +229,13 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-gray-400 border-b border-gray-100 bg-gray-50">
-                <th className="px-4 py-3 font-medium whitespace-nowrap">Clave</th>
-                <th className="px-4 py-3 font-medium min-w-[260px]">Nombre</th>
-                <th className="px-4 py-3 font-medium min-w-[140px]">UEN</th>
-                <th className="px-4 py-3 font-medium min-w-[120px]">Segmento</th>
-                <th className="px-4 py-3 font-medium whitespace-nowrap">Tipo</th>
-                <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Titulares</th>
-                <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Planes</th>
+                <SortableTh label="Clave" sortKey="clave" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 whitespace-nowrap" />
+                <SortableTh label="Nombre" sortKey="nombre" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 min-w-[260px]" />
+                <SortableTh label="UEN" sortKey="organización" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 min-w-[140px]" />
+                <SortableTh label="Segmento" sortKey="segmento_organizacional" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 min-w-[120px]" />
+                <SortableTh label="Tipo" sortKey="tipo_vacante" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 whitespace-nowrap" />
+                <SortableTh label="Titulares" sortKey="titulares_count" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 text-center whitespace-nowrap" />
+                <SortableTh label="Planes" sortKey="sucesion_count" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 text-center whitespace-nowrap" />
                 <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Crítico</th>
                 <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Activo</th>
               </tr>

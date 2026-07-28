@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ZONA_COLORS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
 import EIPScatterChart from "./EIPScatterChart";
+import EvaluacionesTable from "./EvaluacionesTable";
 import ZonaConfigEditor from "./ZonaConfigEditor";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
@@ -142,72 +143,7 @@ export default async function EvaluacionesPage() {
           <SectionHeader label={`Detalle — Ciclo ${cicloActual}`} />
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-100 bg-gray-50">
-                <th className="px-5 py-3 font-medium">Colaborador</th>
-                <th className="px-5 py-3 font-medium">Puesto</th>
-                <th className="px-5 py-3 font-medium">Nivel</th>
-                <th className="px-5 py-3 font-medium text-center">Zona</th>
-                <th className="px-5 py-3 font-medium text-right">Potencial</th>
-                <th className="px-5 py-3 font-medium text-right">Desempeño</th>
-                <th className="px-5 py-3 font-medium"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {eipsActual.map((e) => {
-                const colab = e.colaboradores as {
-                  nombre_completo: string;
-                  puesto: string;
-                  nivel: string;
-                  area: string;
-                } | null;
-                const zona = e.zona_evaluacion;
-                const colors = zona
-                  ? ZONA_COLORS[zona] ?? { bg: "bg-gray-100", text: "text-gray-700" }
-                  : null;
-
-                return (
-                  <tr key={e.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-gray-900">
-                      {colab?.nombre_completo ?? "—"}
-                    </td>
-                    <td className="px-5 py-3 text-gray-600 text-xs">{colab?.puesto ?? "—"}</td>
-                    <td className="px-5 py-3 text-gray-500 text-xs">{colab?.nivel ?? "—"}</td>
-                    <td className="px-5 py-3 text-center">
-                      {zona && colors ? (
-                        <span
-                          className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}
-                        >
-                          {zona}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-right font-semibold text-gray-900">
-                      {e.evaluacion_potencial_total != null
-                        ? Number(e.evaluacion_potencial_total).toFixed(1)
-                        : "—"}
-                    </td>
-                    <td className="px-5 py-3 text-right font-semibold text-gray-900">
-                      {e.desempeno_logra != null
-                        ? Number(e.desempeno_logra).toFixed(1)
-                        : "—"}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <a
-                        href={`/carpeta/${e.id_empleado}`}
-                        className="text-xs text-[#1a3a5c] hover:underline"
-                      >
-                        Ver carpeta →
-                      </a>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <EvaluacionesTable eips={eipsActual as any} />
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
+import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 import {
   reabrirCiclosMultiples,
   activarCiclosPicd,
@@ -40,10 +41,23 @@ export default function PicdCiclosAdmin({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ texto: string; tipo: "ok" | "info" } | null>(null);
+  const { sortKey, sortDir, handleSort } = useSortState<"nombre_completo" | "puesto" | "estado" | "cerrado_at">("nombre_completo");
 
-  const filtrados = filtro === "todos"
-    ? rows
-    : rows.filter((r) => (r.estado ?? "sin_actividad") === filtro);
+  const filtrados = useMemo(() => {
+    const base = filtro === "todos"
+      ? rows
+      : rows.filter((r) => (r.estado ?? "sin_actividad") === filtro);
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...base].sort((a, b) => {
+      switch (sortKey) {
+        case "nombre_completo": return dir * a.nombre_completo.localeCompare(b.nombre_completo, "es");
+        case "puesto":          return dir * (a.puesto ?? "").localeCompare(b.puesto ?? "", "es");
+        case "estado":          return dir * (a.estado ?? "").localeCompare(b.estado ?? "", "es");
+        case "cerrado_at":      return dir * (a.cerrado_at ?? "").localeCompare(b.cerrado_at ?? "");
+        default: return 0;
+      }
+    });
+  }, [rows, filtro, sortKey, sortDir]);
 
   // Sub-grupos según estado de los seleccionados
   const rowMap = new Map(rows.map((r) => [r.id_empleado, r]));
@@ -215,10 +229,10 @@ export default function PicdCiclosAdmin({
                     title="Seleccionar todos los visibles"
                   />
                 </th>
-                <th className="px-4 py-3 font-medium">Colaborador</th>
-                <th className="px-4 py-3 font-medium hidden md:table-cell">Puesto</th>
-                <th className="px-4 py-3 font-medium">Estado ciclo</th>
-                <th className="px-4 py-3 font-medium hidden lg:table-cell">Cerrado</th>
+                <SortableTh label="Colaborador" sortKey="nombre_completo" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3" />
+                <SortableTh label="Puesto" sortKey="puesto" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 hidden md:table-cell" />
+                <SortableTh label="Estado ciclo" sortKey="estado" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3" />
+                <SortableTh label="Cerrado" sortKey="cerrado_at" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 hidden lg:table-cell" />
                 <th className="px-4 py-3 font-medium hidden lg:table-cell">Decisión</th>
                 <th className="px-4 py-3 w-10"></th>
               </tr>

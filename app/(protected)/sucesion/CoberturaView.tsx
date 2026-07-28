@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 
 export type SucesorItem = {
   sucesor_nombre: string;
@@ -60,24 +61,32 @@ export default function CoberturaView({ puestos, uens }: { puestos: PuestoCobert
   const [filterRiesgo, setFilterRiesgo]   = useState<"" | RiesgoLevel>("");
   const [filterUen, setFilterUen]         = useState("");
   const [search, setSearch]               = useState("");
+  const { sortKey, sortDir, handleSort } = useSortState<"nombre" | "organización" | "tipo_vacante" | "sucesores" | "riesgo">("riesgo");
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return puestos
-      .filter((p) => {
-        if (filterCritico === "si" && !p.es_critico) return false;
-        if (filterCritico === "no" && p.es_critico)  return false;
-        if (filterUen && p.organización !== filterUen) return false;
-        if (filterRiesgo && getRiesgo(p) !== filterRiesgo) return false;
-        if (q && !p.nombre.toLowerCase().includes(q) && !p.clave.toLowerCase().includes(q)) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        // Critical first, then by risk level, then alphabetically
-        if (a.es_critico !== b.es_critico) return a.es_critico ? -1 : 1;
-        return RIESGO_CONFIG[getRiesgo(a)].order - RIESGO_CONFIG[getRiesgo(b)].order;
-      });
-  }, [puestos, filterCritico, filterRiesgo, filterUen, search]);
+    const base = puestos.filter((p) => {
+      if (filterCritico === "si" && !p.es_critico) return false;
+      if (filterCritico === "no" && p.es_critico)  return false;
+      if (filterUen && p.organización !== filterUen) return false;
+      if (filterRiesgo && getRiesgo(p) !== filterRiesgo) return false;
+      if (q && !p.nombre.toLowerCase().includes(q) && !p.clave.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...base].sort((a, b) => {
+      switch (sortKey) {
+        case "nombre":       return dir * a.nombre.localeCompare(b.nombre, "es");
+        case "organización": return dir * (a.organización ?? "").localeCompare(b.organización ?? "", "es");
+        case "tipo_vacante": return dir * (a.tipo_vacante ?? "").localeCompare(b.tipo_vacante ?? "", "es");
+        case "sucesores":    return dir * (a.sucesores.length - b.sucesores.length);
+        case "riesgo":
+        default:
+          if (a.es_critico !== b.es_critico) return a.es_critico ? -1 : 1;
+          return dir * (RIESGO_CONFIG[getRiesgo(a)].order - RIESGO_CONFIG[getRiesgo(b)].order);
+      }
+    });
+  }, [puestos, filterCritico, filterRiesgo, filterUen, search, sortKey, sortDir]);
 
   const conSucesor     = filtered.filter((p) => p.sucesores.length > 0).length;
   const sinSucesor     = filtered.filter((p) => p.sucesores.length === 0 && p.titulares.length > 0).length;
@@ -142,13 +151,13 @@ export default function CoberturaView({ puestos, uens }: { puestos: PuestoCobert
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-gray-400 border-b border-gray-100 bg-gray-50">
-                <th className="px-4 py-3 font-medium">Puesto</th>
-                <th className="px-4 py-3 font-medium">UEN</th>
-                <th className="px-4 py-3 font-medium">Tipo</th>
+                <SortableTh label="Puesto" sortKey="nombre" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3" />
+                <SortableTh label="UEN" sortKey="organización" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3" />
+                <SortableTh label="Tipo" sortKey="tipo_vacante" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3" />
                 <th className="px-4 py-3 font-medium">Titular(es)</th>
-                <th className="px-4 py-3 font-medium text-center">Sucesores</th>
+                <SortableTh label="Sucesores" sortKey="sucesores" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 text-center" />
                 <th className="px-4 py-3 font-medium">Mejor Readiness</th>
-                <th className="px-4 py-3 font-medium text-center">Riesgo</th>
+                <SortableTh label="Riesgo" sortKey="riesgo" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 text-center" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">

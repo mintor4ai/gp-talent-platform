@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { createUser, updateUsuario, resetPassword } from "@/app/actions/usuarios";
+import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 
 export type AuthUsuario = {
   id: string;
@@ -538,6 +539,7 @@ export default function UsuariosTab({
   const [editing, setEditing]   = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [msg, setMsg]           = useState<string | null>(null);
+  const { sortKey, sortDir, handleSort } = useSortState<"display_name" | "rol" | "activo" | "last_sign_in_at">("display_name");
 
   function flash(text: string) {
     setMsg(text);
@@ -575,16 +577,29 @@ export default function UsuariosTab({
     setEditing(null);
   }
 
-  const filtered = rows.filter((u) => {
-    if (rolFilter !== "todos" && u.rol !== rolFilter) return false;
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      u.email.toLowerCase().includes(s) ||
-      (u.display_name ?? "").toLowerCase().includes(s) ||
-      (u.empleado_nombre ?? "").toLowerCase().includes(s)
-    );
-  });
+  const filtered = useMemo(() => {
+    const base = rows.filter((u) => {
+      if (rolFilter !== "todos" && u.rol !== rolFilter) return false;
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return (
+        u.email.toLowerCase().includes(s) ||
+        (u.display_name ?? "").toLowerCase().includes(s) ||
+        (u.empleado_nombre ?? "").toLowerCase().includes(s)
+      );
+    });
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...base].sort((a, b) => {
+      switch (sortKey) {
+        case "display_name": return dir * (a.display_name ?? a.email).localeCompare(b.display_name ?? b.email, "es");
+        case "rol":          return dir * a.rol.localeCompare(b.rol, "es");
+        case "activo":       return dir * (Number(b.activo) - Number(a.activo));
+        case "last_sign_in_at":
+          return dir * ((a.last_sign_in_at ?? "").localeCompare(b.last_sign_in_at ?? ""));
+        default: return 0;
+      }
+    });
+  }, [rows, search, rolFilter, sortKey, sortDir]);
 
   const editingUser = editing ? rows.find((u) => u.id === editing) ?? null : null;
 
@@ -654,11 +669,11 @@ export default function UsuariosTab({
           <table className="w-full text-sm">
             <thead>
               <tr className="text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
-                <th className="text-left px-5 py-2.5">Usuario</th>
-                <th className="text-left px-3 py-2.5">Rol</th>
-                <th className="text-left px-3 py-2.5">Acceso</th>
-                <th className="text-left px-3 py-2.5">Estado</th>
-                <th className="text-left px-3 py-2.5">Último ingreso</th>
+                <SortableTh label="Usuario" sortKey="display_name" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="text-left px-5 py-2.5" />
+                <SortableTh label="Rol" sortKey="rol" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="text-left px-3 py-2.5" />
+                <th className="text-left px-3 py-2.5 font-medium">Acceso</th>
+                <SortableTh label="Estado" sortKey="activo" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="text-left px-3 py-2.5" />
+                <SortableTh label="Último ingreso" sortKey="last_sign_in_at" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="text-left px-3 py-2.5" />
                 <th className="px-3 py-2.5" />
               </tr>
             </thead>

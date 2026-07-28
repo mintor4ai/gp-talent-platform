@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
+import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 import {
   recalcularMatches,
   validarMatch,
@@ -445,6 +446,20 @@ function DescartadosPanel({
   onReactivar: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const { sortKey, sortDir, handleSort } = useSortState<"puesto" | "colaborador" | "fecha">("fecha", "desc");
+
+  const sorted = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...matches].sort((a, b) => {
+      switch (sortKey) {
+        case "puesto":      return dir * (a.puesto_nombre ?? "").localeCompare(b.puesto_nombre ?? "", "es");
+        case "colaborador": return dir * (a.colaborador_nombre ?? "").localeCompare(b.colaborador_nombre ?? "", "es");
+        case "fecha":       return dir * (a.fecha_descarte ?? "").localeCompare(b.fecha_descarte ?? "");
+        default: return 0;
+      }
+    });
+  }, [matches, sortKey, sortDir]);
+
   if (matches.length === 0) return null;
 
   return (
@@ -468,16 +483,16 @@ function DescartadosPanel({
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-gray-100 text-gray-400">
-                <th className="px-4 py-2 font-medium text-left">Puesto</th>
-                <th className="px-4 py-2 font-medium text-left">Colaborador</th>
+                <SortableTh label="Puesto" sortKey="puesto" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-2 text-left" />
+                <SortableTh label="Colaborador" sortKey="colaborador" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-2 text-left" />
                 <th className="px-4 py-2 font-medium text-left">Motivo</th>
                 <th className="px-4 py-2 font-medium text-left">Descartado por</th>
-                <th className="px-4 py-2 font-medium text-left">Fecha</th>
+                <SortableTh label="Fecha" sortKey="fecha" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-2 text-left" />
                 <th className="px-4 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {matches.map((m) => (
+              {sorted.map((m) => (
                 <tr key={m.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2.5 font-medium text-gray-700 max-w-[200px]">
                     <p className="break-words leading-snug">{m.puesto_nombre ?? "—"}</p>
