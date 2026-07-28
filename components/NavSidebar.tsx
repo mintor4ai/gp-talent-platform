@@ -22,7 +22,8 @@ const ADMIN_NAV: NavItem[] = [
     label: "Carpetas individuales",
     icon: "📊",
     children: [
-      { href: "/evaluaciones", label: "Mapa de Talento" },
+      { href: "/evaluaciones",    label: "Mapa de Talento" },
+      { href: "/talento-clave",   label: "Talento Clave" },
     ],
   },
   { href: "/sucesion",      label: "Plan de Sucesión", icon: "🔄" },
