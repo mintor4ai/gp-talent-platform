@@ -153,6 +153,22 @@ export async function removerTalentoClave(
         .from("talento_clave")
         .update({ es_talento_clave: false, fuente: "manual", updated_at: new Date().toISOString() })
         .eq("id", existing.id);
+    } else {
+      // Person auto-qualified via EIP but has no explicit TC record yet —
+      // insert a manual override so the removal persists past a re-sync.
+      const { data: eipRow } = await supabase
+        .from("evaluacion_integral_personal")
+        .select("zona_evaluacion")
+        .eq("id_empleado", colaboradorId)
+        .eq("ciclo_año", cicloAño)
+        .single();
+      await supabase.from("talento_clave").insert({
+        colaborador_id: colaboradorId,
+        ciclo_año: cicloAño,
+        es_talento_clave: false,
+        fuente: "manual",
+        zona_eip: (eipRow as any)?.zona_evaluacion ?? null,
+      });
     }
 
     await supabase.from("talento_clave_log").insert({

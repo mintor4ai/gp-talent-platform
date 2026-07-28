@@ -40,6 +40,15 @@ export default async function TalentoClaveRoute() {
   const eipArr = (eips ?? []) as { id_empleado: string; zona_evaluacion: string }[];
   const eipMap = new Map(eipArr.map((e) => [e.id_empleado, e.zona_evaluacion]));
 
+  // All collaborators for manual-promotion search
+  const { data: allColabsData } = await supabase
+    .from("colaboradores")
+    .select("id, nombre_completo, puesto, organización")
+    .order("nombre_completo");
+
+  type AllColab = { id: string; nombre_completo: string; puesto: string | null; organización: string | null };
+  const allColabsArr = (allColabsData ?? []) as unknown as AllColab[];
+
   // Current TC records for this cycle
   const { data: tcRecords } = await supabase
     .from("talento_clave")
@@ -77,6 +86,19 @@ export default async function TalentoClaveRoute() {
   };
 
   const colabArr = (colaboradores ?? []) as unknown as ColabRow[];
+
+  // Annotate all collaborators with TC + EIP status for the search modal
+  const allColaboradores = allColabsArr.map((c) => {
+    const tc = tcMap.get(c.id);
+    return {
+      id: c.id,
+      nombre_completo: c.nombre_completo,
+      puesto: c.puesto,
+      organización: c.organización,
+      zona_eip: eipMap.get(c.id) ?? null,
+      ya_es_tc: tc ? tc.es_talento_clave : eipMap.has(c.id),
+    };
+  });
 
   const rows = colabArr.map((c) => {
     const tc = tcMap.get(c.id);
@@ -147,6 +169,7 @@ export default async function TalentoClaveRoute() {
       rows={rows}
       logRows={logRows}
       cicloAño={cicloAño}
+      allColaboradores={allColaboradores}
     />
   );
 }
