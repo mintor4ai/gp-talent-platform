@@ -49,9 +49,8 @@ function mesesDesde(fecha: string | null): number | null {
 function fmtMeses(m: number | null): string {
   if (m === null) return "—";
   if (m < 12) return `${m} mes${m !== 1 ? "es" : ""}`;
-  const años = Math.floor(m / 12);
-  const rest = m % 12;
-  return rest > 0 ? `${años} a ${rest} m` : `${años} año${años !== 1 ? "s" : ""}`;
+  const años = (m / 12).toFixed(1);
+  return `${años} años`;
 }
 
 // ── Configuración de umbrales ────────────────────────────────────────────────
