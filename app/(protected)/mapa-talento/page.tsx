@@ -58,35 +58,50 @@ export default async function MapaTalentoPage() {
     if (z) zonaCounts[z] = (zonaCounts[z] ?? 0) + 1;
   }
 
-  // Scatter data
-  const scatterPoints = eipsActual
-    .filter((e) => (e as any).desempeno_logra != null && (e as any).evaluacion_potencial_total != null)
-    .map((e) => {
-      const ev = e as any;
-      const colab = ev.colaboradores as {
-        nombre_completo: string;
-        puesto: string;
-        area: string | null;
-        organización: string | null;
-        jefe_inmediato_nombre: string | null;
-      } | null;
-      return {
-        id: ev.id,
-        id_empleado: ev.id_empleado,
-        nombre: colab?.nombre_completo ?? "—",
-        puesto: colab?.puesto ?? "—",
-        area: colab?.area ?? null,
-        uen: colab?.organización ?? null,
-        jefe: colab?.jefe_inmediato_nombre ?? null,
-        desempeno: Number(ev.desempeno_logra),
-        potencial: Number(ev.evaluacion_potencial_total),
-        zona: ev.zona_evaluacion,
-      };
-    });
+  // Build scatter data for ALL cycles (for multi-cycle overlay)
+  type ScatterPoint = {
+    id: string; id_empleado: string; nombre: string; puesto: string;
+    area: string | null; uen: string | null; jefe: string | null;
+    desempeno: number; potencial: number; zona: string | null;
+  };
 
-  const uens  = Array.from(new Set(scatterPoints.map((p) => p.uen).filter(Boolean)  as string[])).sort();
-  const areas = Array.from(new Set(scatterPoints.map((p) => p.area).filter(Boolean) as string[])).sort();
-  const jefes = Array.from(new Set(scatterPoints.map((p) => p.jefe).filter(Boolean) as string[])).sort();
+  function toScatterPoint(e: unknown): ScatterPoint | null {
+    const ev = e as any;
+    if (ev.desempeno_logra == null || ev.evaluacion_potencial_total == null) return null;
+    const colab = ev.colaboradores as {
+      nombre_completo: string; puesto: string; area: string | null;
+      organización: string | null; jefe_inmediato_nombre: string | null;
+    } | null;
+    return {
+      id: ev.id,
+      id_empleado: ev.id_empleado,
+      nombre: colab?.nombre_completo ?? "—",
+      puesto: colab?.puesto ?? "—",
+      area: colab?.area ?? null,
+      uen: colab?.organización ?? null,
+      jefe: colab?.jefe_inmediato_nombre ?? null,
+      desempeno: Number(ev.desempeno_logra),
+      potencial: Number(ev.evaluacion_potencial_total),
+      zona: ev.zona_evaluacion,
+    };
+  }
+
+  const allCyclePoints = ciclos.map((ciclo) => ({
+    ciclo: ciclo as number,
+    points: (eips ?? [])
+      .filter((e) => (e as any).ciclo_año === ciclo)
+      .map(toScatterPoint)
+      .filter((p): p is ScatterPoint => p !== null),
+  }));
+
+  // For current cycle zone counts and config
+  const scatterPoints = allCyclePoints.find((c) => c.ciclo === cicloActual)?.points ?? [];
+
+  // UENs/areas/jefes from all cycles combined
+  const allPoints = allCyclePoints.flatMap((c) => c.points);
+  const uens  = Array.from(new Set(allPoints.map((p) => p.uen).filter(Boolean)  as string[])).sort();
+  const areas = Array.from(new Set(allPoints.map((p) => p.area).filter(Boolean) as string[])).sort();
+  const jefes = Array.from(new Set(allPoints.map((p) => p.jefe).filter(Boolean) as string[])).sort();
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -113,7 +128,7 @@ export default async function MapaTalentoPage() {
       {/* Scatter chart */}
       {scatterPoints.length > 0 && (
         <EIPScatterChart
-          points={scatterPoints}
+          allCyclePoints={allCyclePoints}
           uens={uens}
           areas={areas}
           jefes={jefes}

@@ -609,7 +609,7 @@ export default function CarpetaTabs({
                     </div>
                   </div>
                   {isAdmin && (
-                    <a href="/evaluaciones" className="text-xs text-[#1a3a5c] hover:underline self-end mb-1">
+                    <a href="/mapa-talento" className="text-xs text-[#1a3a5c] hover:underline self-end mb-1">
                       Ver mapa completo →
                     </a>
                   )}
