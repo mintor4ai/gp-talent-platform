@@ -148,7 +148,7 @@ export default async function ColaboradorPerfilPage({
   return (
     <div className="space-y-6 max-w-5xl">
       {/* Breadcrumb */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <a href="/colaboradores" className="hover:text-gray-600 transition-colors">
             Colaboradores
@@ -156,12 +156,22 @@ export default async function ColaboradorPerfilPage({
           <span>/</span>
           <span className="text-gray-700 font-medium">{colab.nombre_completo}</span>
         </div>
-        <a
-          href={`/picd/${colaboradorId}`}
-          className="text-sm bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-[#152e4d] transition-colors"
-        >
-          Ver PICD →
-        </a>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <a
+              href={`/colaboradores/${colaboradorId}/editar`}
+              className="text-sm border border-gray-200 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Editar datos
+            </a>
+          )}
+          <a
+            href={`/picd/${colaboradorId}`}
+            className="text-sm bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-[#152e4d] transition-colors"
+          >
+            Ver PICD →
+          </a>
+        </div>
       </div>
 
       {/* Header */}

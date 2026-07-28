@@ -163,7 +163,11 @@ export default function ColaboradoresClient({
               ) : (
                 filtered.map((c) => (
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-gray-900">{c.nombre_completo}</td>
+                    <td className="px-5 py-3 font-medium text-gray-900">
+                      <a href={`/colaboradores/${c.id}`} className="hover:text-[#1a3a5c] hover:underline transition-colors">
+                        {c.nombre_completo}
+                      </a>
+                    </td>
                     <td className="px-5 py-3 text-gray-600">{c.puesto ?? "—"}</td>
                     <td className="px-5 py-3 text-gray-500 hidden md:table-cell">{c.nivel ?? "—"}</td>
                     <td className="px-5 py-3 text-gray-500 hidden lg:table-cell">{c.organización ?? "—"}</td>
