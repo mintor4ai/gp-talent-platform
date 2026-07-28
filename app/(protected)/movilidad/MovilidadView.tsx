@@ -7,11 +7,11 @@ import type { ColabMovilidad } from "./page";
 
 type Semaforo = "verde" | "amarillo" | "rojo" | "sin_datos";
 
-const SEMAFORO_CONFIG: Record<Semaforo, { label: string; dot: string; row: string; badge: string; order: number }> = {
-  verde:     { label: "En tiempo",    dot: "bg-green-500",  row: "",                  badge: "bg-green-100 text-green-700 border-green-200",  order: 3 },
-  amarillo:  { label: "Por vencer",   dot: "bg-amber-400",  row: "bg-amber-50/40",    badge: "bg-amber-100 text-amber-700 border-amber-200",   order: 1 },
-  rojo:      { label: "Vencido",      dot: "bg-red-500",    row: "bg-red-50/40",      badge: "bg-red-100 text-red-700 border-red-200",         order: 0 },
-  sin_datos: { label: "Sin fecha",    dot: "bg-gray-300",   row: "",                  badge: "bg-gray-100 text-gray-400 border-gray-200",      order: 2 },
+const SEMAFORO_CONFIG: Record<Semaforo, { label: string; sublabel: string; dot: string; row: string; badge: string; order: number }> = {
+  verde:     { label: "Reciente",          sublabel: "Tiempo OK — sin acción requerida",  dot: "bg-green-500",  row: "",               badge: "bg-green-100 text-green-700 border-green-200",  order: 3 },
+  amarillo:  { label: "Próximo a mover",   sublabel: "Acercándose al límite de tiempo",   dot: "bg-amber-400",  row: "bg-amber-50/40", badge: "bg-amber-100 text-amber-700 border-amber-200",   order: 1 },
+  rojo:      { label: "Requiere movilidad",sublabel: "Supera el umbral — acción urgente", dot: "bg-red-500",    row: "bg-red-50/40",   badge: "bg-red-100 text-red-700 border-red-200",         order: 0 },
+  sin_datos: { label: "Sin fecha",         sublabel: "No se registró fecha de ingreso",   dot: "bg-gray-300",   row: "",               badge: "bg-gray-100 text-gray-400 border-gray-200",      order: 2 },
 };
 
 function resolveUmbral(
@@ -350,7 +350,8 @@ export default function MovilidadView({
                   <span className={`w-3 h-3 rounded-full flex-shrink-0 ${cfg.dot}`} />
                   <div>
                     <p className="text-xl font-bold text-gray-900 leading-none">{counts[s]}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">{cfg.label}</p>
+                    <p className="text-[11px] text-gray-700 font-medium mt-0.5">{cfg.label}</p>
+                    <p className="text-[9px] text-gray-400 mt-0.5 max-w-[120px] leading-tight">{cfg.sublabel}</p>
                   </div>
                 </button>
               );
@@ -397,7 +398,6 @@ export default function MovilidadView({
                     <th className="px-4 py-3 font-medium">UEN</th>
                     <th className="px-4 py-3 font-medium">Segmento</th>
                     <th className="px-4 py-3 font-medium text-center">Tiempo en posición</th>
-                    <th className="px-4 py-3 font-medium text-center">Umbrales</th>
                     <th className="px-4 py-3 font-medium text-center">Semáforo</th>
                     <th className="px-4 py-3" />
                   </tr>
@@ -405,7 +405,7 @@ export default function MovilidadView({
                 <tbody className="divide-y divide-gray-50">
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">
+                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-400">
                         No hay colaboradores con los filtros seleccionados
                       </td>
                     </tr>
@@ -429,13 +429,10 @@ export default function MovilidadView({
                         <td className="px-4 py-3 text-center font-medium text-gray-700">
                           {fmtMeses(c.meses)}
                         </td>
-                        <td className="px-4 py-3 text-center text-gray-400">
-                          <span className="whitespace-nowrap">
-                            &lt;{c.umbral.meses_amarillo}m · {c.umbral.meses_amarillo}–{c.umbral.meses_rojo}m · ≥{c.umbral.meses_rojo}m
-                          </span>
-                        </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${cfg.badge}`}>
+                          <span
+                            title={`Umbral: verde <${c.umbral.meses_amarillo}m · amarillo ${c.umbral.meses_amarillo}–${c.umbral.meses_rojo}m · rojo ≥${c.umbral.meses_rojo}m`}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border cursor-default ${cfg.badge}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
                             {cfg.label}
                           </span>
