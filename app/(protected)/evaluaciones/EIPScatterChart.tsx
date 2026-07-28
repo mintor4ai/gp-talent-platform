@@ -362,6 +362,7 @@ export default function EIPScatterChart({
   const [filterArea, setFilterArea] = useState("Todos");
   const [filterJefe, setFilterJefe] = useState("Todos");
   const [nameFilter, setNameFilter] = useState("");
+  const [showGrid,   setShowGrid]   = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fsSize, setFsSize]             = useState({ w: CW, h: CH });
   const [tooltip, setTooltip]           = useState<{ x: number; y: number; point: EIPPoint } | null>(null);
@@ -500,6 +501,15 @@ export default function EIPScatterChart({
           Limpiar
         </button>
       )}
+      <label className="flex items-center gap-1.5 cursor-pointer select-none ml-1">
+        <input
+          type="checkbox"
+          checked={showGrid}
+          onChange={(e) => setShowGrid(e.target.checked)}
+          className="w-3.5 h-3.5 rounded accent-[#1a3a5c]"
+        />
+        <span className="text-xs text-gray-500">Cuadrícula 9-box</span>
+      </label>
     </div>
   );
 
@@ -530,7 +540,7 @@ export default function EIPScatterChart({
         points={!isMultiCycle ? (visibleCycleData[0]?.points ?? []) : []}
         multiCyclePoints={isMultiCycle ? visibleCycleData : undefined}
         dimmedIds={dimmedIds.size > 0 ? dimmedIds : undefined}
-        showQuadrantLines
+        showQuadrantLines={showGrid}
         width={w}
         height={h}
         showTitle={showTit}
