@@ -13,7 +13,7 @@ export type ColaboradorEditPayload = {
   jefe_inmediato_nombre: string | null;
   entidad: string | null;
   fecha_antiguedad: string | null;
-  fecha_ingreso_puesto: string | null;
+  fecha_ingreso_posicion: string | null;
   nivel_academico: string | null;
   resumen_formacion_profesional: string | null;
   resumen_exp_interno: string | null;
@@ -51,7 +51,7 @@ export async function actualizarColaborador(
         jefe_inmediato_nombre:         payload.jefe_inmediato_nombre?.trim() || null,
         entidad:                       payload.entidad?.trim() || null,
         fecha_antiguedad:              payload.fecha_antiguedad || null,
-        fecha_ingreso_puesto:          payload.fecha_ingreso_puesto || null,
+        fecha_ingreso_posicion:          payload.fecha_ingreso_posicion || null,
         nivel_academico:               payload.nivel_academico?.trim() || null,
         resumen_formacion_profesional: payload.resumen_formacion_profesional?.trim() || null,
         resumen_exp_interno:           payload.resumen_exp_interno?.trim() || null,

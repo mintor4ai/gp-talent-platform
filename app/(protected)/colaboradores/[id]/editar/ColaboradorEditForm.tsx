@@ -14,7 +14,7 @@ type Inicial = {
   jefe_inmediato_nombre: string;
   entidad: string;
   fecha_antiguedad: string;
-  fecha_ingreso_puesto: string;
+  fecha_ingreso_posicion: string;
   nivel_academico: string;
   resumen_formacion_profesional: string;
   resumen_exp_interno: string;
@@ -117,7 +117,7 @@ export default function ColaboradorEditForm({ colaboradorId, inicial, opciones }
       jefe_inmediato_nombre:         form.jefe_inmediato_nombre || null,
       entidad:                       form.entidad || null,
       fecha_antiguedad:              form.fecha_antiguedad || null,
-      fecha_ingreso_puesto:          form.fecha_ingreso_puesto || null,
+      fecha_ingreso_posicion:          form.fecha_ingreso_posicion || null,
       nivel_academico:               form.nivel_academico || null,
       resumen_formacion_profesional: form.resumen_formacion_profesional || null,
       resumen_exp_interno:           form.resumen_exp_interno || null,
@@ -262,8 +262,8 @@ export default function ColaboradorEditForm({ colaboradorId, inicial, opciones }
             <Field label="Fecha ingreso al puesto actual">
               <input
                 type="date"
-                value={form.fecha_ingreso_puesto}
-                onChange={(e) => set("fecha_ingreso_puesto", e.target.value)}
+                value={form.fecha_ingreso_posicion}
+                onChange={(e) => set("fecha_ingreso_posicion", e.target.value)}
                 className={inputCls}
               />
             </Field>

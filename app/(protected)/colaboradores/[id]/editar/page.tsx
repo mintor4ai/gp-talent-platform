@@ -69,7 +69,7 @@ export default async function ColaboradorEditPage({
         jefe_inmediato_nombre:         c.jefe_inmediato_nombre ?? "",
         entidad:                       c.entidad ?? "",
         fecha_antiguedad:              c.fecha_antiguedad ?? "",
-        fecha_ingreso_puesto:          c.fecha_ingreso_puesto ?? "",
+        fecha_ingreso_posicion:          c.fecha_ingreso_posicion ?? "",
         nivel_academico:               c.nivel_academico ?? "",
         resumen_formacion_profesional: c.resumen_formacion_profesional ?? "",
         resumen_exp_interno:           c.resumen_exp_interno ?? "",
