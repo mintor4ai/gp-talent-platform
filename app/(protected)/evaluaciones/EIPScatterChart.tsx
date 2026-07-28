@@ -145,8 +145,8 @@ export function TalentMatrixSVG({
   /** Point IDs to render dimmed (gray, low opacity) behind active points. */
   dimmedIds?: Set<string>;
   showQuadrantLines?: boolean;
-  width?: number;
-  height?: number;
+  width?: number | string;
+  height?: number | string;
   showTitle?: boolean;
   interactive?: boolean;
   highlightPoint?: boolean;
@@ -182,7 +182,9 @@ export function TalentMatrixSVG({
     : {};
 
   return (
-    <svg viewBox={`0 0 ${CW} ${CH}`} width={width} height={height} style={{ display: "block" }}>
+    <svg viewBox={`0 0 ${CW} ${CH}`} width={width} height={height}
+      preserveAspectRatio="xMidYMid meet"
+      style={{ display: "block", height: height === "auto" ? "auto" : undefined }}>
       <defs>
         <filter id="dot-glow" x="-80%" y="-80%" width="260%" height="260%">
           <feGaussianBlur stdDeviation="4" result="blur" />
@@ -521,7 +523,7 @@ export default function EIPScatterChart({
     </div>
   );
 
-  function chartSVG(w: number, h: number, showTit: boolean) {
+  function chartSVG(w: number | string, h: number | string, showTit: boolean) {
     return (
       <TalentMatrixSVG
         zonaBands={zonaBands}
@@ -618,9 +620,9 @@ export default function EIPScatterChart({
         {/* Filters */}
         {filters(false)}
 
-        {/* Chart */}
-        <div ref={wrapRef} className="relative overflow-x-auto">
-          {chartSVG(CW, CH, true)}
+        {/* Chart — fills card width, scales via viewBox */}
+        <div ref={wrapRef} className="relative">
+          {chartSVG("100%", "auto", true)}
           {tooltipEl}
         </div>
 

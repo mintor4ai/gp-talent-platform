@@ -112,14 +112,25 @@ export default async function MapaTalentoPage() {
         </p>
       </div>
 
-      {/* Zone summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {["Sobresaliente", "Desarrollo", "Estabilidad", "Revisión", "Inicio"].map((zona) => {
+      {/* Zone summary — slim chips */}
+      <div className="flex flex-wrap gap-2">
+        {(["Sobresaliente", "Desarrollo", "Estabilidad", "Revisión", "Inicio"] as const).map((zona) => {
           const colors = ZONA_COLORS[zona] ?? { bg: "bg-gray-100", text: "text-gray-700" };
+          const HEX: Record<string, string> = {
+            Sobresaliente: "#7c3aed", Desarrollo: "#2563eb",
+            Estabilidad: "#059669", "Revisión": "#ea580c", Inicio: "#ca8a04",
+          };
           return (
-            <div key={zona} className={`rounded-xl border p-4 ${colors.bg} border-transparent`}>
-              <p className={`text-xs font-semibold uppercase tracking-wider ${colors.text}`}>{zona}</p>
-              <p className={`text-3xl font-bold mt-1 ${colors.text}`}>{zonaCounts[zona] ?? 0}</p>
+            <div key={zona}
+              className={`flex items-center gap-3 rounded-xl px-4 py-2.5 flex-1 min-w-[140px] ${colors.bg}`}
+              style={{ borderLeft: `3px solid ${HEX[zona] ?? "#6b7280"}` }}
+            >
+              <span className={`text-2xl font-bold tabular-nums leading-none ${colors.text}`}>
+                {zonaCounts[zona] ?? 0}
+              </span>
+              <span className={`text-[11px] font-semibold uppercase tracking-wide leading-tight ${colors.text} opacity-70`}>
+                {zona}
+              </span>
             </div>
           );
         })}
