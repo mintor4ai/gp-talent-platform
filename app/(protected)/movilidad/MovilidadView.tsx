@@ -7,11 +7,11 @@ import type { ColabMovilidad } from "./page";
 
 type Semaforo = "verde" | "amarillo" | "rojo" | "sin_datos";
 
-const SEMAFORO_CONFIG: Record<Semaforo, { label: string; sublabel: string; dot: string; row: string; badge: string; order: number }> = {
-  verde:     { label: "En adaptación",   sublabel: "Recién ingresó a la posición",          dot: "bg-green-500",  row: "",               badge: "bg-green-100 text-green-700 border-green-200",  order: 3 },
-  amarillo:  { label: "Establecido",     sublabel: "Conoce bien su rol y entorno",           dot: "bg-amber-400",  row: "bg-amber-50/40", badge: "bg-amber-100 text-amber-700 border-amber-200",   order: 1 },
-  rojo:      { label: "Alta permanencia",sublabel: "Larga trayectoria en la misma posición", dot: "bg-red-500",    row: "bg-red-50/40",   badge: "bg-red-100 text-red-700 border-red-200",         order: 0 },
-  sin_datos: { label: "Sin fecha",       sublabel: "No se registró fecha de ingreso",        dot: "bg-gray-300",   row: "",               badge: "bg-gray-100 text-gray-400 border-gray-200",      order: 2 },
+const SEMAFORO_CONFIG: Record<Semaforo, { label: string; sublabel: string; dot: string; stripe: string; order: number }> = {
+  verde:     { label: "En adaptación",    sublabel: "Recién ingresó a la posición",          dot: "bg-green-500",  stripe: "#22c55e", order: 3 },
+  amarillo:  { label: "Establecido",      sublabel: "Conoce bien su rol y entorno",           dot: "bg-amber-400",  stripe: "#fbbf24", order: 1 },
+  rojo:      { label: "Alta permanencia", sublabel: "Larga trayectoria en la misma posición", dot: "bg-red-500",    stripe: "#ef4444", order: 0 },
+  sin_datos: { label: "Sin fecha",        sublabel: "No se registró fecha de ingreso",        dot: "bg-gray-300",   stripe: "#d1d5db", order: 2 },
 };
 
 function resolveUmbral(
@@ -334,23 +334,22 @@ export default function MovilidadView({
         <UmbralesConfig umbrales={umbrales} ciclo={ciclo} uens={uens} segmentos={segmentos} />
       ) : (
         <>
-          {/* Summary chips */}
+          {/* KPI chips */}
           <div className="flex flex-wrap gap-3">
             {(["rojo", "amarillo", "verde", "sin_datos"] as Semaforo[]).map((s) => {
               const cfg = SEMAFORO_CONFIG[s];
+              const active = filterSemaforo === s;
               return (
                 <button key={s}
-                  onClick={() => setFilterSemaforo(filterSemaforo === s ? "" : s)}
-                  className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-left transition-all ${
-                    filterSemaforo === s
-                      ? "border-gray-400 bg-white shadow-sm ring-2 ring-gray-200"
-                      : "border-gray-200 bg-white hover:shadow-sm"
+                  onClick={() => setFilterSemaforo(active ? "" : s)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
+                    active ? "border-gray-400 bg-white shadow-md ring-2 ring-gray-200" : "border-gray-200 bg-white hover:shadow-sm"
                   }`}>
-                  <span className={`w-3 h-3 rounded-full flex-shrink-0 ${cfg.dot}`} />
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.stripe }} />
                   <div>
-                    <p className="text-xl font-bold text-gray-900 leading-none">{counts[s]}</p>
-                    <p className="text-[11px] text-gray-700 font-medium mt-0.5">{cfg.label}</p>
-                    <p className="text-[9px] text-gray-400 mt-0.5 max-w-[120px] leading-tight">{cfg.sublabel}</p>
+                    <p className="text-2xl font-bold text-gray-900 leading-none">{counts[s]}</p>
+                    <p className="text-[11px] font-semibold text-gray-700 mt-0.5">{cfg.label}</p>
+                    <p className="text-[9px] text-gray-400 mt-0.5 max-w-[110px] leading-tight">{cfg.sublabel}</p>
                   </div>
                 </button>
               );
@@ -358,53 +357,71 @@ export default function MovilidadView({
           </div>
 
           {/* Filters */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+            <div className="flex flex-wrap items-center gap-3">
               <input value={search} onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar nombre o puesto..."
-                className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 lg:col-span-2" />
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 min-w-[200px] flex-1" />
               <select value={String(ciclo)} onChange={(e) => setCiclo(parseInt(e.target.value))}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30">
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30">
                 {ciclos.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               <select value={filterUen} onChange={(e) => setFilterUen(e.target.value)}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30">
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30">
                 <option value="">Todas las UEN</option>
                 {uens.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
               <select value={filterSegmento} onChange={(e) => setFilterSegmento(e.target.value)}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30">
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30">
                 <option value="">Todos los segmentos</option>
                 {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
+              {(search || filterUen || filterSegmento || filterSemaforo) && (
+                <button onClick={() => { setSearch(""); setFilterUen(""); setFilterSegmento(""); setFilterSemaforo(""); }}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap">
+                  Limpiar filtros
+                </button>
+              )}
             </div>
-            {(search || filterUen || filterSegmento || filterSemaforo) && (
-              <button onClick={() => { setSearch(""); setFilterUen(""); setFilterSegmento(""); setFilterSemaforo(""); }}
-                className="mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors">
-                Limpiar filtros
-              </button>
-            )}
           </div>
 
           {/* Table */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            {/* Table header with color legend */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/60">
+              <p className="text-xs text-gray-500">
+                <span className="font-medium text-gray-700">{filtered.length}</span> de {colabs.length} colaboradores
+              </p>
+              <div className="flex items-center gap-4">
+                {(["verde", "amarillo", "rojo", "sin_datos"] as Semaforo[]).map((s) => {
+                  const cfg = SEMAFORO_CONFIG[s];
+                  return (
+                    <button key={s} onClick={() => setFilterSemaforo(filterSemaforo === s ? "" : s)}
+                      className={`flex items-center gap-1.5 text-[11px] transition-opacity ${filterSemaforo && filterSemaforo !== s ? "opacity-40" : "opacity-100"}`}>
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cfg.stripe }} />
+                      <span className="text-gray-500">{cfg.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-left text-gray-400 border-b border-gray-100 bg-gray-50">
+                  <tr className="text-left text-gray-400 border-b border-gray-100">
+                    <th className="w-1 p-0" />
                     <th className="px-4 py-3 font-medium">Colaborador</th>
                     <th className="px-4 py-3 font-medium">Puesto</th>
-                    <th className="px-4 py-3 font-medium">UEN</th>
-                    <th className="px-4 py-3 font-medium">Segmento</th>
-                    <th className="px-4 py-3 font-medium text-center">Tiempo en posición</th>
-                    <th className="px-4 py-3 font-medium text-center">Semáforo</th>
+                    <th className="px-4 py-3 font-medium">Organización</th>
+                    <th className="px-4 py-3 font-medium text-right">Tiempo en posición</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-400">
+                      <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">
                         No hay colaboradores con los filtros seleccionados
                       </td>
                     </tr>
@@ -412,33 +429,42 @@ export default function MovilidadView({
                   {filtered.map((c) => {
                     const cfg = SEMAFORO_CONFIG[c.semaforo];
                     return (
-                      <tr key={c.id} className={`hover:bg-gray-50/70 transition-colors ${cfg.row}`}>
-                        <td className="px-4 py-3 font-medium text-gray-800">
+                      <tr key={c.id} className="hover:bg-gray-50/60 transition-colors group">
+                        {/* Color stripe */}
+                        <td className="p-0 w-[3px]" style={{ backgroundColor: cfg.stripe }} />
+                        <td className="pl-4 pr-3 py-3.5 font-medium text-gray-800 whitespace-nowrap">
                           {c.nombre_completo ?? "—"}
                         </td>
-                        <td className="px-4 py-3 text-gray-600 max-w-[200px]">
-                          <span className="break-words leading-snug">{c.puesto ?? "—"}</span>
+                        <td className="px-3 py-3.5 text-gray-500 max-w-[200px]">
+                          <span className="leading-snug line-clamp-2">{c.puesto ?? "—"}</span>
                         </td>
-                        <td className="px-4 py-3 text-gray-500 truncate max-w-[130px]">
-                          {c.organización ?? "—"}
+                        {/* Merged UEN + Segmento */}
+                        <td className="px-3 py-3.5 min-w-[160px]">
+                          {c.organización ? (
+                            <span className="font-medium text-gray-700">{c.organización}</span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                          {c.segmento_organizacional && (
+                            <span className="block text-[10px] text-gray-400 mt-0.5">{c.segmento_organizacional}</span>
+                          )}
                         </td>
-                        <td className="px-4 py-3 text-gray-500">
-                          {c.segmento_organizacional ?? "—"}
+                        <td className="px-3 py-3.5 text-right">
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span
+                              className="font-semibold text-gray-800"
+                              title={`Umbral: <${fmtMeses(c.umbral.meses_amarillo)} adaptación · <${fmtMeses(c.umbral.meses_rojo)} establecido`}>
+                              {fmtMeses(c.meses)}
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px] text-gray-400">
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cfg.stripe }} />
+                              {cfg.label}
+                            </span>
+                          </div>
                         </td>
-                        <td className="px-4 py-3 text-center font-medium text-gray-700">
-                          {fmtMeses(c.meses)}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span
-                            title={`Umbral: verde <${c.umbral.meses_amarillo}m · amarillo ${c.umbral.meses_amarillo}–${c.umbral.meses_rojo}m · rojo ≥${c.umbral.meses_rojo}m`}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border cursor-default ${cfg.badge}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                            {cfg.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3.5 text-right">
                           <a href={`/carpeta/${c.id}`}
-                            className="text-[11px] text-[#1a3a5c] hover:underline">
+                            className="text-[11px] text-[#1a3a5c] opacity-0 group-hover:opacity-100 transition-opacity hover:underline">
                             Ver carpeta →
                           </a>
                         </td>
@@ -448,11 +474,6 @@ export default function MovilidadView({
                 </tbody>
               </table>
             </div>
-            {filtered.length > 0 && (
-              <div className="px-4 py-2.5 border-t border-gray-100 text-xs text-gray-400">
-                Mostrando {filtered.length} de {colabs.length} colaboradores activos
-              </div>
-            )}
           </div>
         </>
       )}
