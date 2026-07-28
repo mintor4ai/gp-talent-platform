@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
@@ -61,6 +62,7 @@ type FilterKey = "todos" | "tc" | "removidos";
 type ModalState = { colaborador_id: string; nombre: string; accion: "promover" | "remover" } | null;
 
 export default function TalentoClavePage({ rows, logRows, cicloAño, allColaboradores }: Props) {
+  const router = useRouter();
   const [tab,       setTab]       = useState<Tab>("lista");
   const [isPending, startTransition] = useTransition();
   const [msg,       setMsg]       = useState<{ texto: string; tipo: "ok" | "error" } | null>(null);
@@ -147,6 +149,7 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
     startTransition(async () => {
       const res = await sincronizarTalentoClave(cicloAño);
       if (res.ok) {
+        router.refresh();
         showMsg(`Sincronizado: +${res.added} añadidos, -${res.removed} removidos.`);
       } else {
         showMsg(res.error ?? "Error al sincronizar", "error");
@@ -164,12 +167,14 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
   function handleConfirmModal() {
     if (!modal || !justificacion.trim()) return;
     const { colaborador_id, accion } = modal;
+    const justif = justificacion.trim();
     closeModal();
     startTransition(async () => {
       const res = accion === "promover"
-        ? await promoverTalentoClave(colaborador_id, cicloAño, justificacion.trim())
-        : await removerTalentoClave(colaborador_id, cicloAño, justificacion.trim());
+        ? await promoverTalentoClave(colaborador_id, cicloAño, justif)
+        : await removerTalentoClave(colaborador_id, cicloAño, justif);
       if (res.ok) {
+        router.refresh();
         showMsg(accion === "promover" ? "Colaborador promovido a Talento Clave." : "Colaborador removido de Talento Clave.");
       } else {
         showMsg(res.error ?? "Error al guardar", "error");
@@ -187,12 +192,16 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
 
   function handleAddConfirm() {
     if (!addSelected || !addJustif.trim()) return;
-    const id = addSelected.id;
+    // Capture values before closing the modal (state resets on close)
+    const id     = addSelected.id;
+    const nombre = addSelected.nombre_completo;
+    const justif = addJustif.trim();
     closeAddModal();
     startTransition(async () => {
-      const res = await promoverTalentoClave(id, cicloAño, addJustif.trim());
+      const res = await promoverTalentoClave(id, cicloAño, justif);
       if (res.ok) {
-        showMsg(`${addSelected.nombre_completo} promovido a Talento Clave.`);
+        router.refresh();
+        showMsg(`${nombre} promovido a Talento Clave.`);
       } else {
         showMsg(res.error ?? "Error al guardar", "error");
       }
