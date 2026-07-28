@@ -282,6 +282,13 @@ export default function MovilidadView({
   const [filterSegmento, setFilterSegmento] = useState("");
   const [filterSemaforo, setFilterSemaforo] = useState<"" | Semaforo>("");
   const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<"nombre" | "puesto" | "organización" | "meses" | "semaforo">("semaforo");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function handleSort(key: typeof sortKey) {
+    if (sortKey === key) setSortDir((d) => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  }
 
   const enriched = useMemo(() => {
     return colabs.map((c) => {
@@ -294,14 +301,25 @@ export default function MovilidadView({
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return enriched.filter((c) => {
+    const base = enriched.filter((c) => {
       if (filterUen && c.organización !== filterUen) return false;
       if (filterSegmento && c.segmento_organizacional !== filterSegmento) return false;
       if (filterSemaforo && c.semaforo !== filterSemaforo) return false;
       if (q && !(c.nombre_completo ?? "").toLowerCase().includes(q) && !(c.puesto ?? "").toLowerCase().includes(q)) return false;
       return true;
-    }).sort((a, b) => SEMAFORO_CONFIG[a.semaforo].order - SEMAFORO_CONFIG[b.semaforo].order);
-  }, [enriched, filterUen, filterSegmento, filterSemaforo, search]);
+    });
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...base].sort((a, b) => {
+      switch (sortKey) {
+        case "nombre":       return dir * (a.nombre_completo ?? "").localeCompare(b.nombre_completo ?? "", "es");
+        case "puesto":       return dir * (a.puesto ?? "").localeCompare(b.puesto ?? "", "es");
+        case "organización": return dir * (a.organización ?? "").localeCompare(b.organización ?? "", "es");
+        case "meses":        return dir * ((a.meses ?? -1) - (b.meses ?? -1));
+        case "semaforo":     return dir * (SEMAFORO_CONFIG[a.semaforo].order - SEMAFORO_CONFIG[b.semaforo].order);
+        default:             return 0;
+      }
+    });
+  }, [enriched, filterUen, filterSegmento, filterSemaforo, search, sortKey, sortDir]);
 
   const counts = useMemo(() => ({
     rojo:      enriched.filter((c) => c.semaforo === "rojo").length,
@@ -409,12 +427,25 @@ export default function MovilidadView({
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-left text-gray-400 border-b border-gray-100">
+                  <tr className="text-left text-gray-400 border-b border-gray-100 select-none">
                     <th className="w-1 p-0" />
-                    <th className="px-4 py-3 font-medium">Colaborador</th>
-                    <th className="px-4 py-3 font-medium">Puesto</th>
-                    <th className="px-4 py-3 font-medium">Organización</th>
-                    <th className="px-4 py-3 font-medium text-right">Tiempo en posición</th>
+                    {(["nombre", "puesto", "organización", "meses"] as const).map((key) => {
+                      const labels: Record<string, string> = { nombre: "Colaborador", puesto: "Puesto", organización: "Organización", meses: "Tiempo en posición" };
+                      const active = sortKey === key;
+                      const right = key === "meses";
+                      return (
+                        <th key={key}
+                          onClick={() => handleSort(key)}
+                          className={`px-4 py-3 font-medium cursor-pointer hover:text-gray-700 transition-colors ${right ? "text-right" : ""}`}>
+                          <span className="inline-flex items-center gap-1">
+                            {labels[key]}
+                            <span className={`text-[10px] ${active ? "text-[#1a3a5c] opacity-100" : "opacity-25"}`}>
+                              {active ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
+                            </span>
+                          </span>
+                        </th>
+                      );
+                    })}
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
