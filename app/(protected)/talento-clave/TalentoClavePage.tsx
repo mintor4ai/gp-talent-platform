@@ -20,6 +20,10 @@ type Row = {
   es_talento_clave: boolean;
   fuente: string;
   zona_eip: string | null;
+  semaforo_movilidad: "verde" | "amarillo" | "rojo" | "sin_datos";
+  meses_en_posicion: number | null;
+  tiene_picd: boolean;
+  estado_picd: string | null;
 };
 
 type ColaboradorOption = {
@@ -57,16 +61,58 @@ const ZONA_COLORS: Record<string, { bg: string; text: string }> = {
   Desarrollo:    { bg: "bg-blue-100",   text: "text-blue-700"   },
 };
 
-// Analogous to SEMAFORO_CONFIG in movilidad — visual identity per fuente
-const FUENTE_CONFIG: Record<string, { stripe: string; dotClass: string; label: string }> = {
-  auto:      { stripe: "#22c55e", dotClass: "bg-green-500",  label: "Auto EIP"  },
-  manual_ch: { stripe: "#fbbf24", dotClass: "bg-amber-400",  label: "Manual CH" },
+// Visual identity per fuente (analogous to SEMAFORO_CONFIG in movilidad)
+const FUENTE_CONFIG: Record<string, { stripe: string; bg: string; text: string; label: string }> = {
+  auto:      { stripe: "#22c55e", bg: "bg-green-50",  text: "text-green-700",  label: "Auto EIP"  },
+  manual_ch: { stripe: "#fbbf24", bg: "bg-amber-50",  text: "text-amber-700",  label: "Manual CH" },
 };
 const REMOVED_STRIPE = "#d1d5db";
+
+// Movilidad semáforo colors (same as MovilidadView)
+const MOV_STRIPE: Record<string, string> = {
+  verde:     "#22c55e",
+  amarillo:  "#fbbf24",
+  rojo:      "#ef4444",
+  sin_datos: "#d1d5db",
+};
+const MOV_LABEL: Record<string, string> = {
+  verde:     "En adaptación",
+  amarillo:  "Establecido",
+  rojo:      "Alta permanencia",
+  sin_datos: "Sin fecha",
+};
+
+function fmtMeses(m: number): string {
+  if (m < 12) return `${m} mes${m !== 1 ? "es" : ""}`;
+  return `${(m / 12).toFixed(1)} años`;
+}
+
+const PICD_LABEL: Record<string, string> = {
+  abierto:   "activo",
+  cerrado:   "cerrado",
+  aprobado:  "aprobado",
+  rechazado: "rechazado",
+};
 
 function getStripe(row: Row): string {
   if (!row.es_talento_clave) return REMOVED_STRIPE;
   return FUENTE_CONFIG[row.fuente]?.stripe ?? REMOVED_STRIPE;
+}
+
+function TrashIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
+function PlusCircleIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+    </svg>
+  );
 }
 
 type Tab        = "lista" | "log";
@@ -428,7 +474,7 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
                     <SortableTh label="Puesto" sortKey="puesto" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 hidden md:table-cell" />
                     <SortableTh label="UEN" sortKey="organización" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 hidden lg:table-cell" />
                     <SortableTh label="Zona EIP" sortKey="zona_eip" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3" />
-                    <th className="px-4 py-3 font-medium">Estado</th>
+                    <th className="px-4 py-3 font-medium">Fuente / Plan</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -460,7 +506,8 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
                             <span className="leading-snug line-clamp-2">{r.puesto ?? "—"}</span>
                           </td>
 
-                          <td className="px-3 py-3.5 hidden lg:table-cell min-w-[140px]">
+                          {/* UEN + segmento + movilidad indicator */}
+                          <td className="px-3 py-3.5 hidden lg:table-cell min-w-[160px]">
                             {r.organización ? (
                               <span className="font-medium text-gray-700">{r.organización}</span>
                             ) : (
@@ -469,8 +516,15 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
                             {r.segmento_organizacional && (
                               <span className="block text-[10px] text-gray-400 mt-0.5">{r.segmento_organizacional}</span>
                             )}
+                            {r.semaforo_movilidad !== "sin_datos" && r.meses_en_posicion !== null && (
+                              <span className="flex items-center gap-1 mt-1" title={MOV_LABEL[r.semaforo_movilidad]}>
+                                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: MOV_STRIPE[r.semaforo_movilidad] }} />
+                                <span className="text-[9px] text-gray-400">{fmtMeses(r.meses_en_posicion)}</span>
+                              </span>
+                            )}
                           </td>
 
+                          {/* Zona EIP */}
                           <td className="px-3 py-3.5">
                             {zonaColors ? (
                               <span className={`text-[10px] px-2.5 py-1 rounded-full font-medium ${zonaColors.bg} ${zonaColors.text}`}>
@@ -481,17 +535,18 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
                             )}
                           </td>
 
+                          {/* Fuente (prominent) + PICD indicator */}
                           <td className="px-3 py-3.5">
-                            {r.es_talento_clave ? (
-                              <div className="flex flex-col gap-1">
-                                <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 w-fit">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                                  Talento Clave
+                            {r.es_talento_clave && fuenteCfg ? (
+                              <div className="flex flex-col gap-1.5">
+                                <span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full w-fit ${fuenteCfg.bg} ${fuenteCfg.text}`}>
+                                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: fuenteCfg.stripe }} />
+                                  {fuenteCfg.label}
                                 </span>
-                                {fuenteCfg && (
-                                  <span className="inline-flex items-center gap-1 text-[9px] text-gray-400">
-                                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: fuenteCfg.stripe }} />
-                                    {fuenteCfg.label}
+                                {r.tiene_picd && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] text-[#1a3a5c] font-medium">
+                                    <span>✓</span>
+                                    PICD {r.estado_picd ? (PICD_LABEL[r.estado_picd] ?? r.estado_picd) : ""}
                                   </span>
                                 )}
                               </div>
@@ -500,6 +555,7 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
                             )}
                           </td>
 
+                          {/* Actions */}
                           <td className="px-4 py-3.5 text-right">
                             <div className="flex items-center justify-end gap-3">
                               <a
@@ -512,17 +568,19 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
                                 <button
                                   onClick={() => openModal(r, "remover")}
                                   disabled={isPending}
-                                  className="text-[11px] text-red-500 hover:text-red-700 font-medium disabled:opacity-40 transition-colors whitespace-nowrap"
+                                  title="Remover de Talento Clave"
+                                  className="text-red-400 hover:text-red-600 disabled:opacity-40 transition-colors"
                                 >
-                                  Remover
+                                  <TrashIcon />
                                 </button>
                               ) : (
                                 <button
                                   onClick={() => openModal(r, "promover")}
                                   disabled={isPending}
-                                  className="text-[11px] text-[#1a3a5c] hover:underline font-medium disabled:opacity-40 transition-colors whitespace-nowrap"
+                                  title="Promover a Talento Clave"
+                                  className="text-[#1a3a5c] hover:text-[#152e4d] disabled:opacity-40 transition-colors"
                                 >
-                                  Promover
+                                  <PlusCircleIcon />
                                 </button>
                               )}
                             </div>
