@@ -72,6 +72,8 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: ponderacionesRaw },
     { data: catalogoPuestosRaw },
     { data: historialCarreraRaw },
+    { data: formacionAcademicaRaw },
+    { data: cursosFormacionRaw },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -158,6 +160,16 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .select("id, puesto, empresa, tipo, años, fecha_inicio, fecha_fin")
       .eq("id_empleado", colaboradorId)
       .order("fecha_inicio", { ascending: false }),
+    supabase
+      .from("formacion_academica")
+      .select("id, nivel_estudio, nombre_carrera, institucion, fecha_inicio, fecha_fin, cedula, estado_cedula")
+      .eq("colaborador_id", colaboradorId)
+      .order("fecha_fin", { ascending: false }),
+    supabase
+      .from("cursos_formacion")
+      .select("id, nombre_curso, tipo_curso, institucion, fecha_inicio, fecha_fin, horas_efectivas, documento, estado_completitud")
+      .eq("colaborador_id", colaboradorId)
+      .order("fecha_fin", { ascending: false }),
   ]);
 
   const canEdit = isOwn || isAdmin;
@@ -181,6 +193,31 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     fecha_fin: string | null;
   };
   const historialCarrera = (historialCarreraRaw ?? []) as unknown as HistorialCarreraItem[];
+
+  type FormacionAcademicaItem = {
+    id: string;
+    nivel_estudio: string | null;
+    nombre_carrera: string | null;
+    institucion: string | null;
+    fecha_inicio: string | null;
+    fecha_fin: string | null;
+    cedula: string | null;
+    estado_cedula: string | null;
+  };
+  type CursoFormacionItem = {
+    id: string;
+    nombre_curso: string | null;
+    tipo_curso: string | null;
+    institucion: string | null;
+    fecha_inicio: string | null;
+    fecha_fin: string | null;
+    horas_efectivas: number | null;
+    documento: string | null;
+    estado_completitud: string | null;
+  };
+  const formacionAcademica = (formacionAcademicaRaw ?? []) as unknown as FormacionAcademicaItem[];
+  const cursosFormacion   = (cursosFormacionRaw   ?? []) as unknown as CursoFormacionItem[];
+
   type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
   const colaboradoresLista = (colaboradoresAll ?? []) as unknown as ColabOption[];
   const candidaturasComoSuccesor = (candidaturasRaw ?? []) as unknown as SucesionItem[];
@@ -293,6 +330,8 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         perfil={colab as any}
         catalogoPuestos={(catalogoPuestosRaw ?? []) as Array<{ id: string; nombre: string; razon_social: string | null; area: string | null }>}
         historialCarrera={historialCarrera}
+        formacionAcademica={formacionAcademica}
+        cursosFormacion={cursosFormacion}
       />
     </div>
   );

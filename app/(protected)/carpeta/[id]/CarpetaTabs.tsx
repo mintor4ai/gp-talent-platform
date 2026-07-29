@@ -144,6 +144,29 @@ type Entrevista = {
   updated_at: string;
 };
 
+type FormacionAcademica = {
+  id: string;
+  nivel_estudio: string | null;
+  nombre_carrera: string | null;
+  institucion: string | null;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  cedula: string | null;
+  estado_cedula: string | null;
+};
+
+type CursoFormacion = {
+  id: string;
+  nombre_curso: string | null;
+  tipo_curso: string | null;
+  institucion: string | null;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  horas_efectivas: number | null;
+  documento: string | null;
+  estado_completitud: string | null;
+};
+
 type Comentario = {
   id: string;
   id_entrevista: string;
@@ -179,6 +202,8 @@ export default function CarpetaTabs({
   perfil,
   catalogoPuestos = [],
   historialCarrera = [],
+  formacionAcademica = [],
+  cursosFormacion = [],
 }: {
   colaboradorId: string;
   ciclos: number[];
@@ -209,6 +234,8 @@ export default function CarpetaTabs({
   perfil: ColaboradorPerfil;
   catalogoPuestos?: Array<{ id: string; nombre: string; razon_social: string | null; area: string | null }>;
   historialCarrera?: Array<{ id: string; puesto: string | null; empresa: string | null; tipo: string | null; años: number | null; fecha_inicio: string | null; fecha_fin: string | null }>;
+  formacionAcademica?: FormacionAcademica[];
+  cursosFormacion?: CursoFormacion[];
 }) {
   const defaultTab = "perfil";
   const [mainTab, setMainTab] = useState<"perfil" | "evaluacion" | "picd" | "sucesion">(defaultTab);
@@ -359,6 +386,8 @@ export default function CarpetaTabs({
           eals={eals}
           isAdmin={isAdmin}
           historialCarrera={historialCarrera}
+          formacionAcademica={formacionAcademica}
+          cursosFormacion={cursosFormacion}
         />
       )}
 
@@ -774,6 +803,21 @@ export default function CarpetaTabs({
   );
 }
 
+const NIVEL_ORDER = [
+  "No Especificado","Primaria","Secundaria","Preparatoria",
+  "Carrera Técnica","Profesional","Especialidad","Maestría","Doctorado",
+];
+
+const TIPO_CURSO_COLORS: Record<string, string> = {
+  "Certificación": "bg-purple-100 text-purple-700",
+  "Competencias":  "bg-indigo-100 text-indigo-700",
+  "Cursos":        "bg-blue-100 text-blue-700",
+  "Diplomado":     "bg-cyan-100 text-cyan-700",
+  "Especialidad":  "bg-teal-100 text-teal-700",
+  "Idiomas":       "bg-orange-100 text-orange-700",
+  "Inducción":     "bg-gray-100 text-gray-600",
+};
+
 function PerfilTab({
   perfil,
   eips,
@@ -781,6 +825,8 @@ function PerfilTab({
   eals,
   isAdmin,
   historialCarrera = [],
+  formacionAcademica = [],
+  cursosFormacion = [],
 }: {
   perfil: ColaboradorPerfil;
   eips: EIP[];
@@ -788,6 +834,8 @@ function PerfilTab({
   eals: EAL[];
   isAdmin: boolean;
   historialCarrera?: Array<{ id: string; puesto: string | null; empresa: string | null; tipo: string | null; años: number | null; fecha_inicio: string | null; fecha_fin: string | null }>;
+  formacionAcademica?: FormacionAcademica[];
+  cursosFormacion?: CursoFormacion[];
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -985,6 +1033,28 @@ function PerfilTab({
         </div>
       )}
 
+      {/* Formación Académica */}
+      {formacionAcademica.length > 0 && (
+        <FormacionSection
+          estudios={[...formacionAcademica].sort((a, b) => {
+            const fa = a.fecha_fin ?? a.fecha_inicio ?? "";
+            const fb = b.fecha_fin ?? b.fecha_inicio ?? "";
+            return fb.localeCompare(fa);
+          })}
+        />
+      )}
+
+      {/* Cursos y Capacitación */}
+      {cursosFormacion.length > 0 && (
+        <CursosSection
+          cursos={[...cursosFormacion].sort((a, b) => {
+            const fa = a.fecha_fin ?? a.fecha_inicio ?? "";
+            const fb = b.fecha_fin ?? b.fecha_inicio ?? "";
+            return fb.localeCompare(fa);
+          })}
+        />
+      )}
+
       {/* Evaluation history summary */}
       {allCiclos.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1042,6 +1112,141 @@ function PerfilTab({
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FormacionSection({ estudios }: { estudios: FormacionAcademica[] }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+      >
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          Formación Académica
+          <span className="ml-2 text-gray-400 font-normal normal-case tracking-normal">({estudios.length} registro{estudios.length !== 1 ? "s" : ""})</span>
+        </p>
+        <span className="text-gray-400 text-xs">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-gray-100">
+          <div className="relative px-5 py-4">
+            <div className="absolute left-8 top-4 bottom-4 w-px bg-gray-100" />
+            <div className="space-y-5">
+              {estudios.map((e) => {
+                const idx = NIVEL_ORDER.indexOf(e.nivel_estudio ?? "");
+                const isProfesional = idx >= 5;
+                const badgeCls = isProfesional
+                  ? "bg-blue-100 text-blue-700"
+                  : idx >= 3
+                  ? "bg-yellow-100 text-yellow-700"
+                  : "bg-gray-100 text-gray-500";
+                return (
+                  <div key={e.id} className="flex gap-4 relative">
+                    <div className="w-6 h-6 rounded-full bg-white border-2 border-gray-200 flex-shrink-0 relative z-10 mt-0.5" />
+                    <div className="flex-1 pb-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                        {e.nivel_estudio && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badgeCls}`}>
+                            {e.nivel_estudio}
+                          </span>
+                        )}
+                        {e.nombre_carrera && (
+                          <p className="text-sm font-medium text-gray-900">{e.nombre_carrera}</p>
+                        )}
+                      </div>
+                      {e.institucion && (
+                        <p className="text-xs text-gray-500 mt-0.5">{e.institucion}</p>
+                      )}
+                      {(e.fecha_inicio || e.fecha_fin) && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {e.fecha_inicio ? e.fecha_inicio.slice(0, 7) : ""}
+                          {e.fecha_inicio && e.fecha_fin ? " → " : ""}
+                          {e.fecha_fin ? e.fecha_fin.slice(0, 7) : (e.fecha_inicio ? " → en curso" : "")}
+                        </p>
+                      )}
+                      {e.cedula && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Cédula: <span className="font-mono">{e.cedula}</span>
+                          {e.estado_cedula && ` · ${e.estado_cedula}`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CursosSection({ cursos }: { cursos: CursoFormacion[] }) {
+  const [open, setOpen] = useState(true);
+  const totalHoras = cursos.reduce((s, c) => s + (c.horas_efectivas ?? 0), 0);
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+      >
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          Cursos y Capacitación
+          <span className="ml-2 text-gray-400 font-normal normal-case tracking-normal">
+            ({cursos.length} curso{cursos.length !== 1 ? "s" : ""}
+            {totalHoras > 0 ? ` · ${totalHoras} hrs` : ""})
+          </span>
+        </p>
+        <span className="text-gray-400 text-xs">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-gray-100 divide-y divide-gray-50">
+          {cursos.map((c) => (
+            <div key={c.id} className="px-5 py-3 flex gap-3 items-start">
+              <div className="flex-shrink-0 mt-0.5">
+                {c.tipo_curso && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${TIPO_CURSO_COLORS[c.tipo_curso] ?? "bg-gray-100 text-gray-600"}`}>
+                    {c.tipo_curso}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{c.nombre_curso ?? "—"}</p>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                  {c.institucion && (
+                    <span className="text-xs text-gray-500">{c.institucion}</span>
+                  )}
+                  {(c.fecha_inicio || c.fecha_fin) && (
+                    <span className="text-xs text-gray-400">
+                      {c.fecha_inicio ? c.fecha_inicio.slice(0, 7) : ""}
+                      {c.fecha_inicio && c.fecha_fin ? " → " : ""}
+                      {c.fecha_fin ? c.fecha_fin.slice(0, 7) : ""}
+                    </span>
+                  )}
+                  {c.horas_efectivas != null && c.horas_efectivas > 0 && (
+                    <span className="text-xs text-gray-400">{c.horas_efectivas} hrs</span>
+                  )}
+                  {c.documento && (
+                    <span className="text-xs text-gray-400">{c.documento}</span>
+                  )}
+                  {c.estado_completitud && (
+                    <span className={`text-xs font-medium ${
+                      c.estado_completitud === "Aprobado" ? "text-green-600" :
+                      c.estado_completitud === "Reprobado" ? "text-red-500" : "text-gray-400"
+                    }`}>{c.estado_completitud}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
