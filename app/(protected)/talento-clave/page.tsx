@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import TalentoClavePage from "./TalentoClavePage";
 
+export const dynamic = "force-dynamic";
+
 export default async function TalentoClaveRoute() {
   const supabase = await createClient();
 
