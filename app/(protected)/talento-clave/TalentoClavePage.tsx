@@ -57,8 +57,20 @@ const ZONA_COLORS: Record<string, { bg: string; text: string }> = {
   Desarrollo:    { bg: "bg-blue-100",   text: "text-blue-700"   },
 };
 
-type Tab       = "lista" | "log";
-type FilterKey = "todos" | "tc" | "removidos";
+// Analogous to SEMAFORO_CONFIG in movilidad — visual identity per fuente
+const FUENTE_CONFIG: Record<string, { stripe: string; dotClass: string; label: string }> = {
+  auto:      { stripe: "#22c55e", dotClass: "bg-green-500",  label: "Auto EIP"  },
+  manual_ch: { stripe: "#fbbf24", dotClass: "bg-amber-400",  label: "Manual CH" },
+};
+const REMOVED_STRIPE = "#d1d5db";
+
+function getStripe(row: Row): string {
+  if (!row.es_talento_clave) return REMOVED_STRIPE;
+  return FUENTE_CONFIG[row.fuente]?.stripe ?? REMOVED_STRIPE;
+}
+
+type Tab        = "lista" | "log";
+type CardFilter = "" | "sobresaliente" | "desarrollo" | "manual" | "removidos";
 type ModalState = { colaborador_id: string; nombre: string; accion: "promover" | "remover" } | null;
 
 export default function TalentoClavePage({ rows, logRows, cicloAño, allColaboradores }: Props) {
@@ -72,25 +84,59 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
   const [justificacion, setJustificacion] = useState("");
 
   // Add-collaborator modal
-  const [showAddModal,   setShowAddModal]   = useState(false);
-  const [addSearch,      setAddSearch]      = useState("");
-  const [addSelected,    setAddSelected]    = useState<ColaboradorOption | null>(null);
-  const [addJustif,      setAddJustif]      = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addSearch,    setAddSearch]    = useState("");
+  const [addSelected,  setAddSelected]  = useState<ColaboradorOption | null>(null);
+  const [addJustif,    setAddJustif]    = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Filters
-  const [filterZona, setFilterZona] = useState<FilterKey>("todos");
+  const [filterCard,    setFilterCard]    = useState<CardFilter>("");
+  const [search,        setSearch]        = useState("");
+  const [filterUen,     setFilterUen]     = useState("");
+  const [filterZonaEip, setFilterZonaEip] = useState("");
+  const [filterFuente,  setFilterFuente]  = useState("");
 
   const { sortKey, sortDir, handleSort } = useSortState<
     "nombre" | "puesto" | "organización" | "zona_eip" | "fuente"
   >("nombre");
 
+  // Derived UEN list from rows
+  const uens = useMemo(() => {
+    const set = new Set(rows.map((r) => r.organización).filter(Boolean) as string[]);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
+  }, [rows]);
+
+  // KPI counts
+  const tcCount            = rows.filter((r) => r.es_talento_clave).length;
+  const sobresalienteCount = rows.filter((r) => r.es_talento_clave && r.zona_eip === "Sobresaliente").length;
+  const desarrolloCount    = rows.filter((r) => r.es_talento_clave && r.zona_eip === "Desarrollo").length;
+  const manualCount        = rows.filter((r) => r.es_talento_clave && r.fuente === "manual_ch").length;
+  const removidosCount     = rows.filter((r) => !r.es_talento_clave && r.fuente === "manual_ch").length;
+
   const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
     const base = rows.filter((r) => {
-      if (filterZona === "tc")       return r.es_talento_clave;
-      if (filterZona === "removidos") return !r.es_talento_clave && r.fuente === "manual_ch";
+      // Base: what rows are visible depends on the active card
+      if (filterCard === "removidos") {
+        if (r.es_talento_clave || r.fuente !== "manual_ch") return false;
+      } else {
+        // All non-removidos cards show only active TC
+        if (!r.es_talento_clave) return false;
+        if (filterCard === "sobresaliente" && r.zona_eip !== "Sobresaliente") return false;
+        if (filterCard === "desarrollo"    && r.zona_eip !== "Desarrollo")    return false;
+        if (filterCard === "manual"        && r.fuente   !== "manual_ch")     return false;
+      }
+
+      // Dropdown filters (combinable on top of card)
+      if (q && !r.nombre_completo.toLowerCase().includes(q) && !(r.puesto ?? "").toLowerCase().includes(q)) return false;
+      if (filterUen     && r.organización !== filterUen)     return false;
+      if (filterZonaEip && r.zona_eip     !== filterZonaEip) return false;
+      if (filterFuente  && r.fuente       !== filterFuente)  return false;
+
       return true;
     });
+
     const dir = sortDir === "asc" ? 1 : -1;
     return [...base].sort((a, b) => {
       switch (sortKey) {
@@ -102,10 +148,9 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
         default: return 0;
       }
     });
-  }, [rows, filterZona, sortKey, sortDir]);
+  }, [rows, filterCard, search, filterUen, filterZonaEip, filterFuente, sortKey, sortDir]);
 
-  const tcCount     = rows.filter((r) => r.es_talento_clave).length;
-  const manualCount = rows.filter((r) => r.es_talento_clave && r.fuente === "manual_ch").length;
+  const totalForCount = filterCard === "removidos" ? removidosCount : tcCount;
 
   // Search results for add modal
   const addResults = useMemo(() => {
@@ -120,14 +165,10 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
       .slice(0, 50);
   }, [allColaboradores, addSearch]);
 
-  // Focus search on open
   useEffect(() => {
-    if (showAddModal) {
-      setTimeout(() => searchInputRef.current?.focus(), 50);
-    }
+    if (showAddModal) setTimeout(() => searchInputRef.current?.focus(), 50);
   }, [showAddModal]);
 
-  // Close add modal on ESC
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -157,7 +198,6 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
     });
   }
 
-  // ── Row action modal ──────────────────────────────────────────────────────────
   function openModal(row: Row, accion: "promover" | "remover") {
     setModal({ colaborador_id: row.colaborador_id, nombre: row.nombre_completo, accion });
     setJustificacion("");
@@ -182,7 +222,6 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
     });
   }
 
-  // ── Add-collaborator modal ────────────────────────────────────────────────────
   function closeAddModal() {
     setShowAddModal(false);
     setAddSearch("");
@@ -192,7 +231,6 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
 
   function handleAddConfirm() {
     if (!addSelected || !addJustif.trim()) return;
-    // Capture values before closing the modal (state resets on close)
     const id     = addSelected.id;
     const nombre = addSelected.nombre_completo;
     const justif = addJustif.trim();
@@ -208,15 +246,35 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
     });
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  function clearFilters() {
+    setSearch("");
+    setFilterUen("");
+    setFilterZonaEip("");
+    setFilterFuente("");
+    setFilterCard("");
+  }
+
+  const hasActiveFilters = search || filterUen || filterZonaEip || filterFuente;
+
+  // KPI card definitions
+  const kpiCards: { key: CardFilter; count: number; label: string; sublabel: string; dot: string }[] = [
+    { key: "sobresaliente", count: sobresalienteCount, label: "Sobresaliente", sublabel: "Zona EIP",                 dot: "bg-purple-500" },
+    { key: "desarrollo",    count: desarrolloCount,    label: "Desarrollo",    sublabel: "Zona EIP",                 dot: "bg-blue-500"   },
+    { key: "manual",        count: manualCount,        label: "Manual CH",     sublabel: "Promovidos por Cap. Hum.", dot: "bg-amber-400"  },
+    { key: "removidos",     count: removidosCount,     label: "Removidos",     sublabel: "Por Capital Humano",       dot: "bg-gray-400"   },
+  ];
+
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-5 max-w-6xl">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Talento Clave</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Ciclo {cicloAño} · {tcCount} talento clave identificado{tcCount !== 1 ? "s" : ""}
+            Ciclo {cicloAño} · <span className="font-medium text-gray-700">{tcCount}</span> talento clave activo{tcCount !== 1 ? "s" : ""}
+            {removidosCount > 0 && (
+              <> · <span className="text-gray-400">{removidosCount} removido{removidosCount !== 1 ? "s" : ""}</span></>
+            )}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -234,30 +292,6 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
           >
             {isPending ? "Procesando…" : "↻ Sincronizar desde EIP"}
           </button>
-        </div>
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Total TC</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{tcCount}</p>
-        </div>
-        <div className="bg-purple-50 rounded-xl border border-purple-100 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-purple-500">Sobresaliente</p>
-          <p className="text-3xl font-bold text-purple-700 mt-1">
-            {rows.filter((r) => r.es_talento_clave && r.zona_eip === "Sobresaliente").length}
-          </p>
-        </div>
-        <div className="bg-blue-50 rounded-xl border border-blue-100 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-blue-500">Desarrollo</p>
-          <p className="text-3xl font-bold text-blue-700 mt-1">
-            {rows.filter((r) => r.es_talento_clave && r.zona_eip === "Desarrollo").length}
-          </p>
-        </div>
-        <div className="bg-amber-50 rounded-xl border border-amber-100 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Promovidos manualmente</p>
-          <p className="text-3xl font-bold text-amber-700 mt-1">{manualCount}</p>
         </div>
       </div>
 
@@ -289,132 +323,229 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
 
       {/* ── Lista ── */}
       {tab === "lista" && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          {/* Filter chips */}
-          <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-gray-100 bg-gray-50">
-            {(["todos", "tc", "removidos"] as FilterKey[]).map((f) => {
-              const labels: Record<FilterKey, string> = {
-                todos:    "Todos",
-                tc:       `Talento Clave (${tcCount})`,
-                removidos: "Removidos manualmente",
-              };
+        <>
+          {/* KPI cards (clickable, like movilidad semáforo chips) */}
+          <div className="flex flex-wrap gap-3">
+            {kpiCards.map(({ key, count, label, sublabel, dot }) => {
+              const active = filterCard === key;
               return (
                 <button
-                  key={f}
-                  onClick={() => setFilterZona(f)}
-                  className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
-                    filterZona === f
-                      ? "bg-[#1a3a5c] text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  key={key}
+                  onClick={() => setFilterCard(active ? "" : key)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
+                    active
+                      ? "border-gray-400 bg-white shadow-md ring-2 ring-gray-200"
+                      : "border-gray-200 bg-white hover:shadow-sm"
                   }`}
                 >
-                  {labels[f]}
+                  <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dot}`} />
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900 leading-none">{count}</p>
+                    <p className="text-[11px] font-semibold text-gray-700 mt-0.5">{label}</p>
+                    <p className="text-[9px] text-gray-400 mt-0.5 max-w-[110px] leading-tight">{sublabel}</p>
+                  </div>
                 </button>
               );
             })}
-            <span className="ml-auto text-xs text-gray-400">{filteredRows.length} registros</span>
+          </div>
+
+          {/* Filter bar */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar nombre o puesto..."
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 min-w-[200px] flex-1"
+              />
+              <select
+                value={filterUen}
+                onChange={(e) => setFilterUen(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
+              >
+                <option value="">Todas las UEN</option>
+                {uens.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+              <select
+                value={filterZonaEip}
+                onChange={(e) => setFilterZonaEip(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
+              >
+                <option value="">Toda zona EIP</option>
+                <option value="Sobresaliente">Sobresaliente</option>
+                <option value="Desarrollo">Desarrollo</option>
+              </select>
+              <select
+                value={filterFuente}
+                onChange={(e) => setFilterFuente(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
+              >
+                <option value="">Toda fuente</option>
+                <option value="auto">Auto EIP</option>
+                <option value="manual_ch">Manual CH</option>
+              </select>
+              {(hasActiveFilters || filterCard) && (
+                <button
+                  onClick={clearFilters}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
-                  <SortableTh label="Colaborador" sortKey="nombre" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-5 py-3" />
-                  <SortableTh label="Puesto" sortKey="puesto" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-5 py-3 hidden md:table-cell" />
-                  <SortableTh label="UEN" sortKey="organización" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-5 py-3 hidden lg:table-cell" />
-                  <SortableTh label="Zona EIP" sortKey="zona_eip" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-5 py-3" />
-                  <SortableTh label="Fuente" sortKey="fuente" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-5 py-3 hidden sm:table-cell" />
-                  <th className="px-5 py-3 font-medium">Estado</th>
-                  <th className="px-5 py-3 font-medium w-24"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filteredRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">
-                      Sin registros para este filtro
-                    </td>
-                  </tr>
-                ) : (
-                  filteredRows.map((r) => {
-                    const zona = r.zona_eip;
-                    const zonaColors = zona ? (ZONA_COLORS[zona] ?? { bg: "bg-gray-100", text: "text-gray-600" }) : null;
-                    return (
-                      <tr key={r.colaborador_id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-5 py-3">
-                          <a href={`/carpeta/${r.colaborador_id}`} className="font-medium text-gray-900 hover:text-[#1a3a5c] hover:underline">
-                            {r.nombre_completo}
-                          </a>
-                        </td>
-                        <td className="px-5 py-3 text-gray-500 hidden md:table-cell">{r.puesto ?? "—"}</td>
-                        <td className="px-5 py-3 text-gray-500 hidden lg:table-cell">{r.organización ?? "—"}</td>
-                        <td className="px-5 py-3">
-                          {zonaColors ? (
-                            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${zonaColors.bg} ${zonaColors.text}`}>
-                              {zona}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="px-5 py-3 hidden sm:table-cell">
-                          <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                            r.fuente === "auto"
-                              ? "bg-gray-100 text-gray-500"
-                              : "bg-amber-50 text-amber-700 border border-amber-200"
-                          }`}>
-                            {r.fuente === "auto" ? "Auto" : "Manual"}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3">
-                          {r.es_talento_clave ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                              Talento Clave
-                            </span>
-                          ) : (
-                            <span className="text-xs text-gray-400">No activo</span>
-                          )}
-                        </td>
-                        <td className="px-5 py-3">
-                          {r.es_talento_clave ? (
-                            <button
-                              onClick={() => openModal(r, "remover")}
-                              disabled={isPending}
-                              className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-40 transition-colors"
-                            >
-                              Remover
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => openModal(r, "promover")}
-                              disabled={isPending}
-                              className="text-xs text-[#1a3a5c] hover:underline font-medium disabled:opacity-40 transition-colors"
-                            >
-                              Promover
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            {/* Table header: count + fuente legend */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/60">
+              <p className="text-xs text-gray-500">
+                <span className="font-medium text-gray-700">{filteredRows.length}</span> de{" "}
+                {totalForCount} {filterCard === "removidos" ? "removidos" : "activos"}
+              </p>
+              <div className="flex items-center gap-4">
+                {Object.entries(FUENTE_CONFIG).map(([key, cfg]) => (
+                  <button
+                    key={key}
+                    onClick={() => setFilterFuente(filterFuente === key ? "" : key)}
+                    className={`flex items-center gap-1.5 text-[11px] transition-opacity ${
+                      filterFuente && filterFuente !== key ? "opacity-40" : "opacity-100"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cfg.stripe }} />
+                    <span className="text-gray-500">{cfg.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          {/* Legend */}
-          <div className="px-5 py-3 border-t border-gray-50 flex flex-wrap gap-x-5 gap-y-1">
-            <span className="text-xs text-gray-400">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1.5" />
-              Talento Clave activo este ciclo
-            </span>
-            <span className="text-xs text-gray-400">
-              Auto = calculado desde EIP · Manual = promovido/removido por Capital Humano
-            </span>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-gray-400 border-b border-gray-100 select-none">
+                    <th className="w-[3px] p-0" />
+                    <SortableTh label="Colaborador" sortKey="nombre" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3" />
+                    <SortableTh label="Puesto" sortKey="puesto" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 hidden md:table-cell" />
+                    <SortableTh label="UEN" sortKey="organización" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 hidden lg:table-cell" />
+                    <SortableTh label="Zona EIP" sortKey="zona_eip" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3" />
+                    <th className="px-4 py-3 font-medium">Estado</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">
+                        Sin registros para este filtro
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRows.map((r) => {
+                      const zona = r.zona_eip;
+                      const zonaColors = zona
+                        ? (ZONA_COLORS[zona] ?? { bg: "bg-gray-100", text: "text-gray-600" })
+                        : null;
+                      const fuenteCfg = FUENTE_CONFIG[r.fuente];
+
+                      return (
+                        <tr key={r.colaborador_id} className="hover:bg-gray-50/60 transition-colors group">
+                          {/* Color stripe */}
+                          <td className="p-0 w-[3px]" style={{ backgroundColor: getStripe(r) }} />
+
+                          <td className="pl-4 pr-3 py-3.5 font-medium text-gray-800 whitespace-nowrap">
+                            {r.nombre_completo}
+                          </td>
+
+                          <td className="px-3 py-3.5 text-gray-500 hidden md:table-cell max-w-[180px]">
+                            <span className="leading-snug line-clamp-2">{r.puesto ?? "—"}</span>
+                          </td>
+
+                          <td className="px-3 py-3.5 hidden lg:table-cell min-w-[140px]">
+                            {r.organización ? (
+                              <span className="font-medium text-gray-700">{r.organización}</span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                            {r.segmento_organizacional && (
+                              <span className="block text-[10px] text-gray-400 mt-0.5">{r.segmento_organizacional}</span>
+                            )}
+                          </td>
+
+                          <td className="px-3 py-3.5">
+                            {zonaColors ? (
+                              <span className={`text-[10px] px-2.5 py-1 rounded-full font-medium ${zonaColors.bg} ${zonaColors.text}`}>
+                                {zona}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300 text-[10px]">—</span>
+                            )}
+                          </td>
+
+                          <td className="px-3 py-3.5">
+                            {r.es_talento_clave ? (
+                              <div className="flex flex-col gap-1">
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 w-fit">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                                  Talento Clave
+                                </span>
+                                {fuenteCfg && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] text-gray-400">
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: fuenteCfg.stripe }} />
+                                    {fuenteCfg.label}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-gray-400 italic">Removido</span>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              <a
+                                href={`/carpeta/${r.colaborador_id}`}
+                                className="text-[11px] text-[#1a3a5c] opacity-0 group-hover:opacity-100 transition-opacity hover:underline whitespace-nowrap"
+                              >
+                                Ver carpeta →
+                              </a>
+                              {r.es_talento_clave ? (
+                                <button
+                                  onClick={() => openModal(r, "remover")}
+                                  disabled={isPending}
+                                  className="text-[11px] text-red-500 hover:text-red-700 font-medium disabled:opacity-40 transition-colors whitespace-nowrap"
+                                >
+                                  Remover
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => openModal(r, "promover")}
+                                  disabled={isPending}
+                                  className="text-[11px] text-[#1a3a5c] hover:underline font-medium disabled:opacity-40 transition-colors whitespace-nowrap"
+                                >
+                                  Promover
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer legend */}
+            <div className="px-5 py-3 border-t border-gray-50 flex flex-wrap gap-x-5 gap-y-1">
+              {Object.entries(FUENTE_CONFIG).map(([key, cfg]) => (
+                <span key={key} className="text-[11px] text-gray-400 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cfg.stripe }} />
+                  {cfg.label} · {key === "auto" ? "calculado desde EIP" : "promovido/removido por Capital Humano"}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {tab === "log" && <LogPanel logRows={logRows} />}
@@ -466,15 +597,12 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col" style={{ maxHeight: "85vh" }}>
-            {/* Modal header */}
             <div className="px-6 pt-6 pb-4 border-b border-gray-100">
               <h2 className="text-base font-semibold text-gray-900">Promover colaborador a Talento Clave</h2>
               <p className="text-xs text-gray-400 mt-0.5">Busca a cualquier persona del directorio y agrégala con justificación.</p>
             </div>
 
-            {/* Search + list */}
             <div className="px-6 pt-4 pb-2 space-y-3 flex-1 overflow-hidden flex flex-col">
-              {/* Search input */}
               <input
                 ref={searchInputRef}
                 type="text"
@@ -484,7 +612,6 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 focus:border-[#1a3a5c]"
               />
 
-              {/* Results list */}
               {!addSelected && (
                 <div className="flex-1 overflow-y-auto border border-gray-100 rounded-lg divide-y divide-gray-50">
                   {addResults.length === 0 ? (
@@ -520,10 +647,8 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
                 </div>
               )}
 
-              {/* Selected: show card + justification */}
               {addSelected && (
                 <div className="space-y-3">
-                  {/* Selected card */}
                   <div className="flex items-start justify-between gap-3 bg-[#1a3a5c]/5 border border-[#1a3a5c]/20 rounded-xl px-4 py-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">{addSelected.nombre_completo}</p>
@@ -546,7 +671,6 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
                     </p>
                   )}
 
-                  {/* Justification */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">
                       Justificación <span className="text-red-500">*</span>
@@ -564,7 +688,6 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
               )}
             </div>
 
-            {/* Modal footer */}
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
               <button onClick={closeAddModal} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                 Cancelar
