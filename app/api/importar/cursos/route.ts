@@ -127,11 +127,20 @@ export async function POST(req: NextRequest) {
 
     const colaborador_id = colabByEmpId.get(id_empleado);
     if (!colaborador_id) {
+      // Still parse all fields so the preview shows useful data
+      const idCol2 = str(col(row, "ID"));
       results.push({
         fila, id_empleado, nombre_empleado,
-        id_registro_source: null, nombre_curso: null,
-        fecha_inicio: null, fecha_fin: null, tipo_curso: null, institucion: null,
-        horas_efectivas: null, documento: null, evaluacion_final: null, estado_completitud: null,
+        id_registro_source: str(col(row, "Id Registro", "IdRegistro", "ID Registro", "Registro")),
+        nombre_curso:    str(col(row, "Curso", "Nombre Curso", "NombreCurso")),
+        fecha_inicio:    parseDate(col(row, "Fecha Inicio", "FechaInicio")),
+        fecha_fin:       parseDate(col(row, "Fecha Fin", "FechaFin")),
+        tipo_curso:      str(col(row, "Tipo Curso", "TipoCurso", "Tipo")),
+        institucion:     str(col(row, "Institucion", "Institución")),
+        horas_efectivas: num(col(row, "Horas Efectivas", "HorasEfectivas", "Horas")),
+        documento:       str(col(row, "Documento")),
+        evaluacion_final: num(col(row, "Evaluacion Final", "EvaluacionFinal", "Evaluación Final")),
+        estado_completitud: idCol2 && ["Aprobado","No aplica","Reprobado"].includes(idCol2) ? idCol2 : null,
         isDuplicate: false,
         error: `No encontrado en BD (${id_empleado})`,
       });

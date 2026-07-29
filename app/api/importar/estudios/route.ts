@@ -117,8 +117,13 @@ export async function POST(req: NextRequest) {
     if (!colaborador_id) {
       results.push({
         fila, id_empleado, nombre_empleado,
-        nivel_estudio: null, nombre_carrera: null, institucion: null,
-        fecha_inicio: null, fecha_fin: null, cedula: null, estado_cedula: null,
+        nivel_estudio:  str(col(row, "Nivel Estudio", "NivelEstudio", "Nivel", "Escolaridad")),
+        nombre_carrera: str(col(row, "Carrera", "Nombre Carrera", "NombreCarrera", "Especialidad")),
+        institucion:    str(col(row, "Institucion", "Institución", "Universidad", "Escuela")),
+        fecha_inicio:   parseDate(col(row, "Fecha Inicio", "FechaInicio", "Inicio")),
+        fecha_fin:      parseDate(col(row, "Fecha Fin", "FechaFin", "Fecha Egreso", "FechaEgreso", "Egreso")),
+        cedula:         str(col(row, "Cedula", "Cédula", "Cedula Profesional", "CedulaProfesional")),
+        estado_cedula:  str(col(row, "Estado Cedula", "EstadoCedula", "Estatus Cedula")),
         esNuevo: true,
         error: `No encontrado en BD (${id_empleado})`,
       });
