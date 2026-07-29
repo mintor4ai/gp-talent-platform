@@ -24,8 +24,8 @@ import { actualizarPerfilColaborador } from "@/app/actions/colaborador";
 
 type ColaboradorPerfil = {
   id: string;
+  id_empleado: string | null;
   nombre_completo: string;
-  no_empleado: string | null;
   puesto: string | null;
   nivel: string | null;
   area: string | null;
@@ -39,7 +39,12 @@ type ColaboradorPerfil = {
   tipo_plantilla: string | null;
   segmento_organizacional: string | null;
   fecha_antiguedad: string | null;
+  fecha_nacimiento: string | null;
+  fecha_ingreso_razon_social: string | null;
+  fecha_baja: string | null;
+  horario: string | null;
   correo: string | null;
+  correo_jefe: string | null;
   sexo: string | null;
   edad: number | null;
   nivel_academico: string | null;
@@ -854,14 +859,23 @@ function PerfilTab({
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Identificación</p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <Field label="No. Empleado" value={perfil.no_empleado} />
+          <Field label="No. Empleado" value={perfil.id_empleado} />
           <Field label="Sexo" value={perfil.sexo} />
-          <Field label="Edad" value={perfil.edad != null ? String(perfil.edad) : null} />
+          <Field label="Edad" value={perfil.edad != null ? `${perfil.edad} años` : null} />
+          <Field label="Fecha Nacimiento" value={perfil.fecha_nacimiento
+            ? new Date(perfil.fecha_nacimiento + "T00:00:00").toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })
+            : null} />
           <Field label="Antigüedad" value={antiguedad != null ? `${antiguedad} año${antiguedad !== 1 ? "s" : ""}` : null} />
-          <Field label="Fecha Ingreso" value={perfil.fecha_antiguedad
+          <Field label="Fecha Ingreso (Grupo)" value={perfil.fecha_antiguedad
             ? new Date(perfil.fecha_antiguedad + "T00:00:00").toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })
             : null} />
+          <Field label="Fecha Ingreso (Razón Social)" value={perfil.fecha_ingreso_razon_social
+            ? new Date(perfil.fecha_ingreso_razon_social + "T00:00:00").toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })
+            : null} />
           <Field label="Entidad" value={perfil.entidad} />
+          {perfil.fecha_baja && (
+            <Field label="Fecha Baja" value={new Date(perfil.fecha_baja + "T00:00:00").toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })} />
+          )}
         </div>
       </div>
 
@@ -905,8 +919,10 @@ function PerfilTab({
               <Field label="Área" value={perfil.area} />
               <Field label="Departamento" value={perfil.departamento} />
               <Field label="UEN / Organización" value={perfil.organización} />
-              <Field label="Tipo Plantilla" value={perfil.tipo_plantilla} />
+              <Field label="Tipo Nómina" value={perfil.tipo_plantilla} />
+              <Field label="Horario" value={perfil.horario} />
               <Field label="Jefe Inmediato" value={perfil.jefe_inmediato_nombre} />
+              <Field label="Correo Jefe" value={perfil.correo_jefe} />
               <Field label="Segmento" value={perfil.segmento_organizacional} />
               <Field label="Correo" value={perfil.correo} />
               <Field label="Escolaridad" value={perfil.nivel_academico} />
