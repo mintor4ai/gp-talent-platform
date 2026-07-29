@@ -257,7 +257,7 @@ export default function ColaboradoresClient({
                     {/* Sticky name */}
                     <td className="px-4 py-3 sticky left-0 bg-white group-hover:bg-gray-50 z-10 min-w-[180px] max-w-[240px] transition-colors">
                       <a
-                        href={`/colaboradores/${c.id}`}
+                        href={`/carpeta/${c.id}`}
                         className="block font-medium text-gray-900 hover:text-[#1a3a5c] truncate transition-colors"
                         title={c.nombre_completo}
                       >
@@ -273,7 +273,7 @@ export default function ColaboradoresClient({
                     {/* Sticky action */}
                     <td className="px-4 py-3 sticky right-0 bg-white group-hover:bg-gray-50 z-10 transition-colors">
                       <a
-                        href={`/colaboradores/${c.id}`}
+                        href={`/carpeta/${c.id}`}
                         className="text-[#1a3a5c] hover:underline text-xs font-medium whitespace-nowrap"
                       >
                         Ver →

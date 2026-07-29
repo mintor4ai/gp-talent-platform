@@ -173,6 +173,7 @@ export default function CarpetaTabs({
   ponderacionesMap,
   perfil,
   catalogoPuestos = [],
+  historialCarrera = [],
 }: {
   colaboradorId: string;
   ciclos: number[];
@@ -202,6 +203,7 @@ export default function CarpetaTabs({
   ponderacionesMap: Record<number, Record<number, PonderacionRow>>;
   perfil: ColaboradorPerfil;
   catalogoPuestos?: Array<{ id: string; nombre: string; razon_social: string | null; area: string | null }>;
+  historialCarrera?: Array<{ id: string; puesto: string | null; empresa: string | null; tipo: string | null; años: number | null; fecha_inicio: string | null; fecha_fin: string | null }>;
 }) {
   const defaultTab = "perfil";
   const [mainTab, setMainTab] = useState<"perfil" | "evaluacion" | "picd" | "sucesion">(defaultTab);
@@ -351,6 +353,7 @@ export default function CarpetaTabs({
           desempenos={desempenos}
           eals={eals}
           isAdmin={isAdmin}
+          historialCarrera={historialCarrera}
         />
       )}
 
@@ -772,12 +775,14 @@ function PerfilTab({
   desempenos,
   eals,
   isAdmin,
+  historialCarrera = [],
 }: {
   perfil: ColaboradorPerfil;
   eips: EIP[];
   desempenos: Desempeno[];
   eals: EAL[];
   isAdmin: boolean;
+  historialCarrera?: Array<{ id: string; puesto: string | null; empresa: string | null; tipo: string | null; años: number | null; fecha_inicio: string | null; fecha_fin: string | null }>;
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -929,6 +934,40 @@ function PerfilTab({
           </div>
         )}
       </div>
+
+      {/* Career history */}
+      {historialCarrera.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Historial de Carrera</p>
+          <div className="relative">
+            <div className="absolute left-3 top-0 bottom-0 w-px bg-gray-100" />
+            <div className="space-y-4">
+              {historialCarrera.map((h) => (
+                <div key={h.id} className="flex gap-4 relative">
+                  <div className="w-6 h-6 rounded-full bg-white border-2 border-gray-200 flex-shrink-0 relative z-10 mt-0.5" />
+                  <div className="flex-1 pb-2">
+                    <p className="text-sm font-medium text-gray-900">{h.puesto ?? "—"}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {h.empresa ?? (h.tipo === "interno" ? "Grupo GP" : "Externo")}
+                      {h.años != null && ` · ${h.años} año${h.años !== 1 ? "s" : ""}`}
+                    </p>
+                    {(h.fecha_inicio || h.fecha_fin) && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {h.fecha_inicio ?? ""}
+                        {h.fecha_inicio && h.fecha_fin && " → "}
+                        {h.fecha_fin ?? (h.fecha_inicio ? " → actual" : "")}
+                      </p>
+                    )}
+                    <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${h.tipo === "interno" ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-600"}`}>
+                      {h.tipo === "interno" ? "Interno" : "Externo"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Evaluation history summary */}
       {allCiclos.length > 0 && (

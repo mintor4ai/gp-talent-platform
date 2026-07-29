@@ -71,6 +71,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: ciclosEstadoRaw },
     { data: ponderacionesRaw },
     { data: catalogoPuestosRaw },
+    { data: historialCarreraRaw },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -152,6 +153,11 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .select("id, nombre, razon_social, area")
       .eq("activo", true)
       .order("nombre"),
+    supabase
+      .from("historial_carrera")
+      .select("id, puesto, empresa, tipo, años, fecha_inicio, fecha_fin")
+      .eq("id_empleado", colaboradorId)
+      .order("fecha_inicio", { ascending: false }),
   ]);
 
   const canEdit = isOwn || isAdmin;
@@ -164,6 +170,17 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
   }
 
   const sucesion = (sucesionRaw ?? []) as unknown as SucesionItem[];
+
+  type HistorialCarreraItem = {
+    id: string;
+    puesto: string | null;
+    empresa: string | null;
+    tipo: string | null;
+    años: number | null;
+    fecha_inicio: string | null;
+    fecha_fin: string | null;
+  };
+  const historialCarrera = (historialCarreraRaw ?? []) as unknown as HistorialCarreraItem[];
   type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
   const colaboradoresLista = (colaboradoresAll ?? []) as unknown as ColabOption[];
   const candidaturasComoSuccesor = (candidaturasRaw ?? []) as unknown as SucesionItem[];
@@ -275,6 +292,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         ponderacionesMap={ponderacionesMap}
         perfil={colab as any}
         catalogoPuestos={(catalogoPuestosRaw ?? []) as Array<{ id: string; nombre: string; razon_social: string | null; area: string | null }>}
+        historialCarrera={historialCarrera}
       />
     </div>
   );
