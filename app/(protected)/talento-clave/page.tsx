@@ -114,7 +114,7 @@ export default async function TalentoClaveRoute() {
       segmento_organizacional: c.segmento_organizacional,
       area: c.area,
       es_talento_clave: esTC,
-      fuente: tc?.fuente ?? (eipMap.has(c.id) ? "automatico" : "manual"),
+      fuente: tc?.fuente ?? (eipMap.has(c.id) ? "auto" : "manual_ch"),
       zona_eip: zona,
     };
   });

@@ -88,7 +88,7 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
   const filteredRows = useMemo(() => {
     const base = rows.filter((r) => {
       if (filterZona === "tc")       return r.es_talento_clave;
-      if (filterZona === "removidos") return !r.es_talento_clave && r.fuente === "manual";
+      if (filterZona === "removidos") return !r.es_talento_clave && r.fuente === "manual_ch";
       return true;
     });
     const dir = sortDir === "asc" ? 1 : -1;
@@ -105,7 +105,7 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
   }, [rows, filterZona, sortKey, sortDir]);
 
   const tcCount     = rows.filter((r) => r.es_talento_clave).length;
-  const manualCount = rows.filter((r) => r.es_talento_clave && r.fuente === "manual").length;
+  const manualCount = rows.filter((r) => r.es_talento_clave && r.fuente === "manual_ch").length;
 
   // Search results for add modal
   const addResults = useMemo(() => {
@@ -360,11 +360,11 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
                         </td>
                         <td className="px-5 py-3 hidden sm:table-cell">
                           <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                            r.fuente === "automatico"
+                            r.fuente === "auto"
                               ? "bg-gray-100 text-gray-500"
                               : "bg-amber-50 text-amber-700 border border-amber-200"
                           }`}>
-                            {r.fuente === "automatico" ? "Auto" : "Manual"}
+                            {r.fuente === "auto" ? "Auto" : "Manual"}
                           </span>
                         </td>
                         <td className="px-5 py-3">

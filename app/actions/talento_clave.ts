@@ -14,18 +14,16 @@ async function getAdminUser() {
   return { supabase, userId: user.id };
 }
 
-/**
- * Auto-sync talento clave from EIP data for a cycle.
- * Upserts Desarrollo/Sobresaliente as talento_clave=true (fuente=automatico),
- * and marks others as false only if their fuente was also automatico (manual overrides persist).
- */
+// DB constraint: fuente CHECK (fuente = ANY (ARRAY['auto', 'manual_ch']))
+const FUENTE_AUTO   = "auto"    as const;
+const FUENTE_MANUAL = "manual_ch" as const;
+
 export async function sincronizarTalentoClave(
   cicloAño: number
 ): Promise<{ ok: boolean; added: number; removed: number; error?: string }> {
   try {
     const { supabase } = await getAdminUser();
 
-    // Collaborators qualifying by EIP zone
     const { data: eips, error: eipErr } = await supabase
       .from("evaluacion_integral_personal")
       .select("id_empleado, zona_evaluacion")
@@ -35,7 +33,6 @@ export async function sincronizarTalentoClave(
 
     const qualifyingIds = new Set((eips ?? []).map((e) => e.id_empleado));
 
-    // Current records for this cycle
     const { data: current, error: curErr } = await supabase
       .from("talento_clave")
       .select("id, colaborador_id, es_talento_clave, fuente")
@@ -47,19 +44,18 @@ export async function sincronizarTalentoClave(
     let added = 0;
     let removed = 0;
 
-    // Upsert qualifying collaborators
     for (const emp of eips ?? []) {
       const existing = currentMap.get(emp.id_empleado);
       if (!existing) {
-        await supabase.from("talento_clave").insert({
+        const { error } = await supabase.from("talento_clave").insert({
           colaborador_id: emp.id_empleado,
           ciclo_año: cicloAño,
           es_talento_clave: true,
-          fuente: "automatico",
+          fuente: FUENTE_AUTO,
           zona_eip: emp.zona_evaluacion,
         });
-        added++;
-      } else if (!existing.es_talento_clave && existing.fuente === "automatico") {
+        if (!error) added++;
+      } else if (!existing.es_talento_clave && existing.fuente === FUENTE_AUTO) {
         await supabase
           .from("talento_clave")
           .update({ es_talento_clave: true, zona_eip: emp.zona_evaluacion, updated_at: new Date().toISOString() })
@@ -68,9 +64,9 @@ export async function sincronizarTalentoClave(
       }
     }
 
-    // Remove auto-tagged collaborators that no longer qualify
+    // Remove auto-tagged collaborators that no longer qualify (never touch manual_ch)
     for (const rec of current ?? []) {
-      if (rec.es_talento_clave && rec.fuente === "automatico" && !qualifyingIds.has(rec.colaborador_id)) {
+      if (rec.es_talento_clave && rec.fuente === FUENTE_AUTO && !qualifyingIds.has(rec.colaborador_id)) {
         await supabase
           .from("talento_clave")
           .update({ es_talento_clave: false, updated_at: new Date().toISOString() })
@@ -96,24 +92,26 @@ export async function promoverTalentoClave(
 
     const { data: existing } = await supabase
       .from("talento_clave")
-      .select("id, es_talento_clave")
+      .select("id, es_talento_clave, zona_eip")
       .eq("colaborador_id", colaboradorId)
       .eq("ciclo_año", cicloAño)
       .single();
 
     if (existing) {
-      await supabase
+      const { error } = await supabase
         .from("talento_clave")
-        .update({ es_talento_clave: true, fuente: "manual", updated_at: new Date().toISOString() })
+        .update({ es_talento_clave: true, fuente: FUENTE_MANUAL, updated_at: new Date().toISOString() })
         .eq("id", existing.id);
+      if (error) throw error;
     } else {
-      await supabase.from("talento_clave").insert({
+      const { error } = await supabase.from("talento_clave").insert({
         colaborador_id: colaboradorId,
         ciclo_año: cicloAño,
         es_talento_clave: true,
-        fuente: "manual",
+        fuente: FUENTE_MANUAL,
         zona_eip: null,
       });
+      if (error) throw error;
     }
 
     await supabase.from("talento_clave_log").insert({
@@ -121,7 +119,7 @@ export async function promoverTalentoClave(
       ciclo_año: cicloAño,
       accion: "promover",
       justificacion,
-      zona_eip: null,
+      zona_eip: existing?.zona_eip ?? null,
       es_talento_clave_anterior: existing?.es_talento_clave ?? false,
       creado_por: userId,
     });
@@ -149,10 +147,11 @@ export async function removerTalentoClave(
       .single();
 
     if (existing) {
-      await supabase
+      const { error } = await supabase
         .from("talento_clave")
-        .update({ es_talento_clave: false, fuente: "manual", updated_at: new Date().toISOString() })
+        .update({ es_talento_clave: false, fuente: FUENTE_MANUAL, updated_at: new Date().toISOString() })
         .eq("id", existing.id);
+      if (error) throw error;
     } else {
       // Person auto-qualified via EIP but has no explicit TC record yet —
       // insert a manual override so the removal persists past a re-sync.
@@ -162,13 +161,14 @@ export async function removerTalentoClave(
         .eq("id_empleado", colaboradorId)
         .eq("ciclo_año", cicloAño)
         .single();
-      await supabase.from("talento_clave").insert({
+      const { error } = await supabase.from("talento_clave").insert({
         colaborador_id: colaboradorId,
         ciclo_año: cicloAño,
         es_talento_clave: false,
-        fuente: "manual",
+        fuente: FUENTE_MANUAL,
         zona_eip: (eipRow as any)?.zona_evaluacion ?? null,
       });
+      if (error) throw error;
     }
 
     await supabase.from("talento_clave_log").insert({
