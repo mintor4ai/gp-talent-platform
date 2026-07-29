@@ -63,8 +63,8 @@ const ZONA_COLORS: Record<string, { bg: string; text: string }> = {
 
 // Visual identity per fuente (analogous to SEMAFORO_CONFIG in movilidad)
 const FUENTE_CONFIG: Record<string, { stripe: string; bg: string; text: string; label: string }> = {
-  auto:      { stripe: "#22c55e", bg: "bg-green-50",  text: "text-green-700",  label: "Auto EIP"  },
-  manual_ch: { stripe: "#fbbf24", bg: "bg-amber-50",  text: "text-amber-700",  label: "Manual CH" },
+  auto:      { stripe: "#22c55e", bg: "bg-green-50",  text: "text-green-700",  label: "Auto"   },
+  manual_ch: { stripe: "#fbbf24", bg: "bg-amber-50",  text: "text-amber-700",  label: "Manual" },
 };
 const REMOVED_STRIPE = "#d1d5db";
 
