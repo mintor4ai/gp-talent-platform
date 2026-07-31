@@ -10,6 +10,7 @@ type ImportResult = {
   insertedDetalle: number;
   insertedComentarios: number;
   upsertedAgregados: number;
+  percentiles_calculados: number;
   errors: string[];
 };
 
@@ -38,11 +39,31 @@ export default function ImportadorCompetencias() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmedOverwrite, setConfirmedOverwrite] = useState(false);
+  const [recalcLoading, setRecalcLoading] = useState(false);
+  const [recalcMsg, setRecalcMsg] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
-    setFile(null); setPreview(null); setResult(null); setError(null); setConfirmedOverwrite(false);
+    setFile(null); setPreview(null); setResult(null); setError(null); setConfirmedOverwrite(false); setRecalcMsg(null);
     if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const recalcularPercentiles = async () => {
+    setRecalcLoading(true); setRecalcMsg(null);
+    try {
+      const res = await fetch("/api/importar/competencias/percentiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ciclo_año: result ? cicloAño : cicloAño }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setRecalcMsg(`Error: ${json.error}`); return; }
+      setRecalcMsg(`Percentiles recalculados: ${json.inserted} colaboradores actualizados.`);
+    } catch {
+      setRecalcMsg("Error de red al recalcular.");
+    } finally {
+      setRecalcLoading(false);
+    }
   };
 
   const call = async (modo: "preview" | "import") => {
@@ -275,6 +296,7 @@ export default function ImportadorCompetencias() {
               { label: "Calificaciones detalle", value: result.insertedDetalle },
               { label: "Comentarios", value: result.insertedComentarios },
               { label: "Promedios por comp.", value: result.upsertedAgregados },
+              { label: "Percentiles calculados", value: result.percentiles_calculados ?? 0 },
             ].map((s) => (
               <div key={s.label} className="bg-white rounded-lg border border-gray-200 p-3 text-center">
                 <p className="text-xs text-gray-500 mb-0.5">{s.label}</p>
@@ -282,6 +304,24 @@ export default function ImportadorCompetencias() {
               </div>
             ))}
           </div>
+
+          {/* Recalculate percentiles */}
+          <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Recalcular percentiles del ciclo {cicloAño}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Útil si cambiaron segmentos, puestos o UEN de algún colaborador.</p>
+            </div>
+            <button
+              onClick={recalcularPercentiles}
+              disabled={recalcLoading}
+              className="text-xs bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-[#152e4d] disabled:opacity-50 font-medium transition-colors whitespace-nowrap"
+            >
+              {recalcLoading ? "Calculando..." : "Recalcular"}
+            </button>
+          </div>
+          {recalcMsg && (
+            <p className="text-xs text-gray-600 px-1">{recalcMsg}</p>
+          )}
           {result.errors.length > 0 && (
             <div className="bg-white rounded-lg p-3 space-y-1">
               {result.errors.map((e, i) => <p key={i} className="text-xs text-red-600">{e}</p>)}

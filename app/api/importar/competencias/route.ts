@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
+import { calcularPercentilCompetencias } from "@/lib/calcularPercentilCompetencias";
 
 function col(row: Record<string, unknown>, ...aliases: string[]): unknown {
   const normalize = (s: string) =>
@@ -327,6 +328,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Auto-calculate percentiles after import
+  const { inserted: percentileInserted, errors: percentileErrors } =
+    await calcularPercentilCompetencias(supabase, cicloAño);
+  errors.push(...percentileErrors);
+
   return NextResponse.json({
     ok: true,
     total_evaluados: evaluadosMap.size,
@@ -334,6 +340,7 @@ export async function POST(req: NextRequest) {
     insertedDetalle,
     insertedComentarios,
     upsertedAgregados,
+    percentiles_calculados: percentileInserted,
     errors: errors.slice(0, 20),
   });
 }
