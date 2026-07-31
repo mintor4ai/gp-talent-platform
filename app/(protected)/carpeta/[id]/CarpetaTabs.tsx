@@ -536,11 +536,11 @@ export default function CarpetaTabs({
           )}
 
           {/* Section 3: Competencias 360 */}
-          {comp360.length > 0 && (
+          {(comp360.length > 0 || percentilComp) && (
             <>
               <SectionHeader label={`Competencias 360 — ${cicloActual}`} />
 
-              {/* Percentiles */}
+              {/* Percentiles — shown whenever percentil data exists */}
               {percentilComp && (
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -570,8 +570,8 @@ export default function CarpetaTabs({
                     {/* Supporting stats */}
                     <div className="flex flex-col justify-center gap-2 text-xs text-gray-500">
                       <div>
-                        <span className="font-medium text-gray-700">{percentilComp.promedio_general.toFixed(2)}</span>
-                        <span className="ml-1">prom. CalificaciónGeneral (escala 1–10)</span>
+                        <span className="font-medium text-gray-700">{Number(percentilComp.promedio_general).toFixed(2)}</span>
+                        <span className="ml-1">prom. Calificación General (escala 1–10)</span>
                       </div>
                       {percentilComp.num_evaluadores != null && (
                         <div>
@@ -579,7 +579,7 @@ export default function CarpetaTabs({
                           <span className="ml-1">evaluadores</span>
                         </div>
                       )}
-                      <div className="text-gray-300">
+                      <div className="text-gray-400">
                         Calculado: {new Date(percentilComp.fecha_calculo).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
                       </div>
                     </div>
@@ -587,37 +587,40 @@ export default function CarpetaTabs({
                 </div>
               )}
 
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {Object.entries(bloques).map(([bloque, items]) => (
-                  <div key={bloque}>
-                    <p className="text-xs font-semibold text-gray-600 mb-2">{bloque}</p>
-                    <div className="space-y-2">
-                      {items.map((item) => (
-                        <div key={item.id}>
-                          <div className="flex justify-between items-center mb-0.5">
-                            <span className="text-xs text-gray-500 truncate pr-2">
-                              {item.sub_competencia ?? "General"}
-                            </span>
-                            <span className="text-xs font-semibold text-gray-800 flex-shrink-0">
-                              {item.evaluacion?.toFixed(1) ?? "—"}
-                            </span>
-                          </div>
-                          {item.evaluacion != null && (
-                            <div className="w-full bg-gray-100 rounded-full h-1">
-                              <div
-                                className="bg-[#1a3a5c] h-1 rounded-full"
-                                style={{ width: `${Math.min(100, (item.evaluacion / 5) * 100)}%` }}
-                              />
+              {/* Competencia detail bars — only when aggregated data exists */}
+              {comp360.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {Object.entries(bloques).map(([bloque, items]) => (
+                      <div key={bloque}>
+                        <p className="text-xs font-semibold text-gray-600 mb-2">{bloque}</p>
+                        <div className="space-y-2">
+                          {items.map((item) => (
+                            <div key={item.id}>
+                              <div className="flex justify-between items-center mb-0.5">
+                                <span className="text-xs text-gray-500 truncate pr-2">
+                                  {item.sub_competencia ?? "General"}
+                                </span>
+                                <span className="text-xs font-semibold text-gray-800 flex-shrink-0">
+                                  {item.evaluacion?.toFixed(1) ?? "—"}
+                                </span>
+                              </div>
+                              {item.evaluacion != null && (
+                                <div className="w-full bg-gray-100 rounded-full h-1">
+                                  <div
+                                    className="bg-[#1a3a5c] h-1 rounded-full"
+                                    style={{ width: `${Math.min(100, (item.evaluacion / 5) * 100)}%` }}
+                                  />
+                                </div>
+                              )}
                             </div>
-                          )}
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              )}
             </>
           )}
 
