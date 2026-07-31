@@ -100,6 +100,16 @@ type Competencia = {
   evaluacion: number | null;
 };
 
+type CompetenciasPercentil = {
+  ciclo_año: number;
+  promedio_general: number;
+  segmento: string | null;
+  percentil_empresa: number;
+  percentil_segmento: number | null;
+  num_evaluadores: number | null;
+  fecha_calculo: string;
+};
+
 type EAL = {
   id: string;
   ciclo_año: number;
@@ -204,12 +214,14 @@ export default function CarpetaTabs({
   historialCarrera = [],
   formacionAcademica = [],
   cursosFormacion = [],
+  competenciasPercentiles = [],
 }: {
   colaboradorId: string;
   ciclos: number[];
   eips: EIP[];
   desempenos: Desempeno[];
   competencias: Competencia[];
+  competenciasPercentiles?: CompetenciasPercentil[];
   eals: EAL[];
   picdAcciones: PicdAccion[];
   picdRecords: PicdRecord[];
@@ -246,6 +258,7 @@ export default function CarpetaTabs({
   const eip = eips.find((e) => e.ciclo_año === cicloActual) ?? null;
   const desemp = desempenos.find((d) => d.ciclo_año === cicloActual) ?? null;
   const comp360 = competencias.filter((c) => c.ciclo_año === cicloActual);
+  const percentilComp = competenciasPercentiles.find((p) => p.ciclo_año === cicloActual) ?? null;
   const eal = eals.find((e) => e.ciclo_año === cicloActual) ?? null;
   const hasEal = eip?.tuvo_eal === true || eal !== null;
 
@@ -526,6 +539,54 @@ export default function CarpetaTabs({
           {comp360.length > 0 && (
             <>
               <SectionHeader label={`Competencias 360 — ${cicloActual}`} />
+
+              {/* Percentiles */}
+              {percentilComp && (
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                    Percentiles de Competencias · Ciclo {cicloActual}
+                  </p>
+                  <div className="flex flex-wrap gap-4">
+                    {/* Empresa */}
+                    <div className="flex-1 min-w-[160px] bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center">
+                      <p className="text-xs font-medium text-indigo-500 mb-1">Percentil Total Empresa</p>
+                      <p className="text-4xl font-bold text-indigo-700">{Math.round(percentilComp.percentil_empresa)}</p>
+                      <p className="text-xs text-indigo-400 mt-1">de 0 a 99</p>
+                    </div>
+                    {/* Segmento */}
+                    {percentilComp.percentil_segmento != null ? (
+                      <div className="flex-1 min-w-[160px] bg-violet-50 border border-violet-200 rounded-xl p-4 text-center">
+                        <p className="text-xs font-medium text-violet-500 mb-1">Percentil Segmento Organizacional</p>
+                        <p className="text-4xl font-bold text-violet-700">{Math.round(percentilComp.percentil_segmento)}</p>
+                        <p className="text-xs text-violet-400 mt-1">{percentilComp.segmento ?? "—"}</p>
+                      </div>
+                    ) : (
+                      <div className="flex-1 min-w-[160px] bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+                        <p className="text-xs font-medium text-gray-400 mb-1">Percentil Segmento Organizacional</p>
+                        <p className="text-2xl font-bold text-gray-300">—</p>
+                        <p className="text-xs text-gray-300 mt-1">Sin segmento asignado</p>
+                      </div>
+                    )}
+                    {/* Supporting stats */}
+                    <div className="flex flex-col justify-center gap-2 text-xs text-gray-500">
+                      <div>
+                        <span className="font-medium text-gray-700">{percentilComp.promedio_general.toFixed(2)}</span>
+                        <span className="ml-1">prom. CalificaciónGeneral (escala 1–10)</span>
+                      </div>
+                      {percentilComp.num_evaluadores != null && (
+                        <div>
+                          <span className="font-medium text-gray-700">{percentilComp.num_evaluadores}</span>
+                          <span className="ml-1">evaluadores</span>
+                        </div>
+                      )}
+                      <div className="text-gray-300">
+                        Calculado: {new Date(percentilComp.fecha_calculo).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {Object.entries(bloques).map(([bloque, items]) => (
