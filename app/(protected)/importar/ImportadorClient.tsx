@@ -7,6 +7,7 @@ import ImportadorCatalogoPuestos from "./ImportadorCatalogoPuestos";
 import ImportadorHrCorp from "./ImportadorHrCorp";
 import ImportadorEstudios from "./ImportadorEstudios";
 import ImportadorCursos from "./ImportadorCursos";
+import ImportadorCompetencias from "./ImportadorCompetencias";
 
 const ZONA_COLORS: Record<string, string> = {
   Sobresaliente: "bg-purple-100 text-purple-800",
@@ -41,7 +42,7 @@ type ImportResult = {
 };
 
 export default function ImportadorClient() {
-  const [tab, setTab] = useState<"catalogo" | "colaboradores" | "usuarios" | "evaluaciones" | "hrcorp" | "estudios" | "cursos">("catalogo");
+  const [tab, setTab] = useState<"catalogo" | "colaboradores" | "usuarios" | "evaluaciones" | "hrcorp" | "estudios" | "cursos" | "competencias">("catalogo");
   const [cicloAño, setCicloAño] = useState<number>(new Date().getFullYear());
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewRow[] | null>(null);
@@ -126,6 +127,7 @@ export default function ImportadorClient() {
           { id: "colaboradores", label: "Colaboradores (genérico)" },
           { id: "usuarios",      label: "Usuarios de Acceso" },
           { id: "evaluaciones",  label: "Evaluaciones EIP / Desempeño" },
+          { id: "competencias",  label: "Competencias 360°" },
         ] as const).map((t) => (
           <button
             key={t.id}
@@ -146,6 +148,8 @@ export default function ImportadorClient() {
       {tab === "estudios" && <ImportadorEstudios />}
 
       {tab === "cursos" && <ImportadorCursos />}
+
+      {tab === "competencias" && <ImportadorCompetencias />}
 
       {tab === "catalogo" && <ImportadorCatalogoPuestos />}
 
