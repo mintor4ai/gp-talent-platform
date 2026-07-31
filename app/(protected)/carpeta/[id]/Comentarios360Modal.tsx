@@ -1,0 +1,251 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+
+type Comentario = {
+  calificacion_general: number | null;
+  comentarios: string | null;
+};
+
+type Competencia = {
+  competencia_id: number;
+  competencia: string;
+  tipo_competencia: string;
+  promedio: number | null;
+  num_evaluadores: number;
+};
+
+type Data = {
+  comentarios: Comentario[];
+  competencias: Competencia[];
+};
+
+type Props = {
+  colaboradorId: string;
+  cicloAño: number;
+  nombreColaborador: string;
+};
+
+const MAX_SCORE = 10;
+
+export default function Comentarios360Modal({ colaboradorId, cicloAño, nombreColaborador }: Props) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<Data | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"comentarios" | "competencias">("comentarios");
+
+  const load = useCallback(async () => {
+    if (data) return; // already loaded
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/carpeta/comentarios-360?colaborador_id=${colaboradorId}&ciclo_año=${cicloAño}`
+      );
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? "Error al cargar");
+      }
+      setData(await res.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido");
+    } finally {
+      setLoading(false);
+    }
+  }, [colaboradorId, cicloAño, data]);
+
+  useEffect(() => {
+    if (open) load();
+  }, [open, load]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    if (open) document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open]);
+
+  const textComentarios = data?.comentarios.filter((c) => c.comentarios) ?? [];
+  const totalEvaluadores = data?.comentarios.length ?? 0;
+
+  const individual = data?.competencias.filter((c) => c.tipo_competencia === "Individual") ?? [];
+  const colaboracion = data?.competencias.filter((c) => c.tipo_competencia === "Colaboración") ?? [];
+  const otros = data?.competencias.filter(
+    (c) => c.tipo_competencia !== "Individual" && c.tipo_competencia !== "Colaboración"
+  ) ?? [];
+
+  const ScoreBar = ({ value }: { value: number | null }) => {
+    if (value == null) return <span className="text-xs text-gray-400">—</span>;
+    const pct = Math.min(100, (value / MAX_SCORE) * 100);
+    const color = value >= 8 ? "bg-teal-500" : value >= 6 ? "bg-indigo-400" : "bg-amber-400";
+    return (
+      <div className="flex items-center gap-2 flex-1">
+        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
+        </div>
+        <span className="text-sm font-semibold text-gray-700 w-8 text-right">{value.toFixed(1)}</span>
+      </div>
+    );
+  };
+
+  const CompGroup = ({ label, items }: { label: string; items: Competencia[] }) => {
+    if (!items.length) return null;
+    return (
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{label}</p>
+        <div className="space-y-2">
+          {items.map((c) => (
+            <div key={c.competencia_id} className="flex items-center gap-3">
+              <span className="text-sm text-gray-700 w-52 flex-shrink-0 truncate" title={c.competencia}>
+                {c.competencia}
+              </span>
+              <ScoreBar value={c.promedio} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-4 w-full text-sm text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 rounded-lg py-2 transition-colors font-medium"
+      >
+        Ver retroalimentación 360°
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+          />
+
+          {/* Modal */}
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4 flex-shrink-0">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">Retroalimentación 360°</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {nombreColaborador} · Ciclo {cicloAño}
+                  {totalEvaluadores > 0 && ` · ${totalEvaluadores} evaluador${totalEvaluadores !== 1 ? "es" : ""}`}
+                </p>
+              </div>
+              <button
+                onClick={() => setOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 mt-0.5"
+                aria-label="Cerrar"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="px-6 border-b border-gray-100 flex gap-4 flex-shrink-0">
+              {(["comentarios", "competencias"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`py-3 text-sm font-medium border-b-2 transition-colors ${
+                    tab === t
+                      ? "border-indigo-500 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {t === "comentarios" ? "Comentarios" : "Por competencia"}
+                </button>
+              ))}
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 px-6 py-5">
+              {loading && (
+                <div className="flex items-center justify-center py-12 text-sm text-gray-400">
+                  Cargando…
+                </div>
+              )}
+              {error && (
+                <div className="text-sm text-red-500 bg-red-50 rounded-lg p-3">{error}</div>
+              )}
+
+              {data && tab === "comentarios" && (
+                <div className="space-y-3">
+                  {textComentarios.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-8">
+                      No hay comentarios escritos para este ciclo.
+                    </p>
+                  ) : (
+                    textComentarios.map((c, i) => (
+                      <div key={i} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                        {c.calificacion_general != null && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-medium text-gray-500">Calificación general:</span>
+                            <span
+                              className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                c.calificacion_general >= 8
+                                  ? "bg-teal-100 text-teal-700"
+                                  : c.calificacion_general >= 6
+                                  ? "bg-indigo-100 text-indigo-700"
+                                  : "bg-amber-100 text-amber-700"
+                              }`}
+                            >
+                              {c.calificacion_general.toFixed(1)} / 10
+                            </span>
+                          </div>
+                        )}
+                        <p className="text-sm text-gray-700 leading-relaxed">{c.comentarios}</p>
+                      </div>
+                    ))
+                  )}
+                  {totalEvaluadores > textComentarios.length && (
+                    <p className="text-xs text-gray-400 text-center pt-1">
+                      {totalEvaluadores - textComentarios.length} evaluador
+                      {totalEvaluadores - textComentarios.length !== 1 ? "es" : ""} no dejaron comentario escrito.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {data && tab === "competencias" && (
+                <div className="space-y-6">
+                  {data.competencias.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-8">
+                      No hay datos de competencias para este ciclo.
+                    </p>
+                  ) : (
+                    <>
+                      <CompGroup label="Individuales" items={individual} />
+                      <CompGroup label="Colaboración" items={colaboracion} />
+                      <CompGroup label="Otras" items={otros} />
+                      <p className="text-xs text-gray-400 pt-1">
+                        Escala 1–10 · Promedio por competencia de todos los evaluadores
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Confidentiality notice */}
+            <div className="px-6 py-3 border-t border-gray-100 flex-shrink-0">
+              <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                Los comentarios son confidenciales. No se revela la identidad de los evaluadores.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

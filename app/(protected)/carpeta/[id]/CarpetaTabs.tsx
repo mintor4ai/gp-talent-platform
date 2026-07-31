@@ -21,6 +21,7 @@ import { registrarAspiracion } from "@/app/actions/sucesion";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { aprobarCicloPicd, rechazarCicloPicd } from "@/app/actions/picd_ciclo";
 import { actualizarPerfilColaborador } from "@/app/actions/colaborador";
+import Comentarios360Modal from "./Comentarios360Modal";
 
 type ColaboradorPerfil = {
   id: string;
@@ -586,6 +587,11 @@ export default function CarpetaTabs({
                       </div>
                     </div>
                   </div>
+                  <Comentarios360Modal
+                    colaboradorId={colaboradorId}
+                    cicloAño={cicloActual}
+                    nombreColaborador={nombreColaborador}
+                  />
                 </div>
               )}
 
