@@ -18,18 +18,14 @@ const ZONA_COLORS: Record<string, string> = {
 
 type PreviewRow = {
   fila: number;
+  id_empleado_num: string;
   nombre: string;
-  uuid: string | null;
   matched: boolean;
-  resultado_logra: number | null;
-  potencial_total: number | null;
-  zona: string | null;
-  planea: number | null;
-  ejecuta: number | null;
-  optimiza: number | null;
-  trabaja_equipo: number | null;
-  atiende_cliente: number | null;
-  informa: number | null;
+  uen: string | null;
+  segmento_organizacional: string | null;
+  desempeno_logra: number | null;
+  evaluacion_potencial_total: number | null;
+  zona_evaluacion: string | null;
   tuvo_eal: boolean | null;
   entrego_picd: boolean | null;
   error?: string;
@@ -40,8 +36,7 @@ type ImportResult = {
   total: number;
   matched: number;
   unmatched: number;
-  insertedDesemp: number;
-  insertedEip: number;
+  upserted: number;
   errors: string[];
 };
 
@@ -166,30 +161,37 @@ export default function ImportadorClient() {
       </div>
 
       {/* Template download hint */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 text-sm text-blue-800 space-y-1">
-        <p className="font-semibold">Formato del archivo Excel</p>
-        <p>El archivo debe tener una hoja con las siguientes columnas (el orden no importa, los nombres son flexibles):</p>
-        <div className="mt-2 overflow-x-auto">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 text-sm text-blue-800 space-y-2">
+        <p className="font-semibold">Formato del archivo Excel (reporte EIP)</p>
+        <p className="text-xs">El sistema acepta el reporte EIP directamente. Las columnas clave son:</p>
+        <div className="overflow-x-auto">
           <table className="text-xs border-collapse">
             <thead>
               <tr className="text-blue-700">
-                {["no_empleado", "nombre", "resultado_logra", "potencial_total", "planea", "ejecuta",
-                  "optimiza", "trabaja_equipo", "atiende_cliente", "informa", "tuvo_eal", "entrego_picd"].map((h) => (
+                {["Id","Nombre completo","UEN","DESEMPEÑO","Tablero de Gestión","Puesto",
+                  "Segmento Organizacional de Ciclo","Años de experiencia","#Puestos","Movilidad",
+                  "Escolaridad","Horas Cursos","Competencias","Percentil Competencias",
+                  "EAL","Percentil EAL","Cumplimiento PICD",
+                  "Ev. Años","Ev. Movilidad","Ev. Experiencia","Ev. Escolaridad","Ev. Cursos",
+                  "Ev. Competencias","Ev. de EAL","Ev. PICD",
+                  "Tuvo EAL","Entregó PICD","POTENCIAL","DESEMPEÑO + POTENCIAL","Zona Promocional"].map((h) => (
                   <th key={h} className="border border-blue-200 px-2 py-1 bg-blue-100 font-mono whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               <tr className="text-blue-600">
-                {["4001", "JUAN PÉREZ", "110", "105", "4.2", "3.8", "4.0", "4.5", "3.5", "4.1", "SI", "NO"].map((v, i) => (
+                {["412","JOSE MANUEL MANZANO MORENO","101 GP CONSTRUCCIÓN","106","","SUPERVISOR…","11 ANALISTA",
+                  "31.4","2","15.70","Profesional","","9.6","91%","NA","NA","100.0",
+                  "100","80","80","100","","117","NA","120","0","1","102.5","208","Estabilidad"].map((v, i) => (
                   <td key={i} className="border border-blue-100 px-2 py-1 whitespace-nowrap">{v}</td>
                 ))}
               </tr>
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-blue-600 mt-2">
-          • <code>tuvo_eal</code> y <code>entrego_picd</code>: SI / NO · Zona se calcula automáticamente (desempeño + potencial) · Columnas de desempeño y potencial son opcionales pero se recomienda incluir ambas.
+        <p className="text-xs text-blue-600">
+          • <code>Tuvo EAL</code> / <code>Entregó PICD</code>: 0 = No, 1 = Sí · Valores "NA" se guardan como nulos · El sistema identifica colaboradores por <code>Id</code> (número de empleado).
         </p>
       </div>
 
@@ -287,38 +289,42 @@ export default function ImportadorClient() {
                 <thead>
                   <tr className="text-left text-gray-400 border-b border-gray-100">
                     <th className="px-3 py-2.5">Fila</th>
+                    <th className="px-3 py-2.5">No.Emp</th>
                     <th className="px-3 py-2.5">Colaborador</th>
-                    <th className="px-3 py-2.5 text-center">Encontrado</th>
+                    <th className="px-3 py-2.5 text-center">BD</th>
+                    <th className="px-3 py-2.5">UEN</th>
+                    <th className="px-3 py-2.5">Segmento</th>
                     <th className="px-3 py-2.5 text-right">Desempeño</th>
                     <th className="px-3 py-2.5 text-right">Potencial</th>
-                    <th className="px-3 py-2.5">Zona calculada</th>
-                    <th className="px-3 py-2.5 text-right">Planea</th>
-                    <th className="px-3 py-2.5 text-right">Ejecuta</th>
-                    <th className="px-3 py-2.5 text-right">Optimiza</th>
+                    <th className="px-3 py-2.5">Zona</th>
+                    <th className="px-3 py-2.5 text-center">EAL</th>
+                    <th className="px-3 py-2.5 text-center">PICD</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {preview.map((row) => (
                     <tr key={row.fila} className={row.matched ? "" : "bg-red-50/50"}>
                       <td className="px-3 py-2 text-gray-400">{row.fila}</td>
-                      <td className="px-3 py-2 font-medium text-gray-800">{row.nombre}</td>
+                      <td className="px-3 py-2 text-gray-500 font-mono">{row.id_empleado_num || "—"}</td>
+                      <td className="px-3 py-2 font-medium text-gray-800 whitespace-nowrap">{row.nombre}</td>
                       <td className="px-3 py-2 text-center">
                         {row.matched
                           ? <span className="text-green-600 font-bold">✓</span>
-                          : <span className="text-red-500 text-xs">{row.error ?? "No encontrado"}</span>
+                          : <span className="text-red-500 text-xs" title={row.error}>✗</span>
                         }
                       </td>
-                      <td className="px-3 py-2 text-right text-gray-700">{row.resultado_logra ?? "—"}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{row.potencial_total ?? "—"}</td>
+                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{row.uen ?? "—"}</td>
+                      <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.segmento_organizacional ?? "—"}</td>
+                      <td className="px-3 py-2 text-right text-gray-700 font-mono">{row.desempeno_logra?.toFixed(0) ?? "—"}</td>
+                      <td className="px-3 py-2 text-right text-gray-700 font-mono">{row.evaluacion_potencial_total?.toFixed(1) ?? "—"}</td>
                       <td className="px-3 py-2">
-                        {row.zona
-                          ? <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${ZONA_COLORS[row.zona] ?? ""}`}>{row.zona}</span>
+                        {row.zona_evaluacion
+                          ? <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${ZONA_COLORS[row.zona_evaluacion] ?? "bg-gray-100 text-gray-600"}`}>{row.zona_evaluacion}</span>
                           : <span className="text-gray-400">—</span>
                         }
                       </td>
-                      <td className="px-3 py-2 text-right text-gray-500">{row.planea ?? "—"}</td>
-                      <td className="px-3 py-2 text-right text-gray-500">{row.ejecuta ?? "—"}</td>
-                      <td className="px-3 py-2 text-right text-gray-500">{row.optimiza ?? "—"}</td>
+                      <td className="px-3 py-2 text-center text-gray-500">{row.tuvo_eal == null ? "—" : row.tuvo_eal ? "Sí" : "No"}</td>
+                      <td className="px-3 py-2 text-center text-gray-500">{row.entrego_picd == null ? "—" : row.entrego_picd ? "Sí" : "No"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -337,8 +343,8 @@ export default function ImportadorClient() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Stat label="Total filas" value={result.total} />
             <Stat label="Identificados" value={result.matched} />
-            <Stat label="Desempeño insertados" value={result.insertedDesemp} />
-            <Stat label="EIP insertados" value={result.insertedEip} />
+            <Stat label="Insertados / actualizados" value={result.upserted} />
+            <Stat label="No encontrados" value={result.unmatched} />
           </div>
           {result.unmatched > 0 && (
             <p className="text-sm text-orange-700">{result.unmatched} fila(s) no se importaron porque el colaborador no fue encontrado.</p>
