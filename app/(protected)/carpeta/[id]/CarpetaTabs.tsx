@@ -487,6 +487,7 @@ export default function CarpetaTabs({
               eip={eip}
               desemp={desemp}
               eal={eal}
+              percentilComp={percentilComp}
               ponderaciones={ponderacionesMap[cicloActual] ?? {}}
               zonaColors={zonaColors}
             />
@@ -1511,12 +1512,14 @@ function EIPCard({
   eip,
   desemp,
   eal,
+  percentilComp,
   ponderaciones,
   zonaColors,
 }: {
   eip: EIP | null;
   desemp: Desempeno | null;
   eal: EAL | null;
+  percentilComp: CompetenciasPercentil | null;
   ponderaciones: Record<number, PonderacionRow>;
   zonaColors: { bg: string; text: string } | null;
 }) {
@@ -1542,19 +1545,33 @@ function EIPCard({
     ["Informa", desemp?.informa],
   ];
 
+  // ev_comp is on 80-120; for raw competencias we have promedio_general (1-10)
+  const evComp = eip?.ev_comp ?? null;
+  const rawComp = percentilComp?.promedio_general ?? null;
+
   const potencialItems: {
     label: string;
-    value: number | null | undefined;
+    value: number | null;
     color: string;
     weight: number | null;
     show: boolean;
+    rawNote?: string | null;
   }[] = [
-    { label: "Experiencia",          value: eip?.ev_exp,       color: "bg-blue-500",    weight: pond?.w_exp ?? null,      show: true },
-    { label: "Formación Académica",  value: eip?.ev_form_acad, color: "bg-blue-500",    weight: pond?.w_form_acad ?? null, show: true },
-    { label: "Cursos",               value: eip?.ev_cursos,    color: "bg-blue-400",    weight: pond?.w_cursos ?? null,   show: true },
-    { label: "Competencias 360°",    value: eip?.ev_comp,      color: "bg-teal-500",    weight: pond?.w_comp ?? null,     show: true },
-    { label: "EAL",                  value: eip?.ev_eal,       color: "bg-violet-500",  weight: pond?.w_eal ?? null,      show: eip?.tuvo_eal === true || eal != null },
-    { label: "PICD",                 value: eip?.ev_picd,      color: "bg-[#1a3a5c]",  weight: pond?.w_picd ?? null,     show: eip?.entrego_picd === true },
+    { label: "Experiencia",         value: eip?.ev_exp ?? null,       color: "bg-blue-500",   weight: pond?.w_exp ?? null,       show: true },
+    { label: "Formación Académica", value: eip?.ev_form_acad ?? null, color: "bg-blue-500",   weight: pond?.w_form_acad ?? null, show: true },
+    { label: "Cursos",              value: eip?.ev_cursos ?? null,    color: "bg-blue-400",   weight: pond?.w_cursos ?? null,    show: true },
+    {
+      label: "Competencias 360°",
+      value: evComp,
+      color: "bg-teal-500",
+      weight: pond?.w_comp ?? null,
+      show: true,
+      rawNote: evComp == null && rawComp != null
+        ? `Calif. ${rawComp.toFixed(2)} / 10 · escala 80–120 pendiente`
+        : null,
+    },
+    { label: "EAL",  value: eip?.ev_eal ?? null,  color: "bg-violet-500", weight: pond?.w_eal ?? null,  show: eip?.tuvo_eal === true || eal != null },
+    { label: "PICD", value: eip?.ev_picd ?? null, color: "bg-[#1a3a5c]", weight: pond?.w_picd ?? null, show: eip?.entrego_picd === true },
   ];
 
   return (
@@ -1678,7 +1695,12 @@ function EIPCard({
                 return (
                   <div key={item.label}>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs text-gray-600 font-medium">{item.label}</span>
+                      <div>
+                        <span className="text-xs text-gray-600 font-medium">{item.label}</span>
+                        {item.rawNote && (
+                          <p className="text-[10px] text-teal-600 font-medium mt-0.5">{item.rawNote}</p>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         {item.weight != null && (
                           <span className="text-[10px] font-semibold text-gray-400 tabular-nums">
@@ -1691,7 +1713,7 @@ function EIPCard({
                           </span>
                         ) : (
                           <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                            Pendiente
+                            {item.rawNote ? "Calculando…" : "Pendiente"}
                           </span>
                         )}
                       </div>
@@ -1704,7 +1726,7 @@ function EIPCard({
                         />
                       )}
                     </div>
-                    {/* Reference line at 100 (= 50% of 80-120) — outside the clipped bar */}
+                    {/* Reference line at 100 (= 50% of 80-120) */}
                     <div className="relative h-1">
                       <div
                         className="absolute top-0 w-px h-2 -mt-2 bg-gray-400 opacity-60"
