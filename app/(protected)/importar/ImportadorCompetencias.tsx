@@ -11,6 +11,8 @@ type ImportResult = {
   insertedComentarios: number;
   upsertedAgregados: number;
   percentiles_calculados: number;
+  ev_comp_updated: number;
+  ev_comp_created: number;
   errors: string[];
 };
 
@@ -58,7 +60,7 @@ export default function ImportadorCompetencias() {
       });
       const json = await res.json();
       if (!res.ok) { setRecalcMsg(`Error: ${json.error}`); return; }
-      setRecalcMsg(`Percentiles recalculados: ${json.inserted} colaboradores actualizados.`);
+      setRecalcMsg(`Percentiles: ${json.percentiles_calculados} · ev_comp: ${json.ev_comp_updated} actualizados, ${json.ev_comp_created} creados.`);
     } catch {
       setRecalcMsg("Error de red al recalcular.");
     } finally {
@@ -297,6 +299,8 @@ export default function ImportadorCompetencias() {
               { label: "Comentarios", value: result.insertedComentarios },
               { label: "Promedios por comp.", value: result.upsertedAgregados },
               { label: "Percentiles calculados", value: result.percentiles_calculados ?? 0 },
+              { label: "ev_comp actualizados", value: result.ev_comp_updated ?? 0 },
+              { label: "ev_comp creados", value: result.ev_comp_created ?? 0 },
             ].map((s) => (
               <div key={s.label} className="bg-white rounded-lg border border-gray-200 p-3 text-center">
                 <p className="text-xs text-gray-500 mb-0.5">{s.label}</p>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
 import { calcularPercentilCompetencias } from "@/lib/calcularPercentilCompetencias";
+import { calcularEvaluacionCompetencias } from "@/lib/calcularEvaluacionCompetencias";
 
 function col(row: Record<string, unknown>, ...aliases: string[]): unknown {
   const normalize = (s: string) =>
@@ -333,6 +334,11 @@ export async function POST(req: NextRequest) {
     await calcularPercentilCompetencias(supabase, cicloAño);
   errors.push(...percentileErrors);
 
+  // Auto-calculate ev_comp in EIP after percentiles
+  const { updated: evUpdated, created: evCreated, errors: evErrors } =
+    await calcularEvaluacionCompetencias(supabase, cicloAño);
+  errors.push(...evErrors);
+
   return NextResponse.json({
     ok: true,
     total_evaluados: evaluadosMap.size,
@@ -341,6 +347,8 @@ export async function POST(req: NextRequest) {
     insertedComentarios,
     upsertedAgregados,
     percentiles_calculados: percentileInserted,
+    ev_comp_updated: evUpdated,
+    ev_comp_created: evCreated,
     errors: errors.slice(0, 20),
   });
 }
