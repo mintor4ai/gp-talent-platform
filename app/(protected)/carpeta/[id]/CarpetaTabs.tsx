@@ -544,9 +544,15 @@ export default function CarpetaTabs({
               {percentilComp && (
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                    Percentiles de Competencias · Ciclo {cicloActual}
+                    Evaluación de Competencias · Ciclo {cicloActual}
                   </p>
                   <div className="flex flex-wrap gap-4">
+                    {/* Calificación General */}
+                    <div className="flex-1 min-w-[160px] bg-teal-50 border border-teal-200 rounded-xl p-4 text-center">
+                      <p className="text-xs font-medium text-teal-600 mb-1">Competencias</p>
+                      <p className="text-4xl font-bold text-teal-700">{Number(percentilComp.promedio_general).toFixed(2)}</p>
+                      <p className="text-xs text-teal-400 mt-1">Calificación General (1–10)</p>
+                    </div>
                     {/* Empresa */}
                     <div className="flex-1 min-w-[160px] bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center">
                       <p className="text-xs font-medium text-indigo-500 mb-1">Percentil Total Empresa</p>
@@ -569,10 +575,6 @@ export default function CarpetaTabs({
                     )}
                     {/* Supporting stats */}
                     <div className="flex flex-col justify-center gap-2 text-xs text-gray-500">
-                      <div>
-                        <span className="font-medium text-gray-700">{Number(percentilComp.promedio_general).toFixed(2)}</span>
-                        <span className="ml-1">prom. Calificación General (escala 1–10)</span>
-                      </div>
                       {percentilComp.num_evaluadores != null && (
                         <div>
                           <span className="font-medium text-gray-700">{percentilComp.num_evaluadores}</span>
