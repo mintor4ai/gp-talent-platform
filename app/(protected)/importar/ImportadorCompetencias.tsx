@@ -13,6 +13,13 @@ type ImportResult = {
   errors: string[];
 };
 
+type ExistingData = {
+  evaluados: number;
+  calificaciones: number;
+  comentarios: number;
+  ultima_importacion: string | null;
+};
+
 type PreviewResponse = {
   rows: CompetenciasPreviewRow[];
   total_evaluados: number;
@@ -20,6 +27,7 @@ type PreviewResponse = {
   unmatched: number;
   total_calificaciones: number;
   total_comentarios: number;
+  existing_data: ExistingData | null;
 };
 
 export default function ImportadorCompetencias() {
@@ -29,10 +37,11 @@ export default function ImportadorCompetencias() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmedOverwrite, setConfirmedOverwrite] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
-    setFile(null); setPreview(null); setResult(null); setError(null);
+    setFile(null); setPreview(null); setResult(null); setError(null); setConfirmedOverwrite(false);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -89,7 +98,7 @@ export default function ImportadorCompetencias() {
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Ciclo</label>
               <select
                 value={cicloAño}
-                onChange={(e) => { setCicloAño(Number(e.target.value)); reset(); }}
+                onChange={(e) => { setCicloAño(Number(e.target.value)); reset(); setConfirmedOverwrite(false); }}
                 className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white"
               >
                 {[2023, 2024, 2025, 2026, 2027].map((y) => (
@@ -133,6 +142,40 @@ export default function ImportadorCompetencias() {
       {/* Preview */}
       {preview && (
         <div className="space-y-4">
+          {/* Overwrite warning */}
+          {preview.existing_data && (
+            <div className="bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="text-amber-500 text-lg leading-none mt-0.5">⚠</span>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">
+                    El ciclo {cicloAño} ya tiene datos importados
+                  </p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    {preview.existing_data.evaluados} evaluados · {preview.existing_data.calificaciones} calificaciones · {preview.existing_data.comentarios} comentarios
+                    {preview.existing_data.ultima_importacion && (
+                      <> · Importado el {new Date(preview.existing_data.ultima_importacion).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}</>
+                    )}
+                  </p>
+                  <p className="text-xs text-amber-600 mt-1">
+                    Si confirmas, los datos existentes del ciclo {cicloAño} serán <strong>reemplazados</strong> por los del nuevo archivo.
+                  </p>
+                </div>
+              </div>
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={confirmedOverwrite}
+                  onChange={(e) => setConfirmedOverwrite(e.target.checked)}
+                  className="w-4 h-4 rounded border-amber-400 accent-amber-600"
+                />
+                <span className="text-xs font-medium text-amber-800">
+                  Entiendo que se reemplazarán los datos del ciclo {cicloAño}
+                </span>
+              </label>
+            </div>
+          )}
+
           {/* Summary stats */}
           <div className="flex flex-wrap gap-3">
             {[
@@ -169,10 +212,10 @@ export default function ImportadorCompetencias() {
                 </button>
                 <button
                   onClick={() => call("import")}
-                  disabled={loading || preview.matched === 0}
+                  disabled={loading || preview.matched === 0 || (!!preview.existing_data && !confirmedOverwrite)}
                   className="text-xs bg-green-600 text-white px-4 py-1.5 rounded-lg hover:bg-green-700 disabled:opacity-50 font-semibold transition-colors"
                 >
-                  {loading ? "Importando..." : `Importar ${preview.matched} evaluados`}
+                  {loading ? "Importando..." : preview.existing_data ? `Reemplazar ciclo ${cicloAño}` : `Importar ${preview.matched} evaluados`}
                 </button>
               </div>
             </div>

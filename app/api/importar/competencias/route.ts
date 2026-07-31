@@ -192,6 +192,35 @@ export async function POST(req: NextRequest) {
   }
 
   if (modo === "preview") {
+    // Check if cycle already has data
+    const [{ count: countDetalle }, { count: countComentarios }] = await Promise.all([
+      supabase.from("competencias_360_detalle").select("id", { count: "exact", head: true }).eq("ciclo_año", cicloAño),
+      supabase.from("competencias_360_comentarios").select("id", { count: "exact", head: true }).eq("ciclo_año", cicloAño),
+    ]);
+
+    // Get last import date from detalle
+    const { data: lastRow } = await supabase
+      .from("competencias_360_detalle")
+      .select("created_at")
+      .eq("ciclo_año", cicloAño)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Count distinct evaluated employees
+    const { data: evalDistinct } = await supabase
+      .from("competencias_360_detalle")
+      .select("colaborador_id")
+      .eq("ciclo_año", cicloAño);
+    const uniqueEvaluados = evalDistinct ? new Set(evalDistinct.map((r) => r.colaborador_id)).size : 0;
+
+    const existingData = (countDetalle ?? 0) > 0 ? {
+      evaluados:        uniqueEvaluados,
+      calificaciones:   countDetalle ?? 0,
+      comentarios:      countComentarios ?? 0,
+      ultima_importacion: lastRow?.created_at ?? null,
+    } : null;
+
     return NextResponse.json({
       rows: preview,
       total_evaluados: preview.length,
@@ -199,6 +228,7 @@ export async function POST(req: NextRequest) {
       unmatched: preview.filter((r) => !r.matched).length,
       total_calificaciones: detalleRows.length,
       total_comentarios: comentarioRows.length,
+      existing_data: existingData,
     });
   }
 
