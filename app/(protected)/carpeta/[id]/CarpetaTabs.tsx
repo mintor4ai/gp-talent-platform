@@ -1581,7 +1581,7 @@ function EIPCard({
         <div className="p-4 text-center">
           <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Desempeño LOGRA</p>
           <p className="text-2xl font-bold text-[#1a3a5c]">{lograNota != null ? lograNota.toFixed(1) : "—"}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">de 1 a 5</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">de 80 a 120</p>
         </div>
         <div className="p-4 text-center">
           <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Potencial EIP</p>
@@ -1635,11 +1635,11 @@ function EIPCard({
                 {desempSubItems.map(([label, val]) => (
                   <div key={label} className="flex items-center gap-3">
                     <span className="text-xs text-gray-500 w-36 flex-shrink-0">{label}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                    <div className="relative h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       {val != null && (
                         <div
-                          className="bg-[#1a3a5c] h-1.5 rounded-full"
-                          style={{ width: `${Math.min(100, (val / 5) * 100)}%` }}
+                          className="absolute inset-y-0 left-0 bg-[#1a3a5c] rounded-full"
+                          style={{ width: `${Math.min(100, Math.max(0, ((val - 80) / 40) * 100))}%` }}
                         />
                       )}
                     </div>
