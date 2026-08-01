@@ -490,6 +490,8 @@ export default function CarpetaTabs({
               percentilComp={percentilComp}
               ponderaciones={ponderacionesMap[cicloActual] ?? {}}
               zonaColors={zonaColors}
+              cicloActual={cicloActual}
+              isAdmin={isAdmin}
             />
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
@@ -1515,6 +1517,8 @@ function EIPCard({
   percentilComp,
   ponderaciones,
   zonaColors,
+  cicloActual,
+  isAdmin,
 }: {
   eip: EIP | null;
   desemp: Desempeno | null;
@@ -1522,8 +1526,10 @@ function EIPCard({
   percentilComp: CompetenciasPercentil | null;
   ponderaciones: Record<number, PonderacionRow>;
   zonaColors: { bg: string; text: string } | null;
+  cicloActual: number;
+  isAdmin: boolean;
 }) {
-  const [expandedDesemp, setExpandedDesemp] = useState(false);
+  const [expandedDesemp, setExpandedDesemp] = useState(true);
   const [expandedPotencial, setExpandedPotencial] = useState(false);
 
   const cp = eip?.calif_ponderada;
@@ -1537,15 +1543,14 @@ function EIPCard({
     Math.min(100, Math.max(0, ((v - 80) / 40) * 100));
 
   const desempSubItems: [string, number | null | undefined][] = [
-    ["Planea", desemp?.planea],
-    ["Ejecuta", desemp?.ejecuta],
-    ["Optimiza", desemp?.optimiza],
-    ["Trabaja en equipo", desemp?.trabaja_equipo],
-    ["Atiende cliente", desemp?.atiende_cliente],
-    ["Informa", desemp?.informa],
+    ["Planea",             desemp?.planea],
+    ["Ejecuta",            desemp?.ejecuta],
+    ["Optimiza",           desemp?.optimiza],
+    ["Trabaja en Equipo",  desemp?.trabaja_equipo],
+    ["Atiende al Cliente", desemp?.atiende_cliente],
+    ["Informa",            desemp?.informa],
   ];
 
-  // ev_comp is on 80-120; for raw competencias we have promedio_general (1-10)
   const evComp = eip?.ev_comp ?? null;
   const rawComp = percentilComp?.promedio_general ?? null;
 
@@ -1574,175 +1579,197 @@ function EIPCard({
     { label: "PICD", value: eip?.ev_picd ?? null, color: "bg-[#1a3a5c]", weight: pond?.w_picd ?? null, show: eip?.entrego_picd === true },
   ];
 
+  const ESTATUS_STYLE: Record<string, string> = {
+    APROBADA:  "bg-green-100 text-green-700 border-green-200",
+    TERMINADA: "bg-blue-100 text-blue-700 border-blue-200",
+    PENDIENTE: "bg-amber-100 text-amber-700 border-amber-200",
+  };
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      {/* Summary strip */}
+      {/* ── Summary strip ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 divide-x divide-gray-100 bg-[#f0f4f8] border-b border-gray-200">
-        <div className="p-4 text-center">
-          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Desempeño LOGRA</p>
-          <p className="text-2xl font-bold text-[#1a3a5c]">{lograNota != null ? lograNota.toFixed(1) : "—"}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">de 80 a 120</p>
+        <div className="p-5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Desempeño</p>
+          <p className="text-3xl font-bold text-[#1a3a5c] leading-none">
+            {lograNota != null ? Math.round(lograNota) : "—"}
+          </p>
+          <p className="text-[10px] text-gray-400 mt-1.5">LOGRA — Resultados del trabajo</p>
         </div>
-        <div className="p-4 text-center">
-          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Potencial EIP</p>
-          <p className="text-2xl font-bold text-[#1a3a5c]">{potencialNota != null ? potencialNota.toFixed(2) : "—"}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">escala 80–120</p>
+        <div className="p-5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Potencial</p>
+          <p className="text-3xl font-bold text-[#1a3a5c] leading-none">
+            {potencialNota != null ? Math.round(potencialNota) : "—"}
+          </p>
+          <p className="text-[10px] text-gray-400 mt-1.5">Evaluación integral · Ciclo {cicloActual}</p>
         </div>
-        <div className="p-4 text-center flex flex-col items-center justify-center gap-1">
-          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Zona</p>
+        <div className="p-5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Zona de Evaluación</p>
           {zona && zonaColors ? (
-            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${zonaColors.bg} ${zonaColors.text}`}>
-              {zona}
-            </span>
+            <>
+              <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${zonaColors.bg} ${zonaColors.text}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70 flex-shrink-0" />
+                {zona}
+              </span>
+              {eip?.tipo_matriz && (
+                <p className="text-[10px] text-gray-400 mt-1.5">{eip.tipo_matriz.replace(/_/g, " ")}</p>
+              )}
+            </>
           ) : (
             <span className="text-sm font-bold text-gray-300">—</span>
-          )}
-          {eip?.tipo_matriz && (
-            <span className="text-[9px] text-gray-400 font-medium px-1.5 py-0.5 bg-white/60 rounded-full mt-0.5">
-              {eip.tipo_matriz.replace(/_/g, " ")}
-            </span>
           )}
         </div>
       </div>
 
-      {/* Collapsible: Desempeño */}
+      {/* ── Desempeño — Resultados del Trabajo ────────────────────────── */}
       <div className="border-b border-gray-100">
         <button
-          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors text-left"
+          className="w-full flex items-center justify-between px-5 py-3 bg-gray-50/70 hover:bg-gray-50 transition-colors text-left"
           onClick={() => setExpandedDesemp((v) => !v)}
           aria-expanded={expandedDesemp}
         >
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-gray-700">Desempeño — Resultados del Trabajo</span>
-            {lograNota != null && (
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#1a3a5c]/10 text-[#1a3a5c]">
-                LOGRA {lograNota.toFixed(1)}
+            <span className="text-[11px] font-bold text-[#1a3a5c] uppercase tracking-wider">
+              Desempeño — Resultados del Trabajo
+            </span>
+            {isAdmin && desemp?.estatus_desem && (
+              <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${ESTATUS_STYLE[desemp.estatus_desem.toUpperCase()] ?? "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                {desemp.estatus_desem}
               </span>
             )}
           </div>
-          <svg
-            className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${expandedDesemp ? "rotate-180" : ""}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
+          <div className="flex items-center gap-2">
+            {lograNota != null && (
+              <span className="text-xs font-bold text-[#1a3a5c]">
+                LOGRA&nbsp;&nbsp;<span className="text-base">{Math.round(lograNota)}</span>
+              </span>
+            )}
+            <svg
+              className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${expandedDesemp ? "rotate-180" : ""}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </button>
 
         {expandedDesemp && (
-          <div className="px-5 pb-5">
+          <div>
             {desemp ? (
-              <div className="space-y-3">
-                {desempSubItems.map(([label, val]) => (
-                  <div key={label} className="flex items-center gap-3">
-                    <span className="text-xs text-gray-500 w-36 flex-shrink-0">{label}</span>
-                    <div className="relative h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      {val != null && (
-                        <div
-                          className="absolute inset-y-0 left-0 bg-[#1a3a5c] rounded-full"
-                          style={{ width: `${Math.min(100, Math.max(0, ((val - 80) / 40) * 100))}%` }}
-                        />
-                      )}
-                    </div>
-                    <span className="text-xs font-semibold text-[#1a3a5c] w-8 text-right tabular-nums">
-                      {val != null ? val.toFixed(1) : <span className="text-gray-300">ND</span>}
-                    </span>
-                  </div>
-                ))}
-                {desemp.resultado_logra != null && (
-                  <div className="flex items-center justify-between pt-2 mt-1 border-t border-gray-100">
-                    <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">LOGRA</span>
-                    <span className="text-lg font-bold text-[#1a3a5c]">{desemp.resultado_logra.toFixed(1)}</span>
-                  </div>
-                )}
-              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="px-5 py-2.5 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Descripción</th>
+                    <th className="px-5 py-2.5 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Evaluación</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {desempSubItems.map(([label, val]) => (
+                    <tr key={label} className="hover:bg-gray-50/40">
+                      <td className="px-5 py-3 text-sm text-gray-700">{label}</td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        {val != null
+                          ? <span className="text-sm font-semibold text-[#1a3a5c]">{Math.round(val)}</span>
+                          : <span className="text-sm text-gray-300">ND</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 bg-gray-50">
+                    <td className="px-5 py-3 text-sm font-bold text-gray-700 uppercase tracking-wide">LOGRA</td>
+                    <td className="px-5 py-3 text-right">
+                      {desemp.resultado_logra != null
+                        ? <span className="text-lg font-bold text-[#1a3a5c]">{Math.round(desemp.resultado_logra)}</span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             ) : (
-              <p className="text-xs text-gray-400 py-2">Sin evaluación de desempeño para este ciclo.</p>
+              <p className="px-5 py-4 text-sm text-gray-400">Sin evaluación de desempeño para este ciclo.</p>
             )}
           </div>
         )}
       </div>
 
-      {/* Collapsible: Potencial */}
+      {/* ── Potencial — Desarrollo Profesional ────────────────────────── */}
       <div>
         <button
-          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors text-left"
+          className="w-full flex items-center justify-between px-5 py-3 bg-gray-50/70 hover:bg-gray-50 transition-colors text-left"
           onClick={() => setExpandedPotencial((v) => !v)}
           aria-expanded={expandedPotencial}
         >
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-gray-700">Potencial — Desarrollo Profesional</span>
+          <span className="text-[11px] font-bold text-[#1a3a5c] uppercase tracking-wider">
+            Potencial — Desarrollo Profesional
+          </span>
+          <div className="flex items-center gap-2">
             {potencialNota != null && (
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#1a3a5c]/10 text-[#1a3a5c]">
-                {potencialNota.toFixed(2)}
+              <span className="text-xs font-bold text-[#1a3a5c]">
+                Evaluación&nbsp;&nbsp;<span className="text-base">{Math.round(potencialNota)}</span>
               </span>
             )}
+            <svg
+              className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${expandedPotencial ? "rotate-180" : ""}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
-          <svg
-            className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${expandedPotencial ? "rotate-180" : ""}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
         </button>
 
         {expandedPotencial && (
-          <div className="px-5 pb-5">
-            <div className="space-y-4">
-              {potencialItems.filter((item) => item.show).map((item) => {
-                const val = item.value ?? null;
-                const hasValue = val != null;
-                const pct = hasValue ? gaugePercent(val) : null;
-                return (
-                  <div key={item.label}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div>
-                        <span className="text-xs text-gray-600 font-medium">{item.label}</span>
-                        {item.rawNote && (
-                          <p className="text-[10px] text-teal-600 font-medium mt-0.5">{item.rawNote}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {item.weight != null && (
-                          <span className="text-[10px] font-semibold text-gray-400 tabular-nums">
-                            {(item.weight * 100).toFixed(0)}%
-                          </span>
-                        )}
-                        {hasValue ? (
-                          <span className="text-xs font-bold text-[#1a3a5c] tabular-nums w-12 text-right">
-                            {val.toFixed(1)}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                            {item.rawNote ? "Calculando…" : "Pendiente"}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
-                      {hasValue && pct != null && (
-                        <div
-                          className={`absolute inset-y-0 left-0 rounded-full ${item.color}`}
-                          style={{ width: `${pct}%` }}
-                        />
+          <div className="px-5 py-4 space-y-4">
+            {potencialItems.filter((item) => item.show).map((item) => {
+              const val = item.value ?? null;
+              const hasValue = val != null;
+              const pct = hasValue ? gaugePercent(val) : null;
+              return (
+                <div key={item.label}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div>
+                      <span className="text-xs text-gray-600 font-medium">{item.label}</span>
+                      {item.rawNote && (
+                        <p className="text-[10px] text-teal-600 font-medium mt-0.5">{item.rawNote}</p>
                       )}
                     </div>
-                    {/* Reference line at 100 (= 50% of 80-120) */}
-                    <div className="relative h-1">
-                      <div
-                        className="absolute top-0 w-px h-2 -mt-2 bg-gray-400 opacity-60"
-                        style={{ left: "50%" }}
-                      />
+                    <div className="flex items-center gap-2">
+                      {item.weight != null && (
+                        <span className="text-[10px] font-semibold text-gray-400 tabular-nums">
+                          {(item.weight * 100).toFixed(0)}%
+                        </span>
+                      )}
+                      {hasValue ? (
+                        <span className="text-xs font-bold text-[#1a3a5c] tabular-nums w-10 text-right">
+                          {val.toFixed(1)}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                          {item.rawNote ? "Calculando…" : "Pendiente"}
+                        </span>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-            <div className="mt-3 flex items-center gap-1.5 text-[10px] text-gray-400">
-              <div className="w-px h-3 bg-gray-400 flex-shrink-0" />
-              <span>Línea de referencia = 100 (escala 80–120)</span>
-            </div>
+                  <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
+                    {hasValue && pct != null && (
+                      <div
+                        className={`absolute inset-y-0 left-0 rounded-full ${item.color}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    )}
+                  </div>
+                  <div className="relative h-1">
+                    <div className="absolute top-0 w-px h-2 -mt-2 bg-gray-400 opacity-50" style={{ left: "50%" }} />
+                  </div>
+                </div>
+              );
+            })}
+            <p className="flex items-center gap-1.5 text-[10px] text-gray-400 pt-1">
+              <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" d="M12 8v4m0 4h.01"/></svg>
+              La escala 80–120 normaliza cada componente. El punto de referencia (100) es el promedio organizacional del ciclo.
+            </p>
             {!pond && eip && (
-              <p className="text-[10px] text-amber-600 mt-2">
+              <p className="text-[10px] text-amber-600">
                 Ponderaciones del ciclo {eip.ciclo_año} no configuradas.
               </p>
             )}
