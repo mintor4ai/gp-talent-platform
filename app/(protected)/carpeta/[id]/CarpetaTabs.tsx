@@ -1578,11 +1578,12 @@ function EIPCard({
   type PotencialRow = {
     label: string;
     value: number | null;
-    color: string;
+    hexColor: string;
+    scoreColor?: string;
     weight: number | null;
     show: boolean;
     subLabel?: string | null;
-    percentilChip?: { text: string; cls: string } | null;
+    percentilTag?: string | null;
     pendingBadge?: boolean;
   };
 
@@ -1590,7 +1591,7 @@ function EIPCard({
     {
       label: "Experiencia",
       value: eip?.ev_exp ?? null,
-      color: "bg-blue-500",
+      hexColor: "#2563eb",
       weight: pond?.w_exp ?? null,
       show: true,
       subLabel: expSubDetail,
@@ -1598,7 +1599,7 @@ function EIPCard({
     {
       label: "Nivel Académico",
       value: eip?.ev_form_acad ?? null,
-      color: "bg-blue-400",
+      hexColor: "#2563eb",
       weight: pond?.w_form_acad ?? null,
       show: true,
       subLabel: eip?.escolaridad_texto ?? null,
@@ -1606,38 +1607,36 @@ function EIPCard({
     {
       label: "Cursos",
       value: eip?.ev_cursos ?? null,
-      color: "bg-blue-300",
+      hexColor: "#2563eb",
       weight: pond?.w_cursos ?? null,
       show: (pond?.w_cursos ?? 0) > 0 || (eip?.ev_cursos ?? null) != null,
     },
     {
       label: "Competencias 360°",
       value: evComp,
-      color: "bg-teal-500",
+      hexColor: "#0d9488",
+      scoreColor: "#0d9488",
       weight: pond?.w_comp ?? null,
       show: true,
       subLabel: rawComp != null
         ? `Calificación general: ${Number(rawComp).toFixed(2)} / 10`
         : evComp == null ? "Pendiente de calcular" : null,
-      percentilChip: percentilCompEmpresa != null
-        ? { text: `Percentil ${percentilCompEmpresa} · Empresa`, cls: "bg-teal-100 text-teal-700" }
-        : null,
+      percentilTag: percentilCompEmpresa != null ? `Percentil ${percentilCompEmpresa} · Empresa` : null,
     },
     {
       label: "Evaluación Anual de Liderazgo",
       value: eip?.tuvo_eal === true ? (eip?.ev_eal ?? eal?.evaluacion_eal ?? null) : null,
-      color: "bg-violet-500",
+      hexColor: "#7c3aed",
+      scoreColor: "#7c3aed",
       weight: (eip?.tuvo_eal === true || eal != null) ? (pond?.w_eal ?? null) : null,
       show: eip?.tuvo_eal === true || eal != null,
       subLabel: ealPuntaje != null ? `Puntaje: ${Number(ealPuntaje).toFixed(2)} / 5` : null,
-      percentilChip: ealPercentil != null
-        ? { text: `Percentil ${ealPercentil} · Empresa`, cls: "bg-violet-100 text-violet-700" }
-        : null,
+      percentilTag: ealPercentil != null ? `Percentil ${ealPercentil} · Empresa` : null,
     },
     {
       label: "Cumplimiento PICD",
       value: eip?.entrego_picd === true ? (eip?.ev_picd ?? null) : null,
-      color: "bg-[#1a3a5c]",
+      hexColor: "#1a3a5c",
       weight: eip?.entrego_picd === true ? (pond?.w_picd ?? null) : 0,
       show: true,
       subLabel: eip?.entrego_picd !== true ? "Sin datos para este ciclo" : null,
@@ -1793,7 +1792,7 @@ function EIPCard({
                 <thead>
                   <tr className="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100">
                     <th className="px-5 py-2.5">Componente</th>
-                    <th className="px-5 py-2.5 text-center" colSpan={2}>Evaluación (80–120)</th>
+                    <th className="px-4 py-2.5">Evaluación (80–120)</th>
                     <th className="px-4 py-2.5 text-right">Peso</th>
                     <th className="px-5 py-2.5 text-right">Aportación</th>
                   </tr>
@@ -1810,45 +1809,49 @@ function EIPCard({
                         <td className="px-5 py-3 min-w-[180px]">
                           <p className="font-medium text-gray-800 text-sm">{item.label}</p>
                           {item.subLabel && (
-                            <p className="text-[11px] text-gray-400 mt-0.5">{item.subLabel}</p>
+                            <p className="text-[11px] text-gray-500 mt-0.5">{item.subLabel}</p>
                           )}
-                          {item.percentilChip && (
-                            <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${item.percentilChip.cls}`}>
-                              {item.percentilChip.text}
+                          {item.percentilTag && (
+                            <span className="inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#e8eef5] text-[#1a3a5c]">
+                              {item.percentilTag}
                             </span>
                           )}
                         </td>
-                        {/* Gauge */}
-                        <td className="py-3 px-5 w-48">
+                        {/* Gauge + score */}
+                        <td className="py-3 px-4 w-56">
                           {item.pendingBadge ? (
-                            <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                              PENDIENTE
+                            <span className="text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
+                              Pendiente
                             </span>
                           ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] text-gray-400 shrink-0">80</span>
-                              <div className="relative flex-1 h-3 bg-gray-100 rounded-full">
-                                {pct != null && (
-                                  <div
-                                    className={`absolute left-0 top-0 h-full rounded-full ${item.color}`}
-                                    style={{ width: `${pct}%` }}
-                                  />
-                                )}
-                                <div className="absolute top-0 h-full w-px bg-gray-400/50" style={{ left: "50%" }} />
+                            <div className="flex items-center gap-2">
+                              <div className="flex flex-col gap-1 flex-1 min-w-[110px]">
+                                <div className="relative h-2 bg-gray-200 rounded" style={{ overflow: "visible" }}>
+                                  {pct != null && (
+                                    <div
+                                      className="absolute left-0 top-0 h-full rounded"
+                                      style={{ width: `${pct}%`, backgroundColor: item.hexColor, opacity: 0.8 }}
+                                    />
+                                  )}
+                                  <div className="absolute top-[-3px] bottom-[-3px] w-[2px] rounded opacity-40 bg-gray-500" style={{ left: "calc(50% - 1px)" }} />
+                                </div>
+                                <div className="flex justify-between text-[9px] text-gray-400">
+                                  <span>80</span><span>100</span><span>120</span>
+                                </div>
                               </div>
-                              <span className="text-[10px] text-gray-400 shrink-0">120</span>
+                              <span
+                                className="text-[15px] font-bold min-w-[30px] text-right"
+                                style={{ color: item.scoreColor ?? "#111827" }}
+                              >
+                                {val != null ? Math.round(val) : "—"}
+                              </span>
                             </div>
                           )}
                         </td>
-                        {/* Numeric value */}
-                        <td className="py-3 pr-4 text-right w-12">
-                          {val != null
-                            ? <span className="font-bold text-gray-800">{Math.round(val)}</span>
-                            : <span className="text-gray-300 text-xs">—</span>}
-                        </td>
                         {/* Peso */}
                         <td className="px-4 py-3 text-right w-16">
-                          <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-semibold">
+                          <span className="inline-flex items-center justify-center min-w-[44px] h-6 rounded text-[11px] font-semibold bg-[#e8eef5] text-[#1a3a5c]"
+                            style={{ opacity: item.weight == null || item.weight === 0 ? 0.4 : 1 }}>
                             {item.weight != null && item.weight > 0
                               ? `${(item.weight * 100).toFixed(0)} %`
                               : "0 %"}
@@ -1857,25 +1860,24 @@ function EIPCard({
                         {/* Aportación */}
                         <td className="px-5 py-3 text-right w-20">
                           {aportacion != null
-                            ? <span className="font-bold text-gray-700">{aportacion}</span>
-                            : <span className="text-gray-300 text-xs">—</span>}
+                            ? <span className="text-[15px] font-semibold text-gray-800">{aportacion}</span>
+                            : <span className="text-gray-400 text-[13px]">—</span>}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50">
-                    <td className="px-5 py-3 font-bold text-gray-700 text-sm uppercase tracking-wide" colSpan={2}>
+                  <tr className="border-t-2 border-gray-200 bg-[#e8eef5]">
+                    <td className="px-5 py-3 font-bold text-gray-600 text-[12px] uppercase tracking-[.06em]" colSpan={2}>
                       Evaluación del Potencial
                     </td>
-                    <td className="py-3 pr-4 text-right" />
-                    <td className="px-4 py-3 text-right">
-                      <span className="text-[10px] bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded font-bold">
+                    <td className="py-3 px-4 text-right">
+                      <span className="inline-flex items-center justify-center min-w-[44px] h-6 rounded text-[11px] font-bold bg-[#d0dcea] text-[#1a3a5c]">
                         {(totalPeso * 100).toFixed(0)} %
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-right font-bold text-lg text-[#1a3a5c]">
+                    <td className="px-5 py-3 text-right font-extrabold text-[20px] text-[#1a3a5c]">
                       {potencialNota != null ? Math.round(potencialNota) : "—"}
                     </td>
                   </tr>
