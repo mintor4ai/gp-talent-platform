@@ -1722,33 +1722,52 @@ function EIPCard({
         </button>
 
         {expandedDesemp && (
-          <div>
+          <div className="overflow-x-auto">
             {desemp ? (
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[480px]">
                 <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="px-5 py-2.5 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Descripción</th>
-                    <th className="px-5 py-2.5 text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Evaluación</th>
+                  <tr className="border-b border-gray-100 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider bg-gray-50">
+                    <th className="px-5 py-2.5 w-40">Descripción</th>
+                    <th className="px-4 py-2.5">Evaluación (80–120)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {desempSubItems.map(([label, val]) => (
-                    <tr key={label} className="hover:bg-gray-50/40">
-                      <td className="px-5 py-3 text-sm text-gray-700">{label}</td>
-                      <td className="px-5 py-3 text-right tabular-nums">
-                        {val != null
-                          ? <span className="text-sm font-semibold text-[#1a3a5c]">{Math.round(val)}</span>
-                          : <span className="text-sm text-gray-300">ND</span>}
-                      </td>
-                    </tr>
-                  ))}
+                  {desempSubItems.map(([label, val]) => {
+                    const pct = val != null ? gaugePercent(val) : null;
+                    return (
+                      <tr key={label} className={`hover:bg-gray-50/40${val == null ? " opacity-50" : ""}`}>
+                        <td className="px-5 py-3 text-sm text-gray-700 whitespace-nowrap">{label}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex flex-col gap-1 flex-1">
+                              <div className="relative h-2 bg-gray-200 rounded" style={{ overflow: "visible" }}>
+                                {pct != null && (
+                                  <div
+                                    className="absolute left-0 top-0 h-full rounded"
+                                    style={{ width: `${pct}%`, backgroundColor: "#1a3a5c", opacity: 0.75 }}
+                                  />
+                                )}
+                                <div className="absolute top-[-3px] bottom-[-3px] w-[2px] rounded opacity-40 bg-gray-500" style={{ left: "calc(50% - 1px)" }} />
+                              </div>
+                              <div className="flex justify-between text-[9px] text-gray-400">
+                                <span>80</span><span>100</span><span>120</span>
+                              </div>
+                            </div>
+                            <span className="text-[15px] font-bold min-w-[30px] text-right text-[#1a3a5c]">
+                              {val != null ? Math.round(val) : <span className="text-gray-300 text-xs font-normal">ND</span>}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50">
-                    <td className="px-5 py-3 text-sm font-bold text-gray-700 uppercase tracking-wide">LOGRA</td>
-                    <td className="px-5 py-3 text-right">
+                  <tr className="border-t-2 border-gray-200 bg-[#e8eef5]">
+                    <td className="px-5 py-3 text-[12px] font-bold text-gray-600 uppercase tracking-[.06em]">LOGRA</td>
+                    <td className="px-4 py-3 text-right">
                       {desemp.resultado_logra != null
-                        ? <span className="text-lg font-bold text-[#1a3a5c]">{Math.round(desemp.resultado_logra)}</span>
+                        ? <span className="text-[20px] font-extrabold text-[#1a3a5c]">{Math.round(desemp.resultado_logra)}</span>
                         : <span className="text-gray-300">—</span>}
                     </td>
                   </tr>
@@ -1788,7 +1807,13 @@ function EIPCard({
 
         {expandedPotencial && (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[540px]">
+              <table className="w-full text-sm min-w-[540px]" style={{ tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "200px" }} />
+                  <col />
+                  <col style={{ width: "72px" }} />
+                  <col style={{ width: "80px" }} />
+                </colgroup>
                 <thead>
                   <tr className="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100">
                     <th className="px-5 py-2.5">Componente</th>
@@ -1818,7 +1843,7 @@ function EIPCard({
                           )}
                         </td>
                         {/* Gauge + score */}
-                        <td className="py-3 px-4 w-56">
+                        <td className="py-3 px-4">
                           {item.pendingBadge ? (
                             <span className="text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
                               Pendiente
