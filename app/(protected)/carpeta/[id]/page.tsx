@@ -93,7 +93,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .order("ciclo_año", { ascending: false }),
     supabase
       .from("evaluacion_anual_liderazgo")
-      .select("id, ciclo_año, promedio_eal, percentil_eal, evaluacion_eal, categoria")
+      .select("id, ciclo_año, promedio_eal, percentil_eal, evaluacion_eal, num_evaluadores")
       .eq("id_lider_evaluado", colaboradorId)
       .order("ciclo_año", { ascending: false }),
     supabase
@@ -317,7 +317,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         eips={eips ?? []}
         desempenos={desempenos ?? []}
         competencias={competencias ?? []}
-        eals={eals ?? []}
+        eals={(eals ?? []) as unknown as any[]}
         picdAcciones={picdAcciones ?? []}
         picdRecords={picdRecords ?? []}
         entrevistas={(entrevistas ?? []) as any[]}

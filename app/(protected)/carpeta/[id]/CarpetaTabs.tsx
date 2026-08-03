@@ -118,7 +118,7 @@ type EAL = {
   promedio_eal: number | null;
   percentil_eal: number | null;
   evaluacion_eal: number | null;
-  categoria: string | null;
+  num_evaluadores: number | null;
 };
 
 type PicdAccion = {
@@ -611,8 +611,8 @@ export default function CarpetaTabs({
                   {eal.percentil_eal != null && (
                     <Stat label="Percentil Empresa" value={"Percentil " + Math.round(Number(eal.percentil_eal))} />
                   )}
-                  {eal.categoria && (
-                    <Stat label="Categoría" value={eal.categoria} />
+                  {eal.num_evaluadores != null && (
+                    <Stat label="Evaluadores" value={String(eal.num_evaluadores)} />
                   )}
                 </div>
               ) : (

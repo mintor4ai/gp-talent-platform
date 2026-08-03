@@ -9,6 +9,7 @@ import ImportadorEstudios from "./ImportadorEstudios";
 import ImportadorCursos from "./ImportadorCursos";
 import ImportadorCompetencias from "./ImportadorCompetencias";
 import ImportadorDesempeno from "./ImportadorDesempeno";
+import ImportadorEAL from "./ImportadorEAL";
 
 const ZONA_COLORS: Record<string, string> = {
   Sobresaliente: "bg-purple-100 text-purple-800",
@@ -43,7 +44,7 @@ type ImportResult = {
 };
 
 export default function ImportadorClient() {
-  const [tab, setTab] = useState<"catalogo" | "colaboradores" | "usuarios" | "evaluaciones" | "hrcorp" | "estudios" | "cursos" | "competencias" | "desempeno">("catalogo");
+  const [tab, setTab] = useState<"catalogo" | "colaboradores" | "usuarios" | "evaluaciones" | "hrcorp" | "estudios" | "cursos" | "competencias" | "desempeno" | "eal">("catalogo");
   const [cicloAño, setCicloAño] = useState<number>(new Date().getFullYear());
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewRow[] | null>(null);
@@ -130,6 +131,7 @@ export default function ImportadorClient() {
           { id: "evaluaciones",  label: "Evaluaciones EIP / Desempeño" },
           { id: "competencias",  label: "Competencias 360°" },
           { id: "desempeno",     label: "Desempeño" },
+          { id: "eal",           label: "EAL" },
         ] as const).map((t) => (
           <button
             key={t.id}
@@ -163,6 +165,8 @@ export default function ImportadorClient() {
           <ImportadorDesempeno />
         </div>
       )}
+
+      {tab === "eal" && <ImportadorEAL />}
 
       {tab === "catalogo" && <ImportadorCatalogoPuestos />}
 
