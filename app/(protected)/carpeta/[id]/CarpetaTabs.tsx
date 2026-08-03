@@ -1625,7 +1625,7 @@ function EIPCard({
     },
     {
       label: "Evaluación Anual de Liderazgo",
-      value: eip?.tuvo_eal === true ? (eip?.ev_eal ?? eal?.evaluacion_eal ?? null) : null,
+      value: (eip?.tuvo_eal === true || eal != null) ? (eip?.ev_eal ?? eal?.evaluacion_eal ?? null) : null,
       hexColor: "#7c3aed",
       scoreColor: "#7c3aed",
       weight: (eip?.tuvo_eal === true || eal != null) ? (pond?.w_eal ?? null) : null,
