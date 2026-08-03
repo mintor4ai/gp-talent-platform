@@ -219,6 +219,8 @@ export default function CarpetaTabs({
   formacionAcademica = [],
   cursosFormacion = [],
   competenciasPercentiles = [],
+  ealRespuestas = [],
+  rol,
 }: {
   colaboradorId: string;
   ciclos: number[];
@@ -252,6 +254,15 @@ export default function CarpetaTabs({
   historialCarrera?: Array<{ id: string; puesto: string | null; empresa: string | null; tipo: string | null; años: number | null; fecha_inicio: string | null; fecha_fin: string | null }>;
   formacionAcademica?: FormacionAcademica[];
   cursosFormacion?: CursoFormacion[];
+  ealRespuestas?: Array<{
+    ciclo_año: number;
+    categoria: string;
+    pregunta: string;
+    respuesta_numerica: number | null;
+    respuesta_texto: string | null;
+    id_evaluador_empleado: string;
+  }>;
+  rol?: string;
 }) {
   const defaultTab = "perfil";
   const [mainTab, setMainTab] = useState<"perfil" | "evaluacion" | "picd" | "sucesion">(defaultTab);
@@ -265,6 +276,7 @@ export default function CarpetaTabs({
   const percentilComp = competenciasPercentiles.find((p) => p.ciclo_año === cicloActual) ?? null;
   const eal = eals.find((e) => e.ciclo_año === cicloActual) ?? null;
   const hasEal = eip?.tuvo_eal === true || eal !== null;
+  const ealRespuestasCiclo = (ealRespuestas ?? []).filter((r) => r.ciclo_año === cicloActual);
 
   const picdRecord = picdRecords.find((p) => p.ciclo_año === cicloActual) ?? null;
   const picdAccionesCiclo = picdAcciones.filter((a) => a.ciclo_año === cicloActual);
@@ -601,24 +613,12 @@ export default function CarpetaTabs({
           {/* Section 4: EAL (only when applicable) */}
           {hasEal && (
             <>
-              <SectionHeader label={`EAL — Evaluación Anual de Liderazgo ${cicloActual}`} />
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              {eal ? (
-                <div className="flex gap-6">
-                  {eal.promedio_eal != null && (
-                    <Stat label="Puntaje" value={Number(eal.promedio_eal).toFixed(2) + " / 5"} />
-                  )}
-                  {eal.percentil_eal != null && (
-                    <Stat label="Percentil Empresa" value={"Percentil " + Math.round(Number(eal.percentil_eal))} />
-                  )}
-                  {eal.num_evaluadores != null && (
-                    <Stat label="Evaluadores" value={String(eal.num_evaluadores)} />
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">Tuvo EAL en este ciclo. Datos detallados no disponibles.</p>
-              )}
-            </div>
+              <SectionHeader label={`Evaluación Anual de Liderazgo — ${cicloActual}`} />
+              <EalSection
+                eal={eal}
+                respuestas={ealRespuestasCiclo}
+                isSuperadmin={rol === "superadmin"}
+              />
             </>
           )}
 
@@ -1925,6 +1925,197 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-1">{label}</p>
       <p className="text-xl font-bold text-[#1a3a5c]">{value}</p>
+    </div>
+  );
+}
+
+// ── EAL Section ───────────────────────────────────────────────────────────────
+
+type EalRespuesta = {
+  ciclo_año: number;
+  categoria: string;
+  pregunta: string;
+  respuesta_numerica: number | null;
+  respuesta_texto: string | null;
+  id_evaluador_empleado: string;
+};
+
+function EalSection({
+  eal,
+  respuestas,
+  isSuperadmin,
+}: {
+  eal: EAL | null;
+  respuestas: EalRespuesta[];
+  isSuperadmin: boolean;
+}) {
+  const [expandedLibre, setExpandedLibre] = useState(false);
+
+  // Gauge helper (80–120 → 0–100%)
+  const gaugePercent = (v: number) => Math.max(0, Math.min(100, ((v - 80) / 40) * 100));
+
+  // No aggregate data and no detail — show placeholder
+  if (!eal && !respuestas.length) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <p className="text-sm text-gray-500">Tuvo EAL en este ciclo. Datos detallados no disponibles.</p>
+      </div>
+    );
+  }
+
+  // ── Compute per-question averages from detail rows ─────────────────────────
+  type QSummary = { categoria: string; pregunta: string; avg: number | null; count: number };
+
+  const numericRows = respuestas.filter((r) => r.respuesta_texto === null);
+  const libreRows   = respuestas.filter((r) => r.respuesta_texto !== null);
+
+  // Group by categoria+pregunta
+  const qMap = new Map<string, { categoria: string; pregunta: string; scores: number[] }>();
+  for (const r of numericRows) {
+    const key = `${r.categoria}|||${r.pregunta}`;
+    if (!qMap.has(key)) qMap.set(key, { categoria: r.categoria, pregunta: r.pregunta, scores: [] });
+    if (r.respuesta_numerica != null) qMap.get(key)!.scores.push(r.respuesta_numerica);
+  }
+
+  const qSummaries: QSummary[] = Array.from(qMap.values()).map((q) => ({
+    categoria: q.categoria,
+    pregunta:  q.pregunta,
+    avg:       q.scores.length ? Math.round((q.scores.reduce((a, b) => a + b, 0) / q.scores.length) * 100) / 100 : null,
+    count:     q.scores.length,
+  }));
+
+  // Group summaries by categoria (preserve insertion order)
+  const byCategoria = new Map<string, QSummary[]>();
+  for (const q of qSummaries) {
+    if (!byCategoria.has(q.categoria)) byCategoria.set(q.categoria, []);
+    byCategoria.get(q.categoria)!.push(q);
+  }
+
+  const hasDetail = qSummaries.length > 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Aggregate header card */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+        {eal && (
+          <>
+            {/* Top stat row */}
+            <div className="flex flex-wrap gap-6">
+              {eal.promedio_eal != null && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Promedio EAL</p>
+                  <p className="text-2xl font-extrabold text-[#7c3aed]">{Number(eal.promedio_eal).toFixed(2)}<span className="text-sm font-medium text-gray-400 ml-1">/ 5</span></p>
+                </div>
+              )}
+              {eal.evaluacion_eal != null && (
+                <div className="flex-1 min-w-[200px]">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Evaluación EAL (80–120)</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="relative h-2.5 bg-gray-200 rounded" style={{ overflow: "visible" }}>
+                        <div
+                          className="absolute left-0 top-0 h-full rounded"
+                          style={{ width: `${gaugePercent(Number(eal.evaluacion_eal))}%`, backgroundColor: "#7c3aed", opacity: 0.85 }}
+                        />
+                        <div className="absolute top-[-4px] bottom-[-4px] w-[2px] rounded opacity-40 bg-gray-500" style={{ left: "calc(50% - 1px)" }} />
+                      </div>
+                      <div className="flex justify-between text-[9px] text-gray-400 mt-1">
+                        <span>80</span><span>100</span><span>120</span>
+                      </div>
+                    </div>
+                    <span className="text-xl font-extrabold text-[#7c3aed] min-w-[36px] text-right">{Math.round(Number(eal.evaluacion_eal))}</span>
+                  </div>
+                </div>
+              )}
+              <div className="flex flex-col gap-3">
+                {eal.percentil_eal != null && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Percentil Empresa</p>
+                    <span className="inline-block text-sm font-bold px-3 py-1 rounded-full bg-[#e8eef5] text-[#1a3a5c]">
+                      Percentil {Math.round(Number(eal.percentil_eal))}
+                    </span>
+                  </div>
+                )}
+                {eal.num_evaluadores != null && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Evaluadores</p>
+                    <p className="text-lg font-bold text-gray-700">{eal.num_evaluadores}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Per-category/question detail table */}
+      {hasDetail && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100">
+            <p className="text-sm font-semibold text-gray-700">Resultados por pregunta</p>
+            <p className="text-xs text-gray-400 mt-0.5">Promedio de las respuestas recibidas · N/A excluidos del cálculo</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "160px" }} />
+                <col />
+                <col style={{ width: "56px" }} />
+              </colgroup>
+              <tbody>
+                {Array.from(byCategoria.entries()).map(([cat, qs], catIdx) => (
+                  <>
+                    <tr key={`cat-${catIdx}`} className="bg-[#f5f7fa] border-t border-gray-100">
+                      <td colSpan={3} className="px-5 py-2 text-[11px] font-bold text-[#1a3a5c] uppercase tracking-wider">
+                        {cat}
+                      </td>
+                    </tr>
+                    {qs.map((q, qIdx) => (
+                      <tr key={`q-${catIdx}-${qIdx}`} className="border-t border-gray-50 hover:bg-gray-50/40">
+                        <td className="px-5 py-0" />
+                        <td className="px-4 py-2.5 text-gray-600 text-xs leading-snug">{q.pregunta}</td>
+                        <td className="px-4 py-2.5 text-right">
+                          {q.avg != null
+                            ? <span className="text-[15px] font-bold text-[#7c3aed]">{q.avg.toFixed(2)}</span>
+                            : <span className="text-gray-300 text-xs">ND</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Libre comments */}
+      {libreRows.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <button
+            onClick={() => setExpandedLibre((v) => !v)}
+            className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-semibold text-gray-700">Comentarios libres</p>
+              <p className="text-xs text-gray-400 mt-0.5">{libreRows.length} comentario{libreRows.length !== 1 ? "s" : ""} recibido{libreRows.length !== 1 ? "s" : ""} · anónimos</p>
+            </div>
+            <span className="text-gray-400 text-lg">{expandedLibre ? "▲" : "▼"}</span>
+          </button>
+          {expandedLibre && (
+            <div className="divide-y divide-gray-50 border-t border-gray-100">
+              {libreRows.map((r, i) => (
+                <div key={i} className="px-5 py-3">
+                  <p className="text-sm text-gray-700 leading-relaxed">{r.respuesta_texto}</p>
+                  {isSuperadmin && (
+                    <p className="text-[10px] text-gray-400 mt-1">Evaluador: {r.id_evaluador_empleado}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

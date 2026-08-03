@@ -75,6 +75,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: formacionAcademicaRaw },
     { data: cursosFormacionRaw },
     { data: competenciasPercentilesRaw },
+    { data: ealRespuestasRaw },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -175,6 +176,11 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .from("competencias_360_percentiles")
       .select("ciclo_año, promedio_general, segmento, percentil_empresa, percentil_segmento, num_evaluadores, fecha_calculo")
       .eq("colaborador_id", colaboradorId)
+      .order("ciclo_año", { ascending: false }),
+    supabase
+      .from("eal_respuestas")
+      .select("ciclo_año, categoria, pregunta, respuesta_numerica, respuesta_texto, id_evaluador_empleado")
+      .eq("id_lider_evaluado", colaboradorId)
       .order("ciclo_año", { ascending: false }),
   ]);
 
@@ -340,6 +346,8 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         formacionAcademica={formacionAcademica}
         cursosFormacion={cursosFormacion}
         competenciasPercentiles={(competenciasPercentilesRaw ?? []) as any[]}
+        ealRespuestas={(ealRespuestasRaw ?? []) as any[]}
+        rol={rol}
       />
     </div>
   );
