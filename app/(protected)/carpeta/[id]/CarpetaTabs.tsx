@@ -72,6 +72,7 @@ type EIP = {
   años_exp_total: number | null;
   movilidad: number | null;
   num_puestos: number | null;
+  escolaridad_texto: string | null;
 };
 
 type PonderacionRow = {
@@ -114,8 +115,10 @@ type CompetenciasPercentil = {
 type EAL = {
   id: string;
   ciclo_año: number;
-  puntaje_total: number | null;
-  nivel_liderazgo: string | null;
+  promedio_eal: number | null;
+  percentil_eal: number | null;
+  evaluacion_eal: number | null;
+  categoria: string | null;
 };
 
 type PicdAccion = {
@@ -598,15 +601,18 @@ export default function CarpetaTabs({
           {/* Section 4: EAL (only when applicable) */}
           {hasEal && (
             <>
-              <SectionHeader label={`EAL — Aptitudes de Liderazgo ${cicloActual}`} />
+              <SectionHeader label={`EAL — Evaluación Anual de Liderazgo ${cicloActual}`} />
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
               {eal ? (
                 <div className="flex gap-6">
-                  {eal.puntaje_total != null && (
-                    <Stat label="Puntaje total" value={eal.puntaje_total.toFixed(1)} />
+                  {eal.promedio_eal != null && (
+                    <Stat label="Puntaje" value={Number(eal.promedio_eal).toFixed(2) + " / 5"} />
                   )}
-                  {eal.nivel_liderazgo && (
-                    <Stat label="Nivel de liderazgo" value={eal.nivel_liderazgo} />
+                  {eal.percentil_eal != null && (
+                    <Stat label="Percentil Empresa" value={"Percentil " + Math.round(Number(eal.percentil_eal))} />
+                  )}
+                  {eal.categoria && (
+                    <Stat label="Categoría" value={eal.categoria} />
                   )}
                 </div>
               ) : (
@@ -1553,30 +1559,90 @@ function EIPCard({
 
   const evComp = eip?.ev_comp ?? null;
   const rawComp = percentilComp?.promedio_general ?? null;
+  const percentilCompEmpresa = percentilComp?.percentil_empresa != null
+    ? Math.round(Number(percentilComp.percentil_empresa)) : null;
 
-  const potencialItems: {
+  // Experiencia sub-detail
+  const añosTotal = eip?.años_exp_total ?? null;
+  const numPuestos = eip?.num_puestos ?? null;
+  const añosProm = añosTotal != null && numPuestos != null && numPuestos > 0
+    ? (añosTotal / numPuestos).toFixed(1) : null;
+  const expSubDetail = añosTotal != null
+    ? `${añosTotal.toFixed(0)} año${Number(añosTotal) !== 1 ? "s" : ""} totales${añosProm ? ` · ${añosProm} años promedio por puesto` : ""}`
+    : null;
+
+  // EAL sub-detail
+  const ealPuntaje = eal?.promedio_eal ?? null;
+  const ealPercentil = eal?.percentil_eal != null ? Math.round(Number(eal.percentil_eal)) : null;
+
+  type PotencialRow = {
     label: string;
     value: number | null;
     color: string;
     weight: number | null;
     show: boolean;
-    rawNote?: string | null;
-  }[] = [
-    { label: "Experiencia",         value: eip?.ev_exp ?? null,       color: "bg-blue-500",   weight: pond?.w_exp ?? null,       show: true },
-    { label: "Formación Académica", value: eip?.ev_form_acad ?? null, color: "bg-blue-500",   weight: pond?.w_form_acad ?? null, show: true },
-    { label: "Cursos",              value: eip?.ev_cursos ?? null,    color: "bg-blue-400",   weight: pond?.w_cursos ?? null,    show: true },
+    subLabel?: string | null;
+    percentilChip?: { text: string; cls: string } | null;
+    pendingBadge?: boolean;
+  };
+
+  const potencialItems: PotencialRow[] = [
+    {
+      label: "Experiencia",
+      value: eip?.ev_exp ?? null,
+      color: "bg-blue-500",
+      weight: pond?.w_exp ?? null,
+      show: true,
+      subLabel: expSubDetail,
+    },
+    {
+      label: "Nivel Académico",
+      value: eip?.ev_form_acad ?? null,
+      color: "bg-blue-400",
+      weight: pond?.w_form_acad ?? null,
+      show: true,
+      subLabel: eip?.escolaridad_texto ?? null,
+    },
+    {
+      label: "Cursos",
+      value: eip?.ev_cursos ?? null,
+      color: "bg-blue-300",
+      weight: pond?.w_cursos ?? null,
+      show: (pond?.w_cursos ?? 0) > 0 || (eip?.ev_cursos ?? null) != null,
+    },
     {
       label: "Competencias 360°",
       value: evComp,
       color: "bg-teal-500",
       weight: pond?.w_comp ?? null,
       show: true,
-      rawNote: evComp == null && rawComp != null
-        ? `Calif. ${rawComp.toFixed(2)} / 10 · escala 80–120 pendiente`
+      subLabel: rawComp != null
+        ? `Calificación general: ${Number(rawComp).toFixed(2)} / 10`
+        : evComp == null ? "Pendiente de calcular" : null,
+      percentilChip: percentilCompEmpresa != null
+        ? { text: `Percentil ${percentilCompEmpresa} · Empresa`, cls: "bg-teal-100 text-teal-700" }
         : null,
     },
-    { label: "EAL",  value: eip?.ev_eal ?? null,  color: "bg-violet-500", weight: pond?.w_eal ?? null,  show: eip?.tuvo_eal === true || eal != null },
-    { label: "PICD", value: eip?.ev_picd ?? null, color: "bg-[#1a3a5c]", weight: pond?.w_picd ?? null, show: eip?.entrego_picd === true },
+    {
+      label: "Evaluación Anual de Liderazgo",
+      value: eip?.tuvo_eal === true ? (eip?.ev_eal ?? eal?.evaluacion_eal ?? null) : null,
+      color: "bg-violet-500",
+      weight: (eip?.tuvo_eal === true || eal != null) ? (pond?.w_eal ?? null) : null,
+      show: eip?.tuvo_eal === true || eal != null,
+      subLabel: ealPuntaje != null ? `Puntaje: ${Number(ealPuntaje).toFixed(2)} / 5` : null,
+      percentilChip: ealPercentil != null
+        ? { text: `Percentil ${ealPercentil} · Empresa`, cls: "bg-violet-100 text-violet-700" }
+        : null,
+    },
+    {
+      label: "Cumplimiento PICD",
+      value: eip?.entrego_picd === true ? (eip?.ev_picd ?? null) : null,
+      color: "bg-[#1a3a5c]",
+      weight: eip?.entrego_picd === true ? (pond?.w_picd ?? null) : 0,
+      show: true,
+      subLabel: eip?.entrego_picd !== true ? "Sin datos para este ciclo" : null,
+      pendingBadge: eip?.entrego_picd !== true,
+    },
   ];
 
   const ESTATUS_STYLE: Record<string, string> = {
@@ -1718,62 +1784,111 @@ function EIPCard({
           </div>
         </button>
 
-        {expandedPotencial && (
-          <div className="px-5 py-4 space-y-4">
-            {potencialItems.filter((item) => item.show).map((item) => {
-              const val = item.value ?? null;
-              const hasValue = val != null;
-              const pct = hasValue ? gaugePercent(val) : null;
-              return (
-                <div key={item.label}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div>
-                      <span className="text-xs text-gray-600 font-medium">{item.label}</span>
-                      {item.rawNote && (
-                        <p className="text-[10px] text-teal-600 font-medium mt-0.5">{item.rawNote}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {item.weight != null && (
-                        <span className="text-[10px] font-semibold text-gray-400 tabular-nums">
-                          {(item.weight * 100).toFixed(0)}%
-                        </span>
-                      )}
-                      {hasValue ? (
-                        <span className="text-xs font-bold text-[#1a3a5c] tabular-nums w-10 text-right">
-                          {val.toFixed(1)}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                          {item.rawNote ? "Calculando…" : "Pendiente"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
-                    {hasValue && pct != null && (
-                      <div
-                        className={`absolute inset-y-0 left-0 rounded-full ${item.color}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    )}
-                  </div>
-                  <div className="relative h-1">
-                    <div className="absolute top-0 w-px h-2 -mt-2 bg-gray-400 opacity-50" style={{ left: "50%" }} />
-                  </div>
-                </div>
-              );
-            })}
-            <p className="flex items-center gap-1.5 text-[10px] text-gray-400 pt-1">
-              <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" d="M12 8v4m0 4h.01"/></svg>
-              La escala 80–120 normaliza cada componente. El punto de referencia (100) es el promedio organizacional del ciclo.
-            </p>
-            {!pond && eip && (
-              <p className="text-[10px] text-amber-600">
-                Ponderaciones del ciclo {eip.ciclo_año} no configuradas.
-              </p>
-            )}
-          </div>
+        {expandedPotencial && (() => {
+          const visible = potencialItems.filter((item) => item.show);
+          const totalPeso = visible.reduce((s, r) => s + (r.weight ?? 0), 0);
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[540px]">
+                <thead>
+                  <tr className="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100">
+                    <th className="px-5 py-2.5">Componente</th>
+                    <th className="px-5 py-2.5 text-center" colSpan={2}>Evaluación (80–120)</th>
+                    <th className="px-4 py-2.5 text-right">Peso</th>
+                    <th className="px-5 py-2.5 text-right">Aportación</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {visible.map((item) => {
+                    const val = item.value;
+                    const pct = val != null ? gaugePercent(val) : null;
+                    const aportacion = val != null && item.weight != null && item.weight > 0
+                      ? (val * item.weight).toFixed(1) : null;
+                    return (
+                      <tr key={item.label} className="hover:bg-gray-50/50">
+                        {/* Component label + sub-details */}
+                        <td className="px-5 py-3 min-w-[180px]">
+                          <p className="font-medium text-gray-800 text-sm">{item.label}</p>
+                          {item.subLabel && (
+                            <p className="text-[11px] text-gray-400 mt-0.5">{item.subLabel}</p>
+                          )}
+                          {item.percentilChip && (
+                            <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${item.percentilChip.cls}`}>
+                              {item.percentilChip.text}
+                            </span>
+                          )}
+                        </td>
+                        {/* Gauge */}
+                        <td className="py-3 px-5 w-48">
+                          {item.pendingBadge ? (
+                            <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                              PENDIENTE
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-gray-400 shrink-0">80</span>
+                              <div className="relative flex-1 h-3 bg-gray-100 rounded-full">
+                                {pct != null && (
+                                  <div
+                                    className={`absolute left-0 top-0 h-full rounded-full ${item.color}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                )}
+                                <div className="absolute top-0 h-full w-px bg-gray-400/50" style={{ left: "50%" }} />
+                              </div>
+                              <span className="text-[10px] text-gray-400 shrink-0">120</span>
+                            </div>
+                          )}
+                        </td>
+                        {/* Numeric value */}
+                        <td className="py-3 pr-4 text-right w-12">
+                          {val != null
+                            ? <span className="font-bold text-gray-800">{Math.round(val)}</span>
+                            : <span className="text-gray-300 text-xs">—</span>}
+                        </td>
+                        {/* Peso */}
+                        <td className="px-4 py-3 text-right w-16">
+                          <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-semibold">
+                            {item.weight != null && item.weight > 0
+                              ? `${(item.weight * 100).toFixed(0)} %`
+                              : "0 %"}
+                          </span>
+                        </td>
+                        {/* Aportación */}
+                        <td className="px-5 py-3 text-right w-20">
+                          {aportacion != null
+                            ? <span className="font-bold text-gray-700">{aportacion}</span>
+                            : <span className="text-gray-300 text-xs">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 bg-gray-50">
+                    <td className="px-5 py-3 font-bold text-gray-700 text-sm uppercase tracking-wide" colSpan={2}>
+                      Evaluación del Potencial
+                    </td>
+                    <td className="py-3 pr-4 text-right" />
+                    <td className="px-4 py-3 text-right">
+                      <span className="text-[10px] bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded font-bold">
+                        {(totalPeso * 100).toFixed(0)} %
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-right font-bold text-lg text-[#1a3a5c]">
+                      {potencialNota != null ? Math.round(potencialNota) : "—"}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+              {!pond && eip && (
+                <p className="text-[10px] text-amber-600 px-5 py-3 bg-amber-50 border-t border-amber-100">
+                  Ponderaciones del ciclo {eip.ciclo_año} no configuradas.
+                </p>
+              )}
+            </div>
+          );
+        })()
         )}
       </div>
     </div>

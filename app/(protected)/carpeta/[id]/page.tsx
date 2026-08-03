@@ -92,8 +92,8 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .eq("id_empleado", colaboradorId)
       .order("ciclo_año", { ascending: false }),
     supabase
-      .from("evaluacion_eal")
-      .select("*")
+      .from("evaluacion_anual_liderazgo")
+      .select("id, ciclo_año, promedio_eal, percentil_eal, evaluacion_eal, categoria")
       .eq("id_lider_evaluado", colaboradorId)
       .order("ciclo_año", { ascending: false }),
     supabase
