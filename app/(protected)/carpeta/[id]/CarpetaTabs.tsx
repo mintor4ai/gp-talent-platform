@@ -1651,6 +1651,9 @@ function EIPCard({
     PENDIENTE: "bg-amber-100 text-amber-700 border-amber-200",
   };
 
+  const visiblePotencial = potencialItems.filter((item) => item.show);
+  const totalPeso = visiblePotencial.reduce((s, r) => s + (r.weight ?? 0), 0);
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       {/* ── Summary strip ─────────────────────────────────────────────── */}
@@ -1784,10 +1787,7 @@ function EIPCard({
           </div>
         </button>
 
-        {expandedPotencial && (() => {
-          const visible = potencialItems.filter((item) => item.show);
-          const totalPeso = visible.reduce((s, r) => s + (r.weight ?? 0), 0);
-          return (
+        {expandedPotencial && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[540px]">
                 <thead>
@@ -1799,7 +1799,7 @@ function EIPCard({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {visible.map((item) => {
+                  {visiblePotencial.map((item) => {
                     const val = item.value;
                     const pct = val != null ? gaugePercent(val) : null;
                     const aportacion = val != null && item.weight != null && item.weight > 0
@@ -1887,8 +1887,6 @@ function EIPCard({
                 </p>
               )}
             </div>
-          );
-        })()
         )}
       </div>
     </div>
