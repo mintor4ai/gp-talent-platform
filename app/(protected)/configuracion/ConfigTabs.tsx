@@ -15,6 +15,7 @@ import { savePonderaciones, type PonderacionInput } from "@/app/actions/ponderac
 import type { ZonaBand, Periodo } from "@/lib/types";
 import ZoneBoundaryEditor from "./ZoneBoundaryEditor";
 import UsuariosTab, { type AuthUsuario } from "./UsuariosTab";
+import TablasEipTab, { type TablasEipRow } from "./TablasEipTab";
 
 type Regla = { id: string; nivel: string; valor: string; habilitado: boolean };
 type Prompt = { id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string };
@@ -52,6 +53,8 @@ export default function ConfigTabs({
   authUsuarios,
   colaboradores,
   ponderacionesMap,
+  tablaExp,
+  tablaMov,
 }: {
   grupos: { uens: string[]; departamentos: string[]; areas: string[]; segmentos: string[] };
   reglasAcceso: Regla[];
@@ -64,8 +67,10 @@ export default function ConfigTabs({
   authUsuarios: AuthUsuario[];
   colaboradores: ColabRow[];
   ponderacionesMap: Record<number, PonderacionRow[]>;
+  tablaExp: TablasEipRow[];
+  tablaMov: TablasEipRow[];
 }) {
-  const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones">("usuarios");
+  const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones" | "tablas_eip">("usuarios");
 
   return (
     <div>
@@ -79,6 +84,7 @@ export default function ConfigTabs({
           { key: "periodos",       label: "Períodos" },
           { key: "zonas",          label: "Zonas EIP" },
           { key: "ponderaciones",  label: "Ponderaciones EIP" },
+          { key: "tablas_eip",     label: "Tablas Exp. / Movilidad" },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -101,6 +107,7 @@ export default function ConfigTabs({
       {tab === "periodos"      && <PeriodosTab periodos={periodos} />}
       {tab === "zonas"         && <ZonasEipTab zonasMap={zonasMap} availableCycles={availableZonaCycles} periodos={periodos} />}
       {tab === "ponderaciones" && <PonderacionesEipTab ponderacionesMap={ponderacionesMap} periodos={periodos} />}
+      {tab === "tablas_eip"    && <TablasEipTab tablaExp={tablaExp} tablaMov={tablaMov} periodos={periodos} />}
     </div>
   );
 }

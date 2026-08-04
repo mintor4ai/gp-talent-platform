@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import ConfigTabs from "./ConfigTabs";
 import type { ZonaBand, Periodo } from "@/lib/types";
 import type { AuthUsuario } from "./UsuariosTab";
+import type { TablasEipRow } from "./TablasEipTab";
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
@@ -19,7 +20,7 @@ export default async function ConfiguracionPage() {
   if (perfil?.rol !== "superadmin") redirect("/dashboard");
 
   // Distinct group values from colaboradores (trim whitespace)
-  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes, ponderacionesRes] =
+  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes, ponderacionesRes, tablaExpRes, tablaMovRes] =
     await Promise.all([
       supabase.from("colaboradores").select("razon_social").not("razon_social", "is", null),
       supabase.from("colaboradores").select("departamento").not("departamento", "is", null),
@@ -34,6 +35,8 @@ export default async function ConfiguracionPage() {
       supabase.from("periodos").select("*").order("ciclo_año", { ascending: false }),
       supabase.from("vw_auth_usuarios").select("*").order("auth_created_at", { ascending: false }),
       supabase.from("eip_ponderaciones").select("*").order("ciclo_año", { ascending: false }).order("calif_ponderada"),
+      supabase.from("eip_tabla_experiencia").select("ciclo_año, años, nivel_num, score").order("ciclo_año", { ascending: false }).order("años").order("nivel_num"),
+      supabase.from("eip_tabla_movilidad").select("ciclo_año, movilidad_floor, nivel_num, score").order("ciclo_año", { ascending: false }).order("movilidad_floor").order("nivel_num"),
     ]);
 
   type Raw = { [key: string]: string | null };
@@ -77,6 +80,22 @@ export default async function ConfiguracionPage() {
 
   const colaboradoresAll = (colabsRes.data as ColabRow[]) ?? [];
 
+  type TablaExpRaw = { ciclo_año: number; años: number; nivel_num: number; score: number };
+  type TablaMovRaw = { ciclo_año: number; movilidad_floor: number; nivel_num: number; score: number };
+
+  const tablaExpRows = ((tablaExpRes.data as unknown as TablaExpRaw[]) ?? []).map((r) => ({
+    ciclo_año: r.ciclo_año,
+    fila: r.años,
+    nivel_num: r.nivel_num,
+    score: r.score,
+  }));
+  const tablaMovRows = ((tablaMovRes.data as unknown as TablaMovRaw[]) ?? []).map((r) => ({
+    ciclo_año: r.ciclo_año,
+    fila: r.movilidad_floor,
+    nivel_num: r.nivel_num,
+    score: r.score,
+  }));
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
@@ -95,6 +114,8 @@ export default async function ConfiguracionPage() {
         authUsuarios={authUsuarios}
         colaboradores={colaboradoresAll}
         ponderacionesMap={ponderacionesMap}
+        tablaExp={tablaExpRows}
+        tablaMov={tablaMovRows}
       />
     </div>
   );
