@@ -183,44 +183,44 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Load ev_comp from existing EIP records ────────────────────────────────
+  // Avoid .in(colabIds) with large arrays — query all rows for the cycle instead
+  const colabIdSet = new Set(colabIds);
   const { data: evCompRaw } = await supabase
     .from("evaluacion_integral_personal")
     .select("id_empleado, ev_comp")
-    .eq("ciclo_año", ciclo_año)
-    .in("id_empleado", colabIds);
+    .eq("ciclo_año", ciclo_año);
   const evCompMap = new Map<string, number | null>();
   for (const r of (evCompRaw ?? []) as Array<{ id_empleado: string; ev_comp: number | null }>) {
-    evCompMap.set(r.id_empleado, r.ev_comp != null ? Number(r.ev_comp) : null);
+    if (colabIdSet.has(r.id_empleado))
+      evCompMap.set(r.id_empleado, r.ev_comp != null ? Number(r.ev_comp) : null);
   }
 
   // ── Load EAL (evaluacion_eal for this cycle) ──────────────────────────────
   const { data: ealRaw } = await supabase
     .from("evaluacion_anual_liderazgo")
     .select("id_lider_evaluado, evaluacion_eal")
-    .eq("ciclo_año", ciclo_año)
-    .in("id_lider_evaluado", colabIds);
+    .eq("ciclo_año", ciclo_año);
   const ealMap = new Map<string, number>();
   for (const r of (ealRaw ?? []) as Array<{ id_lider_evaluado: string; evaluacion_eal: number }>) {
-    if (r.evaluacion_eal != null) ealMap.set(r.id_lider_evaluado, Number(r.evaluacion_eal));
+    if (r.evaluacion_eal != null && colabIdSet.has(r.id_lider_evaluado))
+      ealMap.set(r.id_lider_evaluado, Number(r.evaluacion_eal));
   }
 
   // ── Load PICD for this cycle ──────────────────────────────────────────────
   const { data: picdRaw } = await supabase
     .from("picd")
     .select("id_empleado, entrego_picd, porcentaje_cumplimiento")
-    .eq("ciclo_año", ciclo_año)
-    .in("id_empleado", colabIds);
+    .eq("ciclo_año", ciclo_año);
   type PicdRow = { id_empleado: string; entrego_picd: boolean | null; porcentaje_cumplimiento: number | null };
   const picdMap = new Map<string, PicdRow>();
   for (const r of (picdRaw ?? []) as unknown as PicdRow[]) {
-    picdMap.set(r.id_empleado, r);
+    if (colabIdSet.has(r.id_empleado)) picdMap.set(r.id_empleado, r);
   }
 
   // ── Load highest education level per person ───────────────────────────────
   const { data: estudiosRaw } = await supabase
     .from("formacion_academica")
-    .select("colaborador_id, nivel_estudio")
-    .in("colaborador_id", colabIds);
+    .select("colaborador_id, nivel_estudio");
 
   const ESCOLARIDAD_ORDER: Record<string, number> = {
     "(No Especificado)": 0,
