@@ -92,7 +92,12 @@ export default function ImportadorPicd() {
                 ref={inputRef}
                 type="file"
                 accept=".xlsx,.xls,.csv,.tsv"
-                onChange={(e) => { setFile(e.target.files?.[0] ?? null); reset(); setFile(e.target.files?.[0] ?? null); }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setPreview(null); setResult(null); setError(null);
+                  setConfirmed(false); setFilterCiclo("all");
+                  setFile(f);
+                }}
                 className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-[#1a3a5c] file:text-white hover:file:bg-[#15304e] cursor-pointer"
               />
             </div>
