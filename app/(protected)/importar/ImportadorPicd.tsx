@@ -10,6 +10,13 @@ type PreviewResponse = {
   unmatched: number;
   duplicados: number;
   ciclos: number[];
+  _debug?: {
+    raw_rows: number;
+    groups_formed: number;
+    colab_map_size: number;
+    first_row_keys: string[];
+    sample_empleados: { key: string; empleadoId: string; idPeriodo: number; inColabMap: boolean }[];
+  };
 };
 
 type ImportResult = {
@@ -149,6 +156,30 @@ export default function ImportadorPicd() {
                 </div>
               ))}
             </div>
+
+            {/* Debug panel */}
+            {preview._debug && (
+              <details className="mt-2">
+                <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">Diagnóstico de parseo</summary>
+                <div className="mt-2 bg-gray-50 rounded-lg p-3 text-xs font-mono space-y-1 text-gray-600">
+                  <p>Filas brutas en archivo: <strong>{preview._debug.raw_rows}</strong></p>
+                  <p>Grupos formados (empleado+periodo): <strong>{preview._debug.groups_formed}</strong></p>
+                  <p>Colaboradores en BD: <strong>{preview._debug.colab_map_size}</strong></p>
+                  <p className="mt-1">Columnas detectadas en fila 1:</p>
+                  <p className="text-gray-500 break-all">{preview._debug.first_row_keys.join(" | ")}</p>
+                  {preview._debug.sample_empleados.length > 0 && (
+                    <>
+                      <p className="mt-1">Muestra de empleados del archivo:</p>
+                      {preview._debug.sample_empleados.map((e, i) => (
+                        <p key={i} className={e.inColabMap ? "text-green-700" : "text-red-600"}>
+                          {e.empleadoId} (periodo {e.idPeriodo}) — {e.inColabMap ? "MATCH" : "SIN MATCH"}
+                        </p>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </details>
+            )}
 
             {/* Ciclo filter */}
             {preview.ciclos.length > 1 && (

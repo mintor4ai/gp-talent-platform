@@ -214,6 +214,11 @@ export async function POST(req: NextRequest) {
   const duplicados      = previewRows.filter((r) => r.isDuplicate && r.matched);
 
   if (modo === "preview") {
+    const firstRowKeys = rows.length > 0 ? Object.keys(rows[0]).slice(0, 20) : [];
+    const sampleEmpleados = Array.from(groups.keys()).slice(0, 5).map((k) => {
+      const g = groups.get(k)!;
+      return { key: k, empleadoId: g.empleadoId, idPeriodo: g.idPeriodo, inColabMap: colabMap.has(g.empleadoId) };
+    });
     return NextResponse.json({
       rows: previewRows,
       total: previewRows.length,
@@ -221,6 +226,13 @@ export async function POST(req: NextRequest) {
       unmatched: unmatched.length,
       duplicados: duplicados.length,
       ciclos: Array.from(new Set(previewRows.map((r) => r.ciclo_año))).sort(),
+      _debug: {
+        raw_rows: rows.length,
+        groups_formed: groups.size,
+        colab_map_size: colabMap.size,
+        first_row_keys: firstRowKeys,
+        sample_empleados: sampleEmpleados,
+      },
     });
   }
 
