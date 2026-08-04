@@ -9,6 +9,24 @@ import {
 } from "@/app/actions/tablas_eip";
 import type { Periodo } from "@/lib/types";
 
+// ── segment labels ────────────────────────────────────────────────────────────
+
+export const NIVEL_SEGMENTOS: Record<number, { short: string; full: string }> = {
+  1:  { short: "Director",    full: "A · Director" },
+  2:  { short: "Subdirector", full: "B · Subdirector" },
+  3:  { short: "Gerente",     full: "C · Gerente" },
+  4:  { short: "Subgerente",  full: "D · Subgerente" },
+  5:  { short: "Superint.",   full: "E · Superintendente" },
+  6:  { short: "Jefe Dpto",   full: "F · Jefe de Depto" },
+  7:  { short: "Jefe Obra",   full: "G · Jefe de Obra" },
+  8:  { short: "Coord.",      full: "H · Coordinador Depto" },
+  9:  { short: "Administ.",   full: "I · Administrador" },
+  10: { short: "Residente",   full: "J · Residente" },
+  11: { short: "Analista",    full: "K · Analista" },
+  12: { short: "Asistente",   full: "L · Asistente" },
+  13: { short: "Auxiliar",    full: "M · Auxiliar" },
+};
+
 // ── types ─────────────────────────────────────────────────────────────────────
 
 export type TablasEipRow = {
@@ -114,8 +132,9 @@ function MatrixEditor({
                 Años
               </th>
               {niveles.map((n) => (
-                <th key={n} className="px-1 py-1.5 text-center text-gray-500 font-medium min-w-[44px]">
-                  N{n}
+                <th key={n} title={NIVEL_SEGMENTOS[n]?.full ?? `N${n}`} className="px-1 py-1.5 text-center text-gray-500 font-medium min-w-[72px] whitespace-nowrap">
+                  <span className="block text-[10px] text-gray-400 font-normal">N{n}</span>
+                  <span className="block">{NIVEL_SEGMENTOS[n]?.short ?? `N${n}`}</span>
                 </th>
               ))}
             </tr>
