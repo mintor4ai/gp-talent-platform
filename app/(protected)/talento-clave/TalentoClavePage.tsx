@@ -4,6 +4,7 @@ import { useState, useTransition, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { ZONA_COLORS } from "@/lib/types";
 import {
   sincronizarTalentoClave,
   promoverTalentoClave,
@@ -56,10 +57,6 @@ type Props = {
   allColaboradores: ColaboradorOption[];
 };
 
-const ZONA_COLORS: Record<string, { bg: string; text: string }> = {
-  Sobresaliente: { bg: "bg-purple-100", text: "text-purple-700" },
-  Desarrollo:    { bg: "bg-blue-100",   text: "text-blue-700"   },
-};
 
 // Visual identity per fuente (analogous to SEMAFORO_CONFIG in movilidad)
 const FUENTE_CONFIG: Record<string, { stripe: string; bg: string; text: string; label: string }> = {

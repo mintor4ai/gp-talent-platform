@@ -65,15 +65,17 @@ export default async function TalentoClaveRoute() {
 
   const cicloAño = (ciclosData as any)?.ciclo_año ?? new Date().getFullYear();
 
-  // EIP candidates (Desarrollo + Sobresaliente)
+  // All EIP records for the cycle (all zones, for display)
   const { data: eips } = await supabase
     .from("evaluacion_integral_personal")
     .select("id_empleado, zona_evaluacion")
-    .eq("ciclo_año", cicloAño)
-    .in("zona_evaluacion", ["Desarrollo", "Sobresaliente"]);
+    .eq("ciclo_año", cicloAño);
 
-  const eipArr = (eips ?? []) as { id_empleado: string; zona_evaluacion: string }[];
-  const eipMap = new Map(eipArr.map((e) => [e.id_empleado, e.zona_evaluacion]));
+  const eipArr = (eips ?? []) as { id_empleado: string; zona_evaluacion: string | null }[];
+  // Full zone map for display in the UI
+  const eipZonaMap = new Map(eipArr.filter((e) => e.zona_evaluacion).map((e) => [e.id_empleado, e.zona_evaluacion as string]));
+  // Auto-qualify map: only Desarrollo + Sobresaliente determine "auto" TC
+  const eipMap = new Map(eipArr.filter((e) => e.zona_evaluacion === "Desarrollo" || e.zona_evaluacion === "Sobresaliente").map((e) => [e.id_empleado, e.zona_evaluacion as string]));
 
   // Persona Clave candidates (persona_clave = 1 from desempeño)
   const { data: pcData } = await supabase
@@ -194,7 +196,7 @@ export default async function TalentoClaveRoute() {
     else if (isAuto)       fuente = "auto";
     else                   fuente = tc?.fuente ?? "manual_ch";
 
-    const zona = tc?.zona_eip ?? eipMap.get(c.id) ?? null;
+    const zona = eipZonaMap.get(c.id) ?? tc?.zona_eip ?? null;
 
     const umbral = resolveUmbral(umbralesArr, c.organización ?? null, c.segmento_organizacional ?? null);
     const { semaforo: semaforo_movilidad, meses: meses_en_posicion } = computeSemaforo(
