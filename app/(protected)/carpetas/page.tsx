@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import EvaluacionesTable from "@/app/(protected)/evaluaciones/EvaluacionesTable";
 import CicloSelector from "./CicloSelector";
+import CarpetasClient from "./CarpetasClient";
 
 export default async function CarpetasPage({
   searchParams,
@@ -29,9 +29,15 @@ export default async function CarpetasPage({
 
   const { data: eips } = await supabase
     .from("evaluacion_integral_personal")
-    .select("*, colaboradores(*)")
-    .order("ciclo_año", { ascending: false })
-    .order("zona_evaluacion");
+    .select(`
+      id, id_empleado, ciclo_año, zona_evaluacion,
+      evaluacion_potencial_total, desempeno_logra,
+      colaboradores (
+        nombre_completo, puesto, segmento_organizacional,
+        organización, area, jefe_inmediato_nombre
+      )
+    `)
+    .order("ciclo_año", { ascending: false });
 
   const ciclos = Array.from(new Set((eips ?? []).map((e) => (e as any).ciclo_año))).sort(
     (a, b) => (b as number) - (a as number)
@@ -59,9 +65,7 @@ export default async function CarpetasPage({
         <div className="px-5 py-4 border-b border-gray-100">
           <SectionHeader label={`Detalle — Ciclo ${cicloActual}`} />
         </div>
-        <div className="overflow-x-auto">
-          <EvaluacionesTable eips={eipsActual as any} />
-        </div>
+        <CarpetasClient eips={eipsActual as any} />
       </div>
     </div>
   );
