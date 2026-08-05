@@ -63,8 +63,9 @@ const ZONA_COLORS: Record<string, { bg: string; text: string }> = {
 
 // Visual identity per fuente (analogous to SEMAFORO_CONFIG in movilidad)
 const FUENTE_CONFIG: Record<string, { stripe: string; bg: string; text: string; label: string }> = {
-  auto:      { stripe: "#22c55e", bg: "bg-green-50",  text: "text-green-700",  label: "Auto"   },
-  manual_ch: { stripe: "#fbbf24", bg: "bg-amber-50",  text: "text-amber-700",  label: "Manual" },
+  auto:          { stripe: "#22c55e", bg: "bg-green-50",  text: "text-green-700",  label: "Auto"           },
+  manual_ch:     { stripe: "#fbbf24", bg: "bg-amber-50",  text: "text-amber-700",  label: "Manual"         },
+  persona_clave: { stripe: "#7c3aed", bg: "bg-purple-50", text: "text-purple-700", label: "Persona Clave"  },
 };
 const REMOVED_STRIPE = "#d1d5db";
 
@@ -116,7 +117,7 @@ function PlusCircleIcon() {
 }
 
 type Tab        = "lista" | "log";
-type CardFilter = "" | "sobresaliente" | "desarrollo" | "manual" | "removidos";
+type CardFilter = "" | "sobresaliente" | "desarrollo" | "manual" | "persona_clave" | "removidos";
 type ModalState = { colaborador_id: string; nombre: string; accion: "promover" | "remover" } | null;
 
 export default function TalentoClavePage({ rows, logRows, cicloAño, allColaboradores }: Props) {
@@ -155,23 +156,25 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
 
   // KPI counts
   const tcCount            = rows.filter((r) => r.es_talento_clave).length;
-  const sobresalienteCount = rows.filter((r) => r.es_talento_clave && r.zona_eip === "Sobresaliente").length;
-  const desarrolloCount    = rows.filter((r) => r.es_talento_clave && r.zona_eip === "Desarrollo").length;
+  const sobresalienteCount = rows.filter((r) => r.es_talento_clave && r.zona_eip === "Sobresaliente" && r.fuente !== "persona_clave").length;
+  const desarrolloCount    = rows.filter((r) => r.es_talento_clave && r.zona_eip === "Desarrollo" && r.fuente !== "persona_clave").length;
+  const personaClaveCount  = rows.filter((r) => r.es_talento_clave && r.fuente === "persona_clave").length;
   const manualCount        = rows.filter((r) => r.es_talento_clave && r.fuente === "manual_ch").length;
-  const removidosCount     = rows.filter((r) => !r.es_talento_clave && r.fuente === "manual_ch").length;
+  const removidosCount     = rows.filter((r) => !r.es_talento_clave).length;
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const base = rows.filter((r) => {
       // Base: what rows are visible depends on the active card
       if (filterCard === "removidos") {
-        if (r.es_talento_clave || r.fuente !== "manual_ch") return false;
+        if (r.es_talento_clave) return false;
       } else {
         // All non-removidos cards show only active TC
         if (!r.es_talento_clave) return false;
-        if (filterCard === "sobresaliente" && r.zona_eip !== "Sobresaliente") return false;
-        if (filterCard === "desarrollo"    && r.zona_eip !== "Desarrollo")    return false;
-        if (filterCard === "manual"        && r.fuente   !== "manual_ch")     return false;
+        if (filterCard === "sobresaliente"  && (r.zona_eip !== "Sobresaliente" || r.fuente === "persona_clave")) return false;
+        if (filterCard === "desarrollo"     && (r.zona_eip !== "Desarrollo"    || r.fuente === "persona_clave")) return false;
+        if (filterCard === "manual"         && r.fuente !== "manual_ch")     return false;
+        if (filterCard === "persona_clave"  && r.fuente !== "persona_clave")  return false;
       }
 
       // Dropdown filters (combinable on top of card)
@@ -196,7 +199,13 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
     });
   }, [rows, filterCard, search, filterUen, filterZonaEip, filterFuente, sortKey, sortDir]);
 
-  const totalForCount = filterCard === "removidos" ? removidosCount : tcCount;
+  const totalForCount = filterCard === "removidos"
+    ? removidosCount
+    : filterCard === "sobresaliente" ? sobresalienteCount
+    : filterCard === "desarrollo"    ? desarrolloCount
+    : filterCard === "persona_clave" ? personaClaveCount
+    : filterCard === "manual"        ? manualCount
+    : tcCount;
 
   // Search results for add modal
   const addResults = useMemo(() => {
@@ -304,10 +313,11 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
 
   // KPI card definitions
   const kpiCards: { key: CardFilter; count: number; label: string; sublabel: string; dot: string }[] = [
+    { key: "persona_clave", count: personaClaveCount,  label: "Persona Clave", sublabel: "Reporte de Desempeño",     dot: "bg-violet-600" },
     { key: "sobresaliente", count: sobresalienteCount, label: "Sobresaliente", sublabel: "Zona EIP",                 dot: "bg-purple-500" },
     { key: "desarrollo",    count: desarrolloCount,    label: "Desarrollo",    sublabel: "Zona EIP",                 dot: "bg-blue-500"   },
     { key: "manual",        count: manualCount,        label: "Manual CH",     sublabel: "Promovidos por Cap. Hum.", dot: "bg-amber-400"  },
-    { key: "removidos",     count: removidosCount,     label: "Removidos",     sublabel: "Por Capital Humano",       dot: "bg-gray-400"   },
+    { key: "removidos",     count: removidosCount,     label: "Removidos",     sublabel: "Removidos por Cap. Hum.",  dot: "bg-gray-400"   },
   ];
 
   return (
@@ -427,6 +437,7 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
                 className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
               >
                 <option value="">Toda fuente</option>
+                <option value="persona_clave">Persona Clave</option>
                 <option value="auto">Auto EIP</option>
                 <option value="manual_ch">Manual CH</option>
               </select>
@@ -598,7 +609,11 @@ export default function TalentoClavePage({ rows, logRows, cicloAño, allColabora
               {Object.entries(FUENTE_CONFIG).map(([key, cfg]) => (
                 <span key={key} className="text-[11px] text-gray-400 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cfg.stripe }} />
-                  {cfg.label} · {key === "auto" ? "calculado desde EIP" : "promovido/removido por Capital Humano"}
+                  {cfg.label} · {
+                    key === "auto"          ? "calculado desde EIP" :
+                    key === "persona_clave" ? "persona_clave = 1 en reporte de Desempeño" :
+                                             "promovido/removido por Capital Humano"
+                  }
                 </span>
               ))}
             </div>

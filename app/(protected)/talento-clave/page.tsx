@@ -75,6 +75,15 @@ export default async function TalentoClaveRoute() {
   const eipArr = (eips ?? []) as { id_empleado: string; zona_evaluacion: string }[];
   const eipMap = new Map(eipArr.map((e) => [e.id_empleado, e.zona_evaluacion]));
 
+  // Persona Clave candidates (persona_clave = 1 from desempeño)
+  const { data: pcData } = await supabase
+    .from("evaluacion_desempeno_anual")
+    .select("id_empleado")
+    .eq("ciclo_año", cicloAño)
+    .eq("persona_clave", 1);
+
+  const pcSet = new Set(((pcData ?? []) as { id_empleado: string }[]).map((r) => r.id_empleado));
+
   // All collaborators for manual-promotion search
   const { data: allColabsData } = await supabase
     .from("colaboradores")
@@ -103,7 +112,11 @@ export default async function TalentoClaveRoute() {
   const tcMap = new Map(tcArr.map((r) => [r.colaborador_id, r]));
 
   // All relevant collaborator IDs
-  const colabIdSet = new Set([...Array.from(eipMap.keys()), ...tcArr.map((r) => r.colaborador_id)]);
+  const colabIdSet = new Set([
+    ...Array.from(eipMap.keys()),
+    ...Array.from(pcSet),
+    ...tcArr.map((r) => r.colaborador_id),
+  ]);
   const allColabIds = Array.from(colabIdSet);
 
   const EMPTY_ID = "00000000-0000-0000-0000-000000000000";
@@ -151,20 +164,37 @@ export default async function TalentoClaveRoute() {
   // Annotate all collaborators with TC + EIP status for the search modal
   const allColaboradores = allColabsArr.map((c) => {
     const tc = tcMap.get(c.id);
+    const ya_es_tc = tc
+      ? tc.es_talento_clave
+      : eipMap.has(c.id) || pcSet.has(c.id);
     return {
       id: c.id,
       nombre_completo: c.nombre_completo,
       puesto: c.puesto,
       organización: c.organización,
       zona_eip: eipMap.get(c.id) ?? null,
-      ya_es_tc: tc ? tc.es_talento_clave : eipMap.has(c.id),
+      ya_es_tc,
     };
   });
 
   const rows = colabArr.map((c) => {
-    const tc   = tcMap.get(c.id);
+    const tc = tcMap.get(c.id);
+
+    // Determine effective TC status with priority: persona_clave > auto > manual_ch
+    // A CH-explicit removal (es_talento_clave = false) always wins over automatic sources
+    const manuallyRemoved = tc !== undefined && !tc.es_talento_clave;
+    const isPC   = pcSet.has(c.id) && !manuallyRemoved;
+    const isAuto = eipMap.has(c.id) && !isPC && !manuallyRemoved;
+    const isManualCH = tc?.fuente === "manual_ch" && tc.es_talento_clave === true;
+    const esTC = isPC || isAuto || isManualCH;
+
+    let fuente: string;
+    if (manuallyRemoved)   fuente = "manual_ch";
+    else if (isPC)         fuente = "persona_clave";
+    else if (isAuto)       fuente = "auto";
+    else                   fuente = tc?.fuente ?? "manual_ch";
+
     const zona = tc?.zona_eip ?? eipMap.get(c.id) ?? null;
-    const esTC = tc?.es_talento_clave ?? eipMap.has(c.id);
 
     const umbral = resolveUmbral(umbralesArr, c.organización ?? null, c.segmento_organizacional ?? null);
     const { semaforo: semaforo_movilidad, meses: meses_en_posicion } = computeSemaforo(
@@ -184,7 +214,7 @@ export default async function TalentoClaveRoute() {
       segmento_organizacional: c.segmento_organizacional,
       area:               c.area,
       es_talento_clave:   esTC,
-      fuente:             tc?.fuente ?? (eipMap.has(c.id) ? "auto" : "manual_ch"),
+      fuente,
       zona_eip:           zona,
       semaforo_movilidad,
       meses_en_posicion,

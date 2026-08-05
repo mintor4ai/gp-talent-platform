@@ -14,9 +14,10 @@ async function getAdminUser() {
   return { supabase, userId: user.id };
 }
 
-// DB constraint: fuente CHECK (fuente = ANY (ARRAY['auto', 'manual_ch']))
-const FUENTE_AUTO   = "auto"    as const;
-const FUENTE_MANUAL = "manual_ch" as const;
+// DB constraint: fuente CHECK (fuente = ANY (ARRAY['auto', 'manual_ch', 'persona_clave']))
+const FUENTE_AUTO    = "auto"          as const;
+const FUENTE_MANUAL  = "manual_ch"     as const;
+const FUENTE_PC      = "persona_clave" as const;
 
 export async function sincronizarTalentoClave(
   cicloAño: number
@@ -24,6 +25,7 @@ export async function sincronizarTalentoClave(
   try {
     const { supabase } = await getAdminUser();
 
+    // EIP candidates (Desarrollo + Sobresaliente)
     const { data: eips, error: eipErr } = await supabase
       .from("evaluacion_integral_personal")
       .select("id_empleado, zona_evaluacion")
@@ -31,11 +33,23 @@ export async function sincronizarTalentoClave(
       .in("zona_evaluacion", ["Desarrollo", "Sobresaliente"]);
     if (eipErr) throw eipErr;
 
-    const qualifyingIds = new Set((eips ?? []).map((e) => e.id_empleado));
+    const eipMap = new Map((eips ?? []).map((e) => [e.id_empleado, e.zona_evaluacion]));
+
+    // Persona Clave candidates (persona_clave = 1 in desempeño)
+    const { data: pcRows } = await supabase
+      .from("evaluacion_desempeno_anual")
+      .select("id_empleado")
+      .eq("ciclo_año", cicloAño)
+      .eq("persona_clave", 1);
+
+    const pcSet = new Set((pcRows ?? []).map((r: any) => r.id_empleado as string));
+
+    // All qualifying IDs (union)
+    const allQualifyingIds = new Set([...Array.from(eipMap.keys()), ...Array.from(pcSet)]);
 
     const { data: current, error: curErr } = await supabase
       .from("talento_clave")
-      .select("id, colaborador_id, es_talento_clave, fuente")
+      .select("id, colaborador_id, es_talento_clave, fuente, zona_eip")
       .eq("ciclo_año", cicloAño);
     if (curErr) throw curErr;
 
@@ -44,29 +58,47 @@ export async function sincronizarTalentoClave(
     let added = 0;
     let removed = 0;
 
-    for (const emp of eips ?? []) {
-      const existing = currentMap.get(emp.id_empleado);
+    // Add / update qualifying people
+    for (const empId of Array.from(allQualifyingIds)) {
+      // persona_clave takes priority over auto
+      const fuente = pcSet.has(empId) ? FUENTE_PC : FUENTE_AUTO;
+      const zonaEip = eipMap.get(empId) ?? null;
+      const existing = currentMap.get(empId);
+
       if (!existing) {
         const { error } = await supabase.from("talento_clave").insert({
-          colaborador_id: emp.id_empleado,
+          colaborador_id: empId,
           ciclo_año: cicloAño,
           es_talento_clave: true,
-          fuente: FUENTE_AUTO,
-          zona_eip: emp.zona_evaluacion,
+          fuente,
+          zona_eip: zonaEip,
         });
         if (!error) added++;
-      } else if (!existing.es_talento_clave && existing.fuente === FUENTE_AUTO) {
+      } else if (existing.fuente === FUENTE_MANUAL) {
+        // CH override — never touch (covers both promotions and explicit removals)
+        continue;
+      } else if (!existing.es_talento_clave || existing.fuente !== fuente) {
+        // Re-activate or upgrade fuente (e.g. auto → persona_clave)
         await supabase
           .from("talento_clave")
-          .update({ es_talento_clave: true, zona_eip: emp.zona_evaluacion, updated_at: new Date().toISOString() })
+          .update({
+            es_talento_clave: true,
+            fuente,
+            zona_eip: zonaEip,
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", existing.id);
-        added++;
+        if (!existing.es_talento_clave) added++;
       }
     }
 
-    // Remove auto-tagged collaborators that no longer qualify (never touch manual_ch)
+    // Remove auto / persona_clave records that no longer qualify (never touch manual_ch)
     for (const rec of current ?? []) {
-      if (rec.es_talento_clave && rec.fuente === FUENTE_AUTO && !qualifyingIds.has(rec.colaborador_id)) {
+      if (
+        rec.es_talento_clave &&
+        rec.fuente !== FUENTE_MANUAL &&
+        !allQualifyingIds.has(rec.colaborador_id)
+      ) {
         await supabase
           .from("talento_clave")
           .update({ es_talento_clave: false, updated_at: new Date().toISOString() })
