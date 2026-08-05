@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import type { ZonaBand } from "@/lib/types";
 export type { ZonaBand };
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -413,6 +413,19 @@ export default function EIPScatterChart({
 
   const allVisiblePoints = visibleCycleData.flatMap((c) => c.points);
 
+  // Cascaded filter options: area/jefe lists narrow based on current UEN/area selection
+  const availableAreas = useMemo(() => {
+    const pts = filterUen === "Todos" ? allVisiblePoints : allVisiblePoints.filter((p) => p.uen === filterUen);
+    return Array.from(new Set(pts.map((p) => p.area).filter(Boolean) as string[])).sort();
+  }, [allVisiblePoints, filterUen]);
+
+  const availableJefes = useMemo(() => {
+    let pts = allVisiblePoints;
+    if (filterUen  !== "Todos") pts = pts.filter((p) => p.uen  === filterUen);
+    if (filterArea !== "Todos") pts = pts.filter((p) => p.area === filterArea);
+    return Array.from(new Set(pts.map((p) => p.jefe).filter(Boolean) as string[])).sort();
+  }, [allVisiblePoints, filterUen, filterArea]);
+
   const hasActiveFilter =
     filterUen !== "Todos" || filterArea !== "Todos" ||
     filterJefe !== "Todos" || nameFilter.trim() !== "";
@@ -483,24 +496,26 @@ export default function EIPScatterChart({
         className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c] w-36"
       />
       {uens.length > 0 && (
-        <select value={filterUen} onChange={(e) => setFilterUen(e.target.value)}
+        <select value={filterUen}
+          onChange={(e) => { setFilterUen(e.target.value); setFilterArea("Todos"); setFilterJefe("Todos"); }}
           className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]">
           <option value="Todos">Todas las UEN</option>
           {uens.map((u) => <option key={u} value={u}>{u}</option>)}
         </select>
       )}
-      {areas.length > 0 && (
-        <select value={filterArea} onChange={(e) => setFilterArea(e.target.value)}
+      {availableAreas.length > 0 && (
+        <select value={filterArea}
+          onChange={(e) => { setFilterArea(e.target.value); setFilterJefe("Todos"); }}
           className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]">
           <option value="Todos">Todas las áreas</option>
-          {areas.map((a) => <option key={a} value={a}>{a}</option>)}
+          {availableAreas.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
       )}
-      {jefes.length > 0 && (
+      {availableJefes.length > 0 && (
         <select value={filterJefe} onChange={(e) => setFilterJefe(e.target.value)}
           className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]">
           <option value="Todos">Todos los jefes</option>
-          {jefes.map((j) => <option key={j} value={j}>{j}</option>)}
+          {availableJefes.map((j) => <option key={j} value={j}>{j}</option>)}
         </select>
       )}
       {hasActiveFilter && (
