@@ -154,7 +154,14 @@ export function TalentMatrixSVG({
   onPointHover?: (p: EIPPoint | null, x: number, y: number) => void;
 }) {
   const sortedZones = [...zonaBands].sort((a, b) => a.umbral_inferior - b.umbral_inferior);
-  const boundaryLines = sortedZones.slice(0, -1).map((z) => z.umbral_superior);
+  // Zone thresholds are individual EIP values (80–120). The diagonal polygon
+  // function expects D+P sums (160–240), so we scale by 2 for visualization only.
+  const scaledZones = sortedZones.map((z) => ({
+    ...z,
+    umbral_inferior: z.umbral_inferior * 2,
+    umbral_superior: z.umbral_superior * 2,
+  }));
+  const boundaryLines = scaledZones.slice(0, -1).map((z) => z.umbral_superior);
   const gridLines = [80, 85, 90, 95, 100, 105, 110, 115, 120];
 
   const highlightZona = highlightPoint && points.length === 1 ? points[0].zona : null;
@@ -207,7 +214,7 @@ export function TalentMatrixSVG({
       )}
 
       {/* Zone fills */}
-      {sortedZones.map((z) => {
+      {scaledZones.map((z) => {
         const poly = diagonalPolygon(z.umbral_inferior, z.umbral_superior);
         if (!poly) return null;
         const isHighlighted = highlightZona === z.zona;
@@ -266,7 +273,7 @@ export function TalentMatrixSVG({
       </text>
 
       {/* Zone labels */}
-      {sortedZones.map((z) => {
+      {scaledZones.map((z) => {
         const pos = zoneLabelPos(z);
         if (!pos) return null;
         const isHighlighted = highlightZona === z.zona;
