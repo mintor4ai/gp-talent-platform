@@ -136,15 +136,16 @@ export default async function TalentoClaveRoute() {
 
   const umbralesArr = (umbralesData ?? []) as UmbralRow[];
 
-  // PICD status for TC collaborators in this cycle
+  // PICD status for TC collaborators in this cycle (reads from picd table)
   const { data: picdData } = await supabase
-    .from("picd_ciclos_estado")
-    .select("id_empleado, estado")
+    .from("picd")
+    .select("id_empleado, estado, porcentaje_cumplimiento")
     .eq("ciclo_año", cicloAño)
     .in("id_empleado", idList);
 
   const picdMap = new Map(
-    ((picdData ?? []) as { id_empleado: string; estado: string }[]).map((p) => [p.id_empleado, p.estado])
+    ((picdData ?? []) as { id_empleado: string; estado: string | null; porcentaje_cumplimiento: number | null }[])
+      .map((p) => [p.id_empleado, { estado: p.estado, pct: p.porcentaje_cumplimiento }])
   );
 
   // Annotate all collaborators with TC + EIP status for the search modal
@@ -171,7 +172,9 @@ export default async function TalentoClaveRoute() {
       umbral
     );
 
-    const estado_picd  = picdMap.get(c.id) ?? null;
+    const picdRec      = picdMap.get(c.id) ?? null;
+    const tiene_picd   = picdRec !== null;
+    const estado_picd  = picdRec?.estado ?? null;
 
     return {
       colaborador_id:     c.id,
@@ -185,7 +188,7 @@ export default async function TalentoClaveRoute() {
       zona_eip:           zona,
       semaforo_movilidad,
       meses_en_posicion,
-      tiene_picd:         estado_picd !== null,
+      tiene_picd,
       estado_picd,
     };
   });
