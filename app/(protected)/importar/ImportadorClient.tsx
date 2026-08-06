@@ -12,6 +12,7 @@ import ImportadorDesempeno from "./ImportadorDesempeno";
 import ImportadorEAL from "./ImportadorEAL";
 import CalculadorEIP from "./CalculadorEIP";
 import ImportadorPicd from "./ImportadorPicd";
+import ImportadorSucesion from "./ImportadorSucesion";
 
 const ZONA_COLORS: Record<string, string> = {
   Sobresaliente: "bg-purple-100 text-purple-800",
@@ -46,7 +47,7 @@ type ImportResult = {
 };
 
 export default function ImportadorClient() {
-  const [tab, setTab] = useState<"catalogo" | "colaboradores" | "usuarios" | "evaluaciones" | "hrcorp" | "estudios" | "cursos" | "competencias" | "desempeno" | "eal" | "picd" | "calcular_eip">("catalogo");
+  const [tab, setTab] = useState<"catalogo" | "colaboradores" | "usuarios" | "evaluaciones" | "hrcorp" | "estudios" | "cursos" | "competencias" | "desempeno" | "eal" | "picd" | "calcular_eip" | "sucesion">("catalogo");
   const [cicloAño, setCicloAño] = useState<number>(new Date().getFullYear());
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewRow[] | null>(null);
@@ -136,6 +137,7 @@ export default function ImportadorClient() {
           { id: "eal",           label: "EAL" },
           { id: "picd",          label: "PICD" },
           { id: "calcular_eip",  label: "Calcular EIP" },
+          { id: "sucesion",      label: "Plan de Sucesión" },
         ] as const).map((t) => (
           <button
             key={t.id}
@@ -173,6 +175,7 @@ export default function ImportadorClient() {
       {tab === "eal"          && <ImportadorEAL />}
       {tab === "picd"         && <ImportadorPicd />}
       {tab === "calcular_eip" && <CalculadorEIP />}
+      {tab === "sucesion"     && <ImportadorSucesion />}
 
       {tab === "catalogo" && <ImportadorCatalogoPuestos />}
 
