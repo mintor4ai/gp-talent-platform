@@ -36,11 +36,20 @@ export default function ImportadorSucesion() {
   const [error, setError] = useState<string | null>(null);
   const [filterCiclo, setFilterCiclo] = useState<number | "all">("all");
   const [confirmed, setConfirmed] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const toggleRow = (i: number) =>
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
 
   const reset = () => {
     setFile(null); setPreview(null); setResult(null);
     setError(null); setConfirmed(false); setFilterCiclo("all");
+    setExpandedRows(new Set());
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -244,6 +253,7 @@ export default function ImportadorSucesion() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-gray-400 border-b border-gray-100 bg-gray-50">
+                    <th className="px-3 py-2.5 w-6"></th>
                     <th className="px-3 py-2.5 whitespace-nowrap">Empleado</th>
                     <th className="px-3 py-2.5 whitespace-nowrap text-center">Ciclo</th>
                     <th className="px-3 py-2.5 whitespace-nowrap">Sucesor</th>
@@ -252,48 +262,71 @@ export default function ImportadorSucesion() {
                     <th className="px-3 py-2.5 whitespace-nowrap text-center">Estado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {visibleRows.map((row, i) => (
-                    <tr
-                      key={i}
-                      className={
-                        !row.empleado_matched ? "bg-red-50/40 opacity-60" :
-                        row.isDuplicate       ? "bg-yellow-50/40 opacity-60" :
-                        ""
-                      }
-                    >
-                      <td className="px-3 py-2 font-medium text-gray-800 whitespace-nowrap max-w-[200px] truncate">
-                        {row.empleado_nombre ?? row.id_empleado_num}
-                        <span className="ml-1 text-[10px] text-gray-400 font-mono">#{row.id_empleado_num}</span>
-                      </td>
-                      <td className="px-3 py-2 text-center font-mono text-gray-600">{row.ciclo_año}</td>
-                      <td className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[180px] truncate">
-                        {row.sucesor_nombre}
-                        {!row.sucesor_matched && row.empleado_matched && (
-                          <span className="ml-1 text-[10px] text-orange-500">(sin ID)</span>
+                <tbody>
+                  {visibleRows.map((row, i) => {
+                    const isExpanded = expandedRows.has(i);
+                    const hasDesarrollo = !!row.acciones_desarrollo;
+                    const rowBg =
+                      !row.empleado_matched ? "bg-red-50/40 opacity-60" :
+                      row.isDuplicate       ? "bg-yellow-50/40 opacity-60" :
+                      "";
+                    return (
+                      <>
+                        <tr key={`row-${i}`} className={`border-t border-gray-50 ${rowBg}`}>
+                          {/* expand toggle */}
+                          <td className="px-2 py-2 text-center">
+                            {hasDesarrollo ? (
+                              <button
+                                onClick={() => toggleRow(i)}
+                                className="text-gray-400 hover:text-[#1a3a5c] transition-colors leading-none"
+                                title="Ver desarrollo necesario"
+                              >
+                                {isExpanded ? "▼" : "▶"}
+                              </button>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2 font-medium text-gray-800 whitespace-nowrap max-w-[200px] truncate">
+                            {row.empleado_nombre ?? row.id_empleado_num}
+                            <span className="ml-1 text-[10px] text-gray-400 font-mono">#{row.id_empleado_num}</span>
+                          </td>
+                          <td className="px-3 py-2 text-center font-mono text-gray-600">{row.ciclo_año}</td>
+                          <td className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[180px] truncate">
+                            {row.sucesor_nombre}
+                            {!row.sucesor_matched && row.empleado_matched && (
+                              <span className="ml-1 text-[10px] text-orange-500">(sin ID)</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{row.listo_rol ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            {row.readiness ? (
+                              <span className="inline-block bg-blue-50 text-blue-700 rounded-full px-2 py-0.5 text-[10px] font-medium">
+                                {READINESS_LABELS[row.readiness] ?? row.readiness}
+                              </span>
+                            ) : <span className="text-gray-400">—</span>}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {!row.empleado_matched ? (
+                              <span className="inline-block bg-red-100 text-red-700 rounded-full px-2 py-0.5 text-[10px] font-medium">Sin match</span>
+                            ) : row.isDuplicate ? (
+                              <span className="inline-block bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 text-[10px] font-medium">Ya existe</span>
+                            ) : !row.sucesor_matched ? (
+                              <span className="inline-block bg-orange-100 text-orange-700 rounded-full px-2 py-0.5 text-[10px] font-medium">Nuevo (sin ID)</span>
+                            ) : (
+                              <span className="inline-block bg-green-100 text-green-700 rounded-full px-2 py-0.5 text-[10px] font-medium">Nuevo</span>
+                            )}
+                          </td>
+                        </tr>
+                        {isExpanded && hasDesarrollo && (
+                          <tr key={`dev-${i}`} className="bg-gray-50/80">
+                            <td colSpan={7} className="px-5 py-2.5">
+                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Desarrollo necesario</p>
+                              <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{row.acciones_desarrollo}</p>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{row.listo_rol ?? "—"}</td>
-                      <td className="px-3 py-2">
-                        {row.readiness ? (
-                          <span className="inline-block bg-blue-50 text-blue-700 rounded-full px-2 py-0.5 text-[10px] font-medium">
-                            {READINESS_LABELS[row.readiness] ?? row.readiness}
-                          </span>
-                        ) : <span className="text-gray-400">—</span>}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {!row.empleado_matched ? (
-                          <span className="inline-block bg-red-100 text-red-700 rounded-full px-2 py-0.5 text-[10px] font-medium">Sin match</span>
-                        ) : row.isDuplicate ? (
-                          <span className="inline-block bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 text-[10px] font-medium">Ya existe</span>
-                        ) : !row.sucesor_matched ? (
-                          <span className="inline-block bg-orange-100 text-orange-700 rounded-full px-2 py-0.5 text-[10px] font-medium">Nuevo (sin ID)</span>
-                        ) : (
-                          <span className="inline-block bg-green-100 text-green-700 rounded-full px-2 py-0.5 text-[10px] font-medium">Nuevo</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                      </>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
