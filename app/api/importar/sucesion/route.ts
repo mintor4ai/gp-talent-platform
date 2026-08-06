@@ -119,9 +119,10 @@ export async function POST(req: NextRequest) {
     const idPeriodo = num(idPeriodoRaw);
     const cicloAño = idPeriodo === 1 ? 2026 : idPeriodo === 2 ? 2027 : idPeriodo ? idPeriodo + 2025 : 2026;
 
-    // Successor name
+    // Successor name — key column: NombreCompletoSucesor in the source file
     const sucNombreRaw = col(
       row,
+      "NombreCompletoSucesor", "Nombre Completo Sucesor",
       "Sucesor", "SucesorNombre", "Sucesor Nombre", "Nombre Sucesor",
       "SucesoresClaves", "Sucesores Claves", "Sucesor Clave"
     );
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
 
     // Optional fields
     const brechas = str(col(row, "Brechas", "Gap", "Gaps", "BrechasClave"));
-    const accionesDes = str(col(row, "AccionesDesarrollo", "Acciones Desarrollo", "Acciones", "PlanDesarrollo"));
+    const accionesDes = str(col(row, "AccionesDesarrollo", "Acciones Desarrollo", "Acciones", "PlanDesarrollo", "DesarrolloNecesario", "Desarrollo Necesario"));
     const empleadoNombreRaw = col(row, "NombreCompleto", "Nombre Completo", "Nombre", "Empleado");
     const empleadoNombre = str(empleadoNombreRaw);
 
