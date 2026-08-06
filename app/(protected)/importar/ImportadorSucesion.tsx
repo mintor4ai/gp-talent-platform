@@ -10,6 +10,7 @@ type PreviewResponse = {
   emp_unmatched: number;
   suc_unmatched: number;
   duplicados: number;
+  aspiraciones_resueltas: number;
   ciclos: number[];
   _debug?: { raw_rows: number; first_row_keys: string[] };
 };
@@ -19,6 +20,7 @@ type ImportResult = {
   inserted: number;
   skipped_emp: number;
   skipped_dup: number;
+  aspiraciones_guardadas: number;
   errors: string[];
 };
 
@@ -149,22 +151,25 @@ export default function ImportadorSucesion() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
             <div className="flex flex-wrap gap-3">
               {[
-                { label: "Total registros",             value: preview.total,           color: "gray"   },
-                { label: "Empleados con match",          value: preview.emp_matched,     color: "green"  },
-                { label: "Empleados sin match (omitidos)",value: preview.emp_unmatched,  color: preview.emp_unmatched > 0 ? "orange" : "gray" },
-                { label: "Sucesores sin match",          value: preview.suc_unmatched,   color: preview.suc_unmatched > 0 ? "yellow" : "gray" },
-                { label: "Ya existen (se omitirán)",     value: preview.duplicados,      color: preview.duplicados > 0 ? "yellow" : "gray" },
+                { label: "Total registros",              value: preview.total,                       color: "gray"   },
+                { label: "Empleados con match",           value: preview.emp_matched,                color: "green"  },
+                { label: "Empleados sin match (omitidos)",value: preview.emp_unmatched,              color: preview.emp_unmatched > 0 ? "orange" : "gray" },
+                { label: "Sucesores sin match",           value: preview.suc_unmatched,              color: preview.suc_unmatched > 0 ? "yellow" : "gray" },
+                { label: "Ya existen (se omitirán)",      value: preview.duplicados,                 color: preview.duplicados > 0 ? "yellow" : "gray" },
+                { label: "Aspiraciones detectadas",       value: preview.aspiraciones_resueltas ?? 0, color: preview.aspiraciones_resueltas > 0 ? "blue" : "gray" },
               ].map((s) => (
                 <div key={s.label} className={`rounded-lg border px-4 py-3 text-center min-w-[120px] ${
                   s.color === "green"  ? "bg-green-50 border-green-200" :
                   s.color === "orange" ? "bg-orange-50 border-orange-200" :
                   s.color === "yellow" ? "bg-yellow-50 border-yellow-200" :
+                  s.color === "blue"   ? "bg-blue-50 border-blue-200" :
                   "bg-gray-50 border-gray-200"
                 }`}>
                   <p className={`text-2xl font-bold ${
                     s.color === "green"  ? "text-green-700" :
                     s.color === "orange" ? "text-orange-700" :
                     s.color === "yellow" ? "text-yellow-700" :
+                    s.color === "blue"   ? "text-blue-700" :
                     "text-gray-700"
                   }`}>{s.value}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
@@ -340,11 +345,12 @@ export default function ImportadorSucesion() {
           <p className={`text-lg font-bold ${result.errors.length ? "text-orange-800" : "text-green-800"}`}>
             {result.errors.length ? "Sucesión importada con advertencias" : "Sucesión importada exitosamente"}
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: "Registros insertados",    value: result.inserted     },
-              { label: "Empleados sin match",      value: result.skipped_emp  },
-              { label: "Duplicados omitidos",      value: result.skipped_dup  },
+              { label: "Registros insertados",    value: result.inserted                    },
+              { label: "Empleados sin match",      value: result.skipped_emp                },
+              { label: "Duplicados omitidos",      value: result.skipped_dup                },
+              { label: "Aspiraciones guardadas",   value: result.aspiraciones_guardadas ?? 0 },
             ].map((s) => (
               <div key={s.label} className="bg-white rounded-lg border border-gray-200 p-3 text-center">
                 <p className="text-xs text-gray-500 mb-0.5">{s.label}</p>

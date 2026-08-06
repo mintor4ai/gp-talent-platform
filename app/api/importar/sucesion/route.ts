@@ -45,6 +45,11 @@ export type SucesionPreviewRow = {
   readiness: string | null;
   brechas: string | null;
   acciones_desarrollo: string | null;
+  // aspiraciones (puesto futuro)
+  puesto1_nombre: string | null;
+  puesto1_id: string | null;
+  puesto2_nombre: string | null;
+  puesto2_id: string | null;
   // import state
   isDuplicate: boolean;
   error?: string;
@@ -60,6 +65,47 @@ function mapReadiness(raw: string | null): string | null {
   if (v === "corto plazo" || v === "corto" || v === "listo ahora" || v === "listo_ahora") return "listo_ahora";
   if (v === "n/a" || v === "na" || v === "-") return null;
   return null;
+}
+
+// ── catalog lookup helpers ────────────────────────────────────────────────────
+
+type CatalogLookup = {
+  byNombreOrg: Map<string, string>; // "NOMBRE|ORG" → id (unique)
+  byNombre: Map<string, string>;    // "NOMBRE" → id (only if unique across all orgs)
+};
+
+function buildCatalogLookup(
+  catalogoRaw: Array<{ id: string; nombre: string; [k: string]: unknown }>
+): CatalogLookup {
+  const byNombreOrg = new Map<string, string>();
+  const byNombreAll = new Map<string, string[]>();
+  for (const c of catalogoRaw) {
+    const nom = (c.nombre ?? "").trim().toUpperCase();
+    const org = String((c as Record<string, unknown>)["organización"] ?? "").trim().toUpperCase();
+    byNombreOrg.set(`${nom}|${org}`, c.id);
+    if (!byNombreAll.has(nom)) byNombreAll.set(nom, []);
+    byNombreAll.get(nom)!.push(c.id);
+  }
+  const byNombre = new Map<string, string>();
+  for (const [nom, ids] of byNombreAll.entries()) {
+    if (ids.length === 1) byNombre.set(nom, ids[0]);
+  }
+  return { byNombreOrg, byNombre };
+}
+
+function lookupCatalog(
+  lookup: CatalogLookup,
+  nombre: string | null,
+  org: string | null
+): string | null {
+  if (!nombre) return null;
+  const nom = nombre.trim().toUpperCase();
+  const orgKey = (org ?? "").trim().toUpperCase();
+  return (
+    lookup.byNombreOrg.get(`${nom}|${orgKey}`) ??
+    lookup.byNombre.get(nom) ??
+    null
+  );
 }
 
 // ── main handler ──────────────────────────────────────────────────────────────
@@ -87,19 +133,33 @@ export async function POST(req: NextRequest) {
 
   if (!rows.length) return NextResponse.json({ error: "El archivo está vacío" }, { status: 400 });
 
-  // ── Load colaboradores (employee lookup: id_empleado numeric → UUID) ────────
-  const { data: colabsRaw } = await supabase
-    .from("colaboradores").select("id, id_empleado, nombre_completo");
-  const colabByEmpId = new Map<string, { uuid: string; nombre: string }>();
-  const colabByName  = new Map<string, string>(); // nombre_completo lowercase → uuid
+  // ── Load reference data ───────────────────────────────────────────────────
+  const [{ data: colabsRaw }, { data: catalogoRaw }, { data: existingRaw }] = await Promise.all([
+    supabase.from("colaboradores").select("id, id_empleado, nombre_completo, puesto, organización"),
+    supabase.from("catalogo_puestos").select("id, nombre, organización").eq("activo", true),
+    supabase.from("plan_sucesion").select("id_empleado, ciclo_año, sucesor_nombre"),
+  ]);
+
+  // Employee lookups
+  const colabByEmpId = new Map<string, { uuid: string; nombre: string; puesto: string | null; org: string | null }>();
+  const colabByName  = new Map<string, string>(); // nombre lowercase → uuid
   for (const c of colabsRaw ?? []) {
-    if (c.id_empleado) colabByEmpId.set(String(c.id_empleado).trim(), { uuid: c.id, nombre: c.nombre_completo ?? "" });
+    if (c.id_empleado) {
+      colabByEmpId.set(String(c.id_empleado).trim(), {
+        uuid: c.id,
+        nombre: c.nombre_completo ?? "",
+        puesto: (c as Record<string, unknown>)["puesto"] as string | null,
+        org: (c as Record<string, unknown>)["organización"] as string | null,
+      });
+    }
     if (c.nombre_completo) colabByName.set((c.nombre_completo as string).toLowerCase().trim(), c.id);
   }
 
-  // ── Load existing plan_sucesion to detect duplicates ──────────────────────
-  const { data: existingRaw } = await supabase
-    .from("plan_sucesion").select("id_empleado, ciclo_año, sucesor_nombre");
+  // Catalog lookup (for aspiraciones NombrePuesto1/2 and for employee's own position)
+  type CatalogRow = { id: string; nombre: string; [k: string]: unknown };
+  const catalogLookup = buildCatalogLookup((catalogoRaw ?? []) as CatalogRow[]);
+
+  // Existing plans set for dedup
   const existingSet = new Set(
     ((existingRaw ?? []) as unknown as Array<{ id_empleado: string; ciclo_año: number; sucesor_nombre: string }>)
       .map((r) => `${r.id_empleado}|${r.ciclo_año}|${r.sucesor_nombre.toLowerCase().trim()}`)
@@ -109,17 +169,14 @@ export async function POST(req: NextRequest) {
   const previewRows: SucesionPreviewRow[] = [];
 
   for (const row of rows) {
-    // Employee ID (numeric string like "195")
     const empIdRaw = col(row, "EmpleadoId", "Empleado Id", "Id Empleado", "NumEmpleado", "Id", "EmpId");
     const empId = empIdRaw != null ? String(empIdRaw).trim() : null;
     if (!empId) continue;
 
-    // Ciclo from Id Periodo: 1→2026, 2→2027
     const idPeriodoRaw = col(row, "Id Periodo", "IdPeriodo", "Periodo", "Id_Periodo", "Ciclo");
     const idPeriodo = num(idPeriodoRaw);
     const cicloAño = idPeriodo === 1 ? 2026 : idPeriodo === 2 ? 2027 : idPeriodo ? idPeriodo + 2025 : 2026;
 
-    // Successor name — key column: NombreCompletoSucesor in the source file
     const sucNombreRaw = col(
       row,
       "NombreCompletoSucesor", "Nombre Completo Sucesor",
@@ -127,24 +184,28 @@ export async function POST(req: NextRequest) {
       "SucesoresClaves", "Sucesores Claves", "Sucesor Clave"
     );
     const sucNombre = str(sucNombreRaw);
-    if (!sucNombre) continue; // skip rows without a successor name
+    if (!sucNombre) continue;
 
-    // Listo Rol (readiness)
     const listoRolRaw = col(row, "ListoRol", "Listo Rol", "Readiness", "Disponibilidad", "Plazo");
     const listoRol = str(listoRolRaw);
     const readiness = mapReadiness(listoRol);
 
-    // Optional fields
-    const brechas = str(col(row, "Brechas", "Gap", "Gaps", "BrechasClave"));
+    const brechas     = str(col(row, "Brechas", "Gap", "Gaps", "BrechasClave"));
     const accionesDes = str(col(row, "AccionesDesarrollo", "Acciones Desarrollo", "Acciones", "PlanDesarrollo", "DesarrolloNecesario", "Desarrollo Necesario"));
-    const empleadoNombreRaw = col(row, "NombreCompleto", "Nombre Completo", "Nombre", "Empleado");
-    const empleadoNombre = str(empleadoNombreRaw);
+    const empleadoNombre = str(col(row, "NombreCompleto", "Nombre Completo", "Nombre", "Empleado"));
 
-    // Match employee
+    // Aspiraciones: NombrePuesto1 / NombrePuesto2
+    const puesto1Nombre = str(col(row, "NombrePuesto1", "Nombre Puesto 1", "PuestoFuturo1", "Puesto Futuro 1", "Puesto1"));
+    const puesto2Nombre = str(col(row, "NombrePuesto2", "Nombre Puesto 2", "PuestoFuturo2", "Puesto Futuro 2", "Puesto2"));
+
     const empleadoColab = colabByEmpId.get(empId);
+    const empleadoOrg   = empleadoColab?.org ?? null;
+
+    const puesto1Id = lookupCatalog(catalogLookup, puesto1Nombre, empleadoOrg);
+    const puesto2Id = lookupCatalog(catalogLookup, puesto2Nombre, empleadoOrg);
+
     const empleadoMatched = !!empleadoColab;
 
-    // Match successor
     let sucId: string | null = null;
     let sucMatched = false;
     if (sucNombre.toLowerCase() !== "sucesor externo") {
@@ -152,7 +213,6 @@ export async function POST(req: NextRequest) {
       if (byName) { sucId = byName; sucMatched = true; }
     }
 
-    // Duplicate check (only if employee matched)
     const isDuplicate = empleadoMatched
       ? existingSet.has(`${empleadoColab!.uuid}|${cicloAño}|${sucNombre.toLowerCase().trim()}`)
       : false;
@@ -173,12 +233,15 @@ export async function POST(req: NextRequest) {
       readiness,
       brechas,
       acciones_desarrollo: accionesDes,
+      puesto1_nombre: puesto1Nombre,
+      puesto1_id: puesto1Id,
+      puesto2_nombre: puesto2Nombre,
+      puesto2_id: puesto2Id,
       isDuplicate,
       error,
     });
   }
 
-  // Sort: ciclo, then employee name, then successor name
   previewRows.sort((a, b) =>
     a.ciclo_año !== b.ciclo_año
       ? a.ciclo_año - b.ciclo_año
@@ -186,12 +249,21 @@ export async function POST(req: NextRequest) {
         a.sucesor_nombre.localeCompare(b.sucesor_nombre)
   );
 
-  const totalRows      = previewRows.length;
-  const empMatched     = previewRows.filter((r) => r.empleado_matched).length;
-  const empUnmatched   = previewRows.filter((r) => !r.empleado_matched).length;
-  const sucUnmatched   = previewRows.filter((r) => r.empleado_matched && !r.sucesor_matched).length;
-  const duplicados     = previewRows.filter((r) => r.isDuplicate).length;
-  const ciclos         = Array.from(new Set(previewRows.map((r) => r.ciclo_año))).sort();
+  const totalRows    = previewRows.length;
+  const empMatched   = previewRows.filter((r) => r.empleado_matched).length;
+  const empUnmatched = previewRows.filter((r) => !r.empleado_matched).length;
+  const sucUnmatched = previewRows.filter((r) => r.empleado_matched && !r.sucesor_matched).length;
+  const duplicados   = previewRows.filter((r) => r.isDuplicate).length;
+  const ciclos       = Array.from(new Set(previewRows.map((r) => r.ciclo_año))).sort();
+
+  // Aspiration summary: unique employees with at least one puesto resolved
+  const aspiracionesSet = new Set<string>();
+  for (const r of previewRows) {
+    if (r.empleado_matched && (r.puesto1_id || r.puesto2_id)) {
+      aspiracionesSet.add(`${r.id_empleado_num}|${r.ciclo_año}`);
+    }
+  }
+  const aspiraciones_resueltas = aspiracionesSet.size;
 
   if (modo === "preview") {
     const firstRowKeys = rows.length > 0 ? Object.keys(rows[0]).slice(0, 20) : [];
@@ -202,19 +274,22 @@ export async function POST(req: NextRequest) {
       emp_unmatched: empUnmatched,
       suc_unmatched: sucUnmatched,
       duplicados,
+      aspiraciones_resueltas,
       ciclos,
       _debug: { raw_rows: rows.length, first_row_keys: firstRowKeys },
     });
   }
 
   // ── IMPORT ────────────────────────────────────────────────────────────────
-  // Import all rows where employee matched (including unmatched successors)
-  const toImport = previewRows.filter((r) => r.empleado_matched && !r.isDuplicate);
+  const toImport  = previewRows.filter((r) => r.empleado_matched && !r.isDuplicate);
   const errors: string[] = [];
   let inserted = 0;
 
   for (const r of toImport) {
     const colab = colabByEmpId.get(r.id_empleado_num)!;
+
+    // Resolve the employee's own current position for puesto_catalogo_id on the plan
+    const empleadoPuestoCatalogoId = lookupCatalog(catalogLookup, colab.puesto, colab.org);
 
     const { error: err } = await supabase.from("plan_sucesion").insert({
       id_empleado:         colab.uuid,
@@ -227,10 +302,49 @@ export async function POST(req: NextRequest) {
       acciones_desarrollo: r.acciones_desarrollo,
       estado:              "borrador",
       fuente:              "importacion",
+      puesto_catalogo_id:  empleadoPuestoCatalogoId,
     });
 
     if (err) errors.push(`${r.empleado_nombre ?? r.id_empleado_num} → ${r.sucesor_nombre}: ${err.message}`);
     else inserted++;
+  }
+
+  // ── UPSERT ASPIRACIONES en picd ───────────────────────────────────────────
+  // Build unique aspirations per (employee, ciclo) — only for matched employees with resolved puestos
+  type AspiracionKey = string; // `${uuid}|${ciclo}`
+  const aspiracionMap = new Map<AspiracionKey, {
+    uuid: string; ciclo: number;
+    p1Nombre: string | null; p1Id: string | null;
+    p2Nombre: string | null; p2Id: string | null;
+  }>();
+
+  for (const r of previewRows) {
+    if (!r.empleado_matched) continue;
+    if (!r.puesto1_id && !r.puesto2_id) continue; // nothing to save
+    const colab = colabByEmpId.get(r.id_empleado_num)!;
+    const key: AspiracionKey = `${colab.uuid}|${r.ciclo_año}`;
+    if (!aspiracionMap.has(key)) {
+      aspiracionMap.set(key, {
+        uuid: colab.uuid, ciclo: r.ciclo_año,
+        p1Nombre: r.puesto1_nombre, p1Id: r.puesto1_id,
+        p2Nombre: r.puesto2_nombre, p2Id: r.puesto2_id,
+      });
+    }
+  }
+
+  let aspiraciones_guardadas = 0;
+  for (const [, a] of aspiracionMap.entries()) {
+    // Upsert: create record if not exists, only fill nulls if exists
+    const { error: picdErr } = await supabase.rpc("upsert_picd_aspiraciones", {
+      p_id_empleado:          a.uuid,
+      p_ciclo_año:            a.ciclo,
+      p_puesto_futuro_opcion1: a.p1Nombre,
+      p_puesto_futuro_id1:    a.p1Id,
+      p_puesto_futuro_opcion2: a.p2Nombre,
+      p_puesto_futuro_id2:    a.p2Id,
+    });
+    if (picdErr) errors.push(`Aspiración ${a.uuid} ciclo ${a.ciclo}: ${picdErr.message}`);
+    else aspiraciones_guardadas++;
   }
 
   return NextResponse.json({
@@ -238,6 +352,7 @@ export async function POST(req: NextRequest) {
     inserted,
     skipped_emp: empUnmatched,
     skipped_dup: duplicados,
+    aspiraciones_guardadas,
     errors: errors.slice(0, 20),
   });
 }
