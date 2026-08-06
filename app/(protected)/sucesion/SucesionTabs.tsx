@@ -21,7 +21,8 @@ export default function SucesionTabs({
   planes,
   colabs,
   ciclos,
-  puestos,
+  puestosByCiclo,
+  coberturaAllCiclos,
   uens,
   matches,
   matchCiclos,
@@ -29,14 +30,21 @@ export default function SucesionTabs({
   planes: SucesionItem[];
   colabs: ColabRow[];
   ciclos: number[];
-  puestos: PuestoCoberturaItem[];
+  puestosByCiclo: Record<number, PuestoCoberturaItem[]>;
+  coberturaAllCiclos: PuestoCoberturaItem[];
   uens: string[];
   matches: MatchRow[];
   matchCiclos: number[];
 }) {
   const [tab, setTab] = useState<"planes" | "cobertura" | "matching">("planes");
+  const [cicloCobertura, setCicloCobertura] = useState<number | "todos">(ciclos[0] ?? "todos");
 
-  const gapsCriticosCount = puestos.filter(
+  const puestosCobertura =
+    cicloCobertura === "todos"
+      ? coberturaAllCiclos
+      : (puestosByCiclo[cicloCobertura] ?? coberturaAllCiclos);
+
+  const gapsCriticosCount = coberturaAllCiclos.filter(
     (p) => p.es_critico && p.sucesores.length === 0 && p.titulares.length > 0
   ).length;
 
@@ -73,7 +81,13 @@ export default function SucesionTabs({
         <SucesionAdminView planes={planes} colabs={colabs} ciclos={ciclos} />
       )}
       {tab === "cobertura" && (
-        <CoberturaView puestos={puestos} uens={uens} />
+        <CoberturaView
+          puestos={puestosCobertura}
+          uens={uens}
+          cicloActual={cicloCobertura}
+          ciclosDisponibles={ciclos}
+          onCicloChange={setCicloCobertura}
+        />
       )}
       {tab === "matching" && (
         <MatchingView

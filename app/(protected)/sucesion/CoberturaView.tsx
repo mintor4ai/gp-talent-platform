@@ -56,7 +56,19 @@ const TIPO_COLORS: Record<string, string> = {
   Operativa:      "bg-orange-100 text-orange-800",
 };
 
-export default function CoberturaView({ puestos, uens }: { puestos: PuestoCoberturaItem[]; uens: string[] }) {
+export default function CoberturaView({
+  puestos,
+  uens,
+  cicloActual,
+  ciclosDisponibles,
+  onCicloChange,
+}: {
+  puestos: PuestoCoberturaItem[];
+  uens: string[];
+  cicloActual: number | "todos";
+  ciclosDisponibles: number[];
+  onCicloChange: (c: number | "todos") => void;
+}) {
   const [filterCritico, setFilterCritico] = useState<"" | "si" | "no">("si");
   const [filterRiesgo, setFilterRiesgo]   = useState<"" | RiesgoLevel>("");
   const [filterUen, setFilterUen]         = useState("");
@@ -94,9 +106,39 @@ export default function CoberturaView({ puestos, uens }: { puestos: PuestoCobert
 
   return (
     <div className="space-y-5 max-w-6xl">
-      <div>
-        <h2 className="text-xl font-bold text-gray-900">Cobertura por Puesto</h2>
-        <p className="text-sm text-gray-500 mt-0.5">Visibilidad de planes de sucesión ligados al catálogo de puestos</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Cobertura por Puesto</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Visibilidad de planes de sucesión ligados al catálogo de puestos</p>
+        </div>
+        {ciclosDisponibles.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-400 font-medium mr-1">Ciclo:</span>
+            {ciclosDisponibles.map((c) => (
+              <button
+                key={c}
+                onClick={() => onCicloChange(c)}
+                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                  cicloActual === c
+                    ? "bg-[#1a3a5c] text-white border-[#1a3a5c]"
+                    : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+            <button
+              onClick={() => onCicloChange("todos")}
+              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                cicloActual === "todos"
+                  ? "bg-[#1a3a5c] text-white border-[#1a3a5c]"
+                  : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              Todos
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Summary chips */}

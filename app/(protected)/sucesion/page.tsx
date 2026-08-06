@@ -96,35 +96,42 @@ export default async function SucesionPage() {
     });
   }
 
-  // Group succession plans by catalog position
-  // A plan links to a catalog position via plan.puesto_catalogo_id OR titular's puesto_catalogo_id
-  const sucesoresByCatalog = new Map<string, SucesorItem[]>();
-  for (const plan of planes) {
-    const p = plan as unknown as { id_empleado: string; sucesor_nombre: string; readiness: string | null; tiempo_estimado: string | null; estado: string; puesto_catalogo_id: string | null };
-    const catalogId = p.puesto_catalogo_id ?? colabToCatalog.get(p.id_empleado) ?? null;
-    if (!catalogId) continue;
-    if (!sucesoresByCatalog.has(catalogId)) sucesoresByCatalog.set(catalogId, []);
-    sucesoresByCatalog.get(catalogId)!.push({
-      sucesor_nombre:  p.sucesor_nombre,
-      readiness:       p.readiness,
-      tiempo_estimado: p.tiempo_estimado,
-      estado:          p.estado,
-    });
+  // Helper: build puestos for a subset of planes
+  function buildPuestos(planesSubset: typeof planes): PuestoCoberturaItem[] {
+    const sucesoresByCatalog = new Map<string, SucesorItem[]>();
+    for (const plan of planesSubset) {
+      const p = plan as unknown as { id_empleado: string; sucesor_nombre: string; readiness: string | null; tiempo_estimado: string | null; estado: string; puesto_catalogo_id: string | null };
+      const catalogId = p.puesto_catalogo_id ?? colabToCatalog.get(p.id_empleado) ?? null;
+      if (!catalogId) continue;
+      if (!sucesoresByCatalog.has(catalogId)) sucesoresByCatalog.set(catalogId, []);
+      sucesoresByCatalog.get(catalogId)!.push({
+        sucesor_nombre:  p.sucesor_nombre,
+        readiness:       p.readiness,
+        tiempo_estimado: p.tiempo_estimado,
+        estado:          p.estado,
+      });
+    }
+    return (catalogoRaw ?? []).map((c) => ({
+      id:                      c.id,
+      clave:                   c.clave,
+      nombre:                  c.nombre,
+      organización:            (c as unknown as Record<string, unknown>)["organización"] as string | null,
+      segmento_organizacional: c.segmento_organizacional ?? null,
+      tipo_vacante:            c.tipo_vacante ?? null,
+      es_critico:              c.es_critico,
+      titulares:               titularesByCatalog.get(c.id) ?? [],
+      sucesores:               sucesoresByCatalog.get(c.id) ?? [],
+    }));
   }
 
-  const puestos: PuestoCoberturaItem[] = (catalogoRaw ?? []).map((c) => ({
-    id:                    c.id,
-    clave:                 c.clave,
-    nombre:                c.nombre,
-    organización:          (c as unknown as Record<string, unknown>)["organización"] as string | null,
-    segmento_organizacional: c.segmento_organizacional ?? null,
-    tipo_vacante:          c.tipo_vacante ?? null,
-    es_critico:            c.es_critico,
-    titulares:             titularesByCatalog.get(c.id) ?? [],
-    sucesores:             sucesoresByCatalog.get(c.id) ?? [],
-  }));
+  // Build cobertura per ciclo + combined
+  const coberturaAllCiclos = buildPuestos(planes);
+  const puestosByCiclo: Record<number, PuestoCoberturaItem[]> = {};
+  for (const ciclo of ciclos) {
+    puestosByCiclo[ciclo] = buildPuestos(planes.filter((p) => p.ciclo_año === ciclo));
+  }
 
-  const uens = Array.from(new Set(puestos.map((p) => p.organización).filter(Boolean))).sort() as string[];
+  const uens = Array.from(new Set(coberturaAllCiclos.map((p) => p.organización).filter(Boolean))).sort() as string[];
 
   // Enrich matches with names from in-memory lookups
   const colabById = new Map(colabs.map((c) => [c.id, c.nombre_completo ?? ""]));
@@ -177,7 +184,8 @@ export default async function SucesionPage() {
       planes={planes}
       colabs={colabs}
       ciclos={ciclos}
-      puestos={puestos}
+      puestosByCiclo={puestosByCiclo}
+      coberturaAllCiclos={coberturaAllCiclos}
       uens={uens}
       matches={matches}
       matchCiclos={allCiclos}
