@@ -173,11 +173,15 @@ export default async function SucesionPage() {
   const uens = Array.from(new Set(coberturaAllCiclos.map((p) => p.organización).filter(Boolean))).sort() as string[];
 
   // Enrich matches with names from in-memory lookups
-  type CatalogRow = { id: string; nombre: string; organización?: string | null };
+  type CatalogRow = { id: string; nombre: string; organización?: string | null; segmento_organizacional?: string | null };
   const catalogById = new Map(
     (catalogoRaw ?? []).map((c) => {
       const row = c as unknown as CatalogRow & Record<string, unknown>;
-      return [row.id, { nombre: row.nombre, org: String(row["organización"] ?? "") }];
+      return [row.id, {
+        nombre: row.nombre,
+        org: String(row["organización"] ?? ""),
+        area: (row.segmento_organizacional as string | null) ?? null,
+      }];
     })
   );
 
@@ -208,6 +212,7 @@ export default async function SucesionPage() {
       titular_nombres: titularIds.map((id) => colabById.get(id) ?? id).filter(Boolean),
       puesto_nombre: puesto?.nombre ?? null,
       puesto_org: puesto?.org || null,
+      puesto_area: puesto?.area ?? null,
       validado_por_nombre: m.validado_por ? (adminNames.get(m.validado_por) ?? null) : null,
       descartado_por_nombre: m.descartado_por ? (adminNames.get(m.descartado_por) ?? null) : null,
     };

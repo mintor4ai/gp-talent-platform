@@ -34,6 +34,7 @@ export type MatchRow = {
   titular_nombres?: string[];
   puesto_nombre?: string | null;
   puesto_org?: string | null;
+  puesto_area?: string | null;
   validado_por_nombre?: string | null;
   descartado_por_nombre?: string | null;
 };
@@ -752,6 +753,8 @@ export default function MatchingView({
   const [selectedCiclo, setSelectedCiclo] = useState<number | "all">(ciclosDisponibles[0] ?? "all");
   const [selectedTipo, setSelectedTipo] = useState<string>("all");
   const [selectedUen, setSelectedUen] = useState<string>("all");
+  const [selectedArea, setSelectedArea] = useState<string>("all");
+  const [selectedPuesto, setSelectedPuesto] = useState<string>("all");
   const [selectedEstado, setSelectedEstado] = useState<"all" | "pendiente" | "validado" | "descartado">("all");
   const [soloCriticos, setSoloCriticos] = useState(false);
   const [search, setSearch] = useState("");
@@ -828,12 +831,29 @@ export default function MatchingView({
     );
   };
 
+  // ── Cascade options ────────────────────────────────────────────────────────
+  // Available areas given selected UEN
+  const availableAreas = useMemo(() => {
+    const source = selectedUen === "all" ? matches : matches.filter((m) => m.puesto_org === selectedUen);
+    return Array.from(new Set(source.map((m) => m.puesto_area).filter(Boolean))).sort() as string[];
+  }, [matches, selectedUen]);
+
+  // Available puestos given selected UEN + Area
+  const availablePuestos = useMemo(() => {
+    let source = matches;
+    if (selectedUen !== "all") source = source.filter((m) => m.puesto_org === selectedUen);
+    if (selectedArea !== "all") source = source.filter((m) => m.puesto_area === selectedArea);
+    return Array.from(new Set(source.map((m) => m.puesto_nombre).filter(Boolean))).sort() as string[];
+  }, [matches, selectedUen, selectedArea]);
+
   // ── Filtering ─────────────────────────────────────────────────────────────
-  // Base predicate (ciclo + uen + criticos + search + tipo) — applied to all matches
+  // Base predicate (ciclo + uen + area + puesto + criticos + search + tipo) — applied to all matches
   function passesBase(m: MatchRow, includeTipo: boolean): boolean {
     if (selectedCiclo !== "all" && m.ciclo_año !== selectedCiclo) return false;
     if (includeTipo && selectedTipo !== "all" && m.tipo_match !== selectedTipo) return false;
     if (selectedUen !== "all" && m.puesto_org !== selectedUen) return false;
+    if (selectedArea !== "all" && m.puesto_area !== selectedArea) return false;
+    if (selectedPuesto !== "all" && m.puesto_nombre !== selectedPuesto) return false;
     if (soloCriticos && !m.es_puesto_critico) return false;
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -849,7 +869,7 @@ export default function MatchingView({
   const countBase = useMemo(
     () => matches.filter((m) => !m.descartado && passesBase(m, false)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [matches, selectedCiclo, selectedUen, soloCriticos, search]
+    [matches, selectedCiclo, selectedUen, selectedArea, selectedPuesto, soloCriticos, search]
   );
 
   const typeCounts = useMemo(() => ({
@@ -863,14 +883,14 @@ export default function MatchingView({
   const activeFiltered = useMemo(
     () => matches.filter((m) => !m.descartado && passesBase(m, true)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [matches, selectedCiclo, selectedTipo, selectedUen, soloCriticos, search]
+    [matches, selectedCiclo, selectedTipo, selectedUen, selectedArea, selectedPuesto, soloCriticos, search]
   );
 
   // Discarded after all base filters (excluding estado)
   const discardedFiltered = useMemo(
     () => matches.filter((m) => m.descartado && passesBase(m, true)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [matches, selectedCiclo, selectedTipo, selectedUen, soloCriticos, search]
+    [matches, selectedCiclo, selectedTipo, selectedUen, selectedArea, selectedPuesto, soloCriticos, search]
   );
 
   // What goes in the main grid depends on selectedEstado
@@ -926,12 +946,47 @@ export default function MatchingView({
           {uens.length > 0 && (
             <select
               value={selectedUen}
-              onChange={(e) => setSelectedUen(e.target.value)}
+              onChange={(e) => {
+                setSelectedUen(e.target.value);
+                setSelectedArea("all");
+                setSelectedPuesto("all");
+              }}
               className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
             >
               <option value="all">Todas las UEN</option>
               {uens.map((u) => (
                 <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
+          )}
+
+          {availableAreas.length > 0 && (
+            <select
+              value={selectedArea}
+              onChange={(e) => {
+                setSelectedArea(e.target.value);
+                setSelectedPuesto("all");
+              }}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
+            >
+              <option value="all">
+                {selectedUen === "all" ? "Todas las áreas" : "Todas las áreas"}
+              </option>
+              {availableAreas.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          )}
+
+          {availablePuestos.length > 1 && (
+            <select
+              value={selectedPuesto}
+              onChange={(e) => setSelectedPuesto(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 max-w-[220px]"
+            >
+              <option value="all">Todos los puestos</option>
+              {availablePuestos.map((p) => (
+                <option key={p} value={p}>{p}</option>
               ))}
             </select>
           )}
