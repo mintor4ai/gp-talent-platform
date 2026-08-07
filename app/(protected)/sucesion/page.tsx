@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import type { SucesionItem } from "../carpeta/[id]/SucesionEditor";
-import type { PuestoCoberturaItem, TitularItem, SucesorItem } from "./CoberturaView";
+import type { PuestoCoberturaItem, TitularItem, SucesorItem, AspiranteItem } from "./CoberturaView";
 import type { MatchRow } from "./MatchingView";
 import SucesionTabs from "./SucesionTabs";
 
@@ -85,6 +85,12 @@ export default async function SucesionPage() {
     if (byNom?.length === 1) colabToCatalog.set(c.id, byNom[0]);
   }
 
+  // Colaborador id → nombre (needed in buildPuestos for aspirantes)
+  const colabById = new Map(colabs.map((c) => [c.id, c.nombre_completo ?? ""]));
+
+  // Raw matches array (typed)
+  const rawMatches = (matchesRaw ?? []) as unknown as MatchRow[];
+
   // Group titulares by puesto_catalogo_id
   const titularesByCatalog = new Map<string, TitularItem[]>();
   for (const c of colabs) {
@@ -96,21 +102,37 @@ export default async function SucesionPage() {
     });
   }
 
-  // Helper: build puestos for a subset of planes
-  function buildPuestos(planesSubset: typeof planes): PuestoCoberturaItem[] {
+  // Helper: build puestos for a subset of planes + matches
+  function buildPuestos(planesSubset: typeof planes, matchesSubset: typeof rawMatches): PuestoCoberturaItem[] {
     const sucesoresByCatalog = new Map<string, SucesorItem[]>();
     for (const plan of planesSubset) {
-      const p = plan as unknown as { id_empleado: string; sucesor_nombre: string; readiness: string | null; tiempo_estimado: string | null; estado: string; puesto_catalogo_id: string | null };
+      const p = plan as unknown as { id_empleado: string; sucesor_id?: string | null; sucesor_nombre: string; readiness: string | null; tiempo_estimado: string | null; estado: string; puesto_catalogo_id: string | null };
       const catalogId = p.puesto_catalogo_id ?? colabToCatalog.get(p.id_empleado) ?? null;
       if (!catalogId) continue;
       if (!sucesoresByCatalog.has(catalogId)) sucesoresByCatalog.set(catalogId, []);
       sucesoresByCatalog.get(catalogId)!.push({
         sucesor_nombre:  p.sucesor_nombre,
+        sucesor_id:      p.sucesor_id ?? null,
         readiness:       p.readiness,
         tiempo_estimado: p.tiempo_estimado,
         estado:          p.estado,
       });
     }
+
+    // Build aspirantes from matches (aspiracion + bidireccional), exclude discarded
+    const aspirantesByCatalog = new Map<string, AspiranteItem[]>();
+    for (const m of matchesSubset) {
+      if (m.tipo_match !== "aspiracion" && m.tipo_match !== "bidireccional") continue;
+      if (m.descartado) continue;
+      if (!m.puesto_catalogo_id || !m.colaborador_id) continue;
+      if (!aspirantesByCatalog.has(m.puesto_catalogo_id)) aspirantesByCatalog.set(m.puesto_catalogo_id, []);
+      aspirantesByCatalog.get(m.puesto_catalogo_id)!.push({
+        colaborador_id:    m.colaborador_id,
+        colaborador_nombre: colabById.get(m.colaborador_id) ?? null,
+        tipo_match:        m.tipo_match as "aspiracion" | "bidireccional",
+      });
+    }
+
     return (catalogoRaw ?? []).map((c) => ({
       id:                      c.id,
       clave:                   c.clave,
@@ -121,20 +143,23 @@ export default async function SucesionPage() {
       es_critico:              c.es_critico,
       titulares:               titularesByCatalog.get(c.id) ?? [],
       sucesores:               sucesoresByCatalog.get(c.id) ?? [],
+      aspirantes:              aspirantesByCatalog.get(c.id) ?? [],
     }));
   }
 
   // Build cobertura per ciclo + combined
-  const coberturaAllCiclos = buildPuestos(planes);
+  const coberturaAllCiclos = buildPuestos(planes, rawMatches);
   const puestosByCiclo: Record<number, PuestoCoberturaItem[]> = {};
   for (const ciclo of ciclos) {
-    puestosByCiclo[ciclo] = buildPuestos(planes.filter((p) => p.ciclo_año === ciclo));
+    puestosByCiclo[ciclo] = buildPuestos(
+      planes.filter((p) => p.ciclo_año === ciclo),
+      rawMatches.filter((m) => m.ciclo_año === ciclo),
+    );
   }
 
   const uens = Array.from(new Set(coberturaAllCiclos.map((p) => p.organización).filter(Boolean))).sort() as string[];
 
   // Enrich matches with names from in-memory lookups
-  const colabById = new Map(colabs.map((c) => [c.id, c.nombre_completo ?? ""]));
   type CatalogRow = { id: string; nombre: string; organización?: string | null };
   const catalogById = new Map(
     (catalogoRaw ?? []).map((c) => {
@@ -144,7 +169,6 @@ export default async function SucesionPage() {
   );
 
   // Resolve admin UUIDs (validado_por / descartado_por) → nombre via usuarios_app → colaboradores
-  const rawMatches = (matchesRaw ?? []) as unknown as MatchRow[];
   const adminUuids = Array.from(new Set([
     ...rawMatches.map((m) => m.validado_por).filter(Boolean),
     ...rawMatches.map((m) => m.descartado_por).filter(Boolean),
