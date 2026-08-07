@@ -15,7 +15,17 @@ export default async function PlanCarreraIndexPage() {
 
   const rol = perfil.rol as Rol;
   const isAdmin = rol === "capital_humano" || rol === "superadmin";
-  if (!isAdmin) redirect("/dashboard");
+
+  if (!isAdmin) {
+    // Non-admins go straight to their own plan page
+    const { data: propio } = await supabase
+      .from("usuarios_app")
+      .select("id_empleado")
+      .eq("id", user.id)
+      .single();
+    if (propio?.id_empleado) redirect(`/plan-carrera/${propio.id_empleado}`);
+    redirect("/dashboard");
+  }
 
   // Fetch all plans with joined data
   const { data: planesRaw } = await supabase

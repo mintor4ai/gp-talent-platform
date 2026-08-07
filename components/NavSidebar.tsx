@@ -39,16 +39,18 @@ const ADMIN_NAV: NavItem[] = [
 const SUPERADMIN_EXTRA: NavItem = { href: "/configuracion", label: "Configuración", icon: "⚙️" };
 
 const COLABORADOR_NAV: NavItem[] = [
-  { href: "/dashboard", label: "Inicio",    icon: "⊞", exact: true },
-  { href: "/carpeta",   label: "Mi Carpeta", icon: "📁" },
-  { href: "/coach",     label: "Coach IA",   icon: "✦" },
+  { href: "/dashboard",   label: "Inicio",              icon: "⊞", exact: true },
+  { href: "/carpeta",     label: "Mi Carpeta",          icon: "📁" },
+  { href: "/plan-carrera", label: "Mi Plano de Carrera", icon: "📐" },
+  { href: "/coach",       label: "Coach IA",            icon: "✦" },
 ];
 
 const JEFE_NAV: NavItem[] = [
-  { href: "/dashboard", label: "Inicio",    icon: "⊞", exact: true },
-  { href: "/carpeta",   label: "Mi Carpeta", icon: "📁" },
-  { href: "/equipo",    label: "Mi Equipo",  icon: "👥" },
-  { href: "/coach",     label: "Coach IA",   icon: "✦" },
+  { href: "/dashboard",   label: "Inicio",              icon: "⊞", exact: true },
+  { href: "/carpeta",     label: "Mi Carpeta",          icon: "📁" },
+  { href: "/plan-carrera", label: "Mi Plano de Carrera", icon: "📐" },
+  { href: "/equipo",      label: "Mi Equipo",           icon: "👥" },
+  { href: "/coach",       label: "Coach IA",            icon: "✦" },
 ];
 
 export default function NavSidebar({

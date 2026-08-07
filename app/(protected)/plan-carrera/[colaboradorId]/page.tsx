@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import { getPlanCarrera } from "@/app/actions/plan_carrera";
 import PlanCarreraView from "./PlanCarreraView";
+import PlanCarreraViewColaborador from "./PlanCarreraViewColaborador";
 
 export default async function PlanCarreraPage({
   params,
@@ -21,7 +22,16 @@ export default async function PlanCarreraPage({
 
   const rol = perfil.rol as Rol;
   const isAdmin = rol === "capital_humano" || rol === "superadmin";
-  if (!isAdmin) redirect("/dashboard");
+
+  // Collaborators can only view their own plan (read-only)
+  if (!isAdmin) {
+    const { data: propio } = await supabase
+      .from("usuarios_app")
+      .select("id_empleado")
+      .eq("id", user.id)
+      .single();
+    if (propio?.id_empleado !== colaboradorId) redirect("/dashboard");
+  }
 
   // Load collaborator info
   const { data: colabRaw } = await supabase
@@ -51,16 +61,22 @@ export default async function PlanCarreraPage({
     es_critico: c["es_critico"] as boolean,
   }));
 
+  const colabInfo = {
+    id: colab["id"] as string,
+    nombre_completo: (colab["nombre_completo"] as string) ?? "",
+    puesto: (colab["puesto"] as string) ?? "",
+    nivel: (colab["nivel"] as string) ?? "",
+    area: (colab["area"] as string) ?? "",
+    organización: (colab["organización"] as string) ?? "",
+  };
+
+  if (!isAdmin) {
+    return <PlanCarreraViewColaborador colab={colabInfo} plan={plan} />;
+  }
+
   return (
     <PlanCarreraView
-      colab={{
-        id: colab["id"] as string,
-        nombre_completo: (colab["nombre_completo"] as string) ?? "",
-        puesto: (colab["puesto"] as string) ?? "",
-        nivel: (colab["nivel"] as string) ?? "",
-        area: (colab["area"] as string) ?? "",
-        organización: (colab["organización"] as string) ?? "",
-      }}
+      colab={colabInfo}
       plan={plan}
       catalogo={catalogo}
     />

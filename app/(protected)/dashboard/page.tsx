@@ -64,7 +64,7 @@ async function ColaboradorDashboard({
     );
   }
 
-  const [{ data: colab }, { data: eip }] = await Promise.all([
+  const [{ data: colab }, { data: eip }, { data: planRaw }] = await Promise.all([
     supabase
       .from("colaboradores")
       .select("*")
@@ -75,7 +75,27 @@ async function ColaboradorDashboard({
       .select("*")
       .eq("id_empleado", idEmpleado)
       .single(),
+    supabase
+      .from("plan_carrera")
+      .select("id, estado")
+      .eq("colaborador_id", idEmpleado)
+      .maybeSingle(),
   ]);
+
+  const planCarrera = planRaw as unknown as { id: string; estado: string } | null;
+
+  // Fetch action progress if plan exists
+  let planProgress = 0;
+  if (planCarrera) {
+    const { data: acciones } = await supabase
+      .from("plan_carrera_acciones")
+      .select("estado")
+      .eq("plan_id", planCarrera.id)
+      .neq("estado", "cancelado");
+    const total = acciones?.length ?? 0;
+    const done = acciones?.filter((a) => a.estado === "completado").length ?? 0;
+    planProgress = total > 0 ? Math.round((done / total) * 100) : 0;
+  }
 
   const zonaColors = eip?.zona_evaluacion
     ? ZONA_COLORS[eip.zona_evaluacion] ?? { bg: "bg-gray-100", text: "text-gray-700" }
@@ -131,6 +151,37 @@ async function ColaboradorDashboard({
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-center justify-center text-center">
             <p className="text-sm text-gray-400">Sin evaluación integral disponible</p>
+          </div>
+        )}
+
+        {/* Plano de Carrera card — only shown when a plan exists */}
+        {planCarrera && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <SectionHeader label="Mi Plano de Carrera" />
+            <div className="flex items-center justify-between mb-3">
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                planCarrera.estado === "activo"
+                  ? "bg-green-100 text-green-700"
+                  : planCarrera.estado === "pausado"
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-gray-100 text-gray-500"
+              }`}>
+                {planCarrera.estado === "activo" ? "Activo" : planCarrera.estado === "pausado" ? "Pausado" : "Cerrado"}
+              </span>
+              <span className="text-xl font-bold tabular-nums text-gray-900">{planProgress}%</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2 mb-4">
+              <div
+                className="bg-[#1a3a5c] h-2 rounded-full transition-all"
+                style={{ width: `${planProgress}%` }}
+              />
+            </div>
+            <a
+              href={`/plan-carrera/${idEmpleado}`}
+              className="inline-block w-full text-center border border-[#1a3a5c] text-[#1a3a5c] text-sm font-medium py-2 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Ver mi plano →
+            </a>
           </div>
         )}
 
