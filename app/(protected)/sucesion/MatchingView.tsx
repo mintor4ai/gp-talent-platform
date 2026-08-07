@@ -542,7 +542,7 @@ export default function MatchingView({
   const [matches, setMatches] = useState<MatchRow[]>(initialMatches);
   const [isPending, startTransition] = useTransition();
   const [recalcMsg, setRecalcMsg] = useState<string | null>(null);
-  const [selectedCiclo, setSelectedCiclo] = useState<number | "all">("all");
+  const [selectedCiclo, setSelectedCiclo] = useState<number | "all">(ciclosDisponibles[0] ?? "all");
   const [selectedTipo, setSelectedTipo] = useState<string>("all");
   const [selectedUen, setSelectedUen] = useState<string>("all");
   const [soloCriticos, setSoloCriticos] = useState(false);
