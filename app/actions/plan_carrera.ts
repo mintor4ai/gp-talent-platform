@@ -451,19 +451,181 @@ type IASugerencia = {
   duracion_meses: number;
 };
 
+async function buildEnrichedSnapshot(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  colaboradorId: string,
+  matchId: string | null,
+): Promise<string> {
+  const [colabRes, historialRes, formacionRes, eipRes, ealRes, picdRes, sucesionPicdRes, matchRes] =
+    await Promise.all([
+      supabase.from("colaboradores").select("*").eq("id", colaboradorId).single(),
+      supabase
+        .from("historial_carrera")
+        .select("puesto, empresa, tipo, fecha_inicio, fecha_fin, años")
+        .eq("id_empleado", colaboradorId)
+        .order("fecha_inicio", { ascending: false })
+        .limit(10),
+      supabase
+        .from("formacion_academica")
+        .select("nivel_estudio, nombre_carrera, institucion, fecha_fin")
+        .eq("colaborador_id", colaboradorId)
+        .order("fecha_fin", { ascending: false }),
+      supabase
+        .from("evaluacion_integral_personal")
+        .select("ciclo_año, zona_evaluacion, evaluacion_potencial_total, competencias, percentil_competencias, eal_score, percentil_eal, cumplimiento_picd, escolaridad_texto, años_experiencia, años_exp_total, num_puestos, desempeno_logra")
+        .eq("id_empleado", colaboradorId)
+        .order("ciclo_año", { ascending: false })
+        .limit(2),
+      supabase
+        .from("evaluacion_anual_liderazgo")
+        .select("ciclo_año, promedio_eal, percentil_eal, evaluacion_eal")
+        .eq("id_lider_evaluado", colaboradorId)
+        .order("ciclo_año", { ascending: false })
+        .limit(2),
+      supabase
+        .from("picd")
+        .select("ciclo_año, puesto_futuro_opcion1, puesto_futuro_opcion2, areas_oportunidad, compromisos, porcentaje_cumplimiento")
+        .eq("id_empleado", colaboradorId)
+        .order("ciclo_año", { ascending: false })
+        .limit(2),
+      supabase
+        .from("sucesion_picd")
+        .select("ciclo_año, listo_para_rol")
+        .eq("sucesor_empleado_id", colaboradorId)
+        .order("ciclo_año", { ascending: false })
+        .limit(5),
+      matchId
+        ? supabase.from("sucesion_matches").select("readiness").eq("id", matchId).single()
+        : Promise.resolve({ data: null }),
+    ]);
+
+  const c = colabRes.data as unknown as Record<string, unknown> | null;
+  if (!c) return "Perfil no disponible";
+
+  const today = new Date();
+  const birthDate = c["fecha_nacimiento"] ? new Date(c["fecha_nacimiento"] as string) : null;
+  const age = birthDate
+    ? Math.floor((today.getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    : (c["edad"] as number | null);
+  const ingresoGrupo = c["fecha_ingreso_grupo"] ? new Date(c["fecha_ingreso_grupo"] as string) : null;
+  const antiguedadGrupo = ingresoGrupo
+    ? Math.round(((today.getTime() - ingresoGrupo.getTime()) / (365.25 * 24 * 60 * 60 * 1000)) * 10) / 10
+    : null;
+  const ingresoPuesto = c["fecha_ingreso_posicion"] ? new Date(c["fecha_ingreso_posicion"] as string) : null;
+  const antiguedadPuesto = ingresoPuesto
+    ? Math.round(((today.getTime() - ingresoPuesto.getTime()) / (365.25 * 24 * 60 * 60 * 1000)) * 10) / 10
+    : null;
+
+  const parts: string[] = [];
+
+  parts.push(`## PERFIL BÁSICO
+Nombre: ${c["nombre_completo"] ?? "—"}
+Edad: ${age ?? "—"} años
+Puesto actual: ${c["puesto"] ?? "—"}
+Área: ${c["area"] ?? "—"}
+UEN / Organización: ${c["organización"] ?? "—"}
+Nivel: ${c["nivel"] ?? "—"}
+Antigüedad en Grupo GP: ${antiguedadGrupo != null ? `${antiguedadGrupo} años` : "—"}
+Antigüedad en puesto actual: ${antiguedadPuesto != null ? `${antiguedadPuesto} años` : "—"}
+Disponible para cambio de residencia: ${c["dispuesto_cambiar_residencia"] ? "Sí" : "No"}`);
+
+  const expParts: string[] = [];
+  if (c["resumen_exp_interno"]) expParts.push(`Interna: ${c["resumen_exp_interno"]}`);
+  if (c["resumen_exp_externo"]) expParts.push(`Externa: ${c["resumen_exp_externo"]}`);
+  if (expParts.length) parts.push(`## RESUMEN DE EXPERIENCIA\n${expParts.join("\n")}`);
+
+  const historial = (historialRes.data ?? []) as unknown as Array<Record<string, unknown>>;
+  if (historial.length) {
+    parts.push(
+      `## HISTORIAL DE CARRERA (${historial.length} posiciones)\n` +
+        historial
+          .map((h) => `• ${h["puesto"] ?? "—"} en ${h["empresa"] ?? "—"} (${h["tipo"] ?? "—"}) — ${h["años"] ?? "?"} años`)
+          .join("\n"),
+    );
+  }
+
+  const formacion = (formacionRes.data ?? []) as unknown as Array<Record<string, unknown>>;
+  if (formacion.length) {
+    parts.push(
+      `## FORMACIÓN ACADÉMICA\n` +
+        formacion.map((f) => `• ${f["nivel_estudio"] ?? "—"}: ${f["nombre_carrera"] ?? "—"} — ${f["institucion"] ?? "—"}`).join("\n"),
+    );
+  } else {
+    const resumen = [c["resumen_formacion_profesional"], c["resumen_formacion_especialidad"], c["resumen_formacion_maestria"]]
+      .filter(Boolean)
+      .join(" | ");
+    if (resumen) parts.push(`## FORMACIÓN ACADÉMICA\n${resumen}`);
+  }
+
+  const eips = (eipRes.data ?? []) as unknown as Array<Record<string, unknown>>;
+  if (eips.length) {
+    parts.push(
+      `## EIP — EVALUACIÓN INTEGRAL PERSONAL (últimos 2 ciclos)\n` +
+        eips
+          .map(
+            (e) =>
+              `Ciclo ${e["ciclo_año"]}: Zona ${e["zona_evaluacion"] ?? "—"} | Potencial ${e["evaluacion_potencial_total"] ?? "—"} | Competencias ${e["competencias"] ?? "—"} (p${e["percentil_competencias"] ?? "—"}) | EAL score ${e["eal_score"] ?? "—"} (p${e["percentil_eal"] ?? "—"}) | Cumplimiento PICD ${e["cumplimiento_picd"] ?? "—"}% | Desempeño ${e["desempeno_logra"] ?? "—"} | Escolaridad: ${e["escolaridad_texto"] ?? "—"}`,
+          )
+          .join("\n"),
+    );
+  }
+
+  const eals = (ealRes.data ?? []) as unknown as Array<Record<string, unknown>>;
+  if (eals.length) {
+    parts.push(
+      `## EAL — EVALUACIÓN ANUAL DE LIDERAZGO (últimos 2 ciclos)\n` +
+        eals
+          .map((e) => `Ciclo ${e["ciclo_año"]}: Promedio ${e["promedio_eal"] ?? "—"} | Percentil ${e["percentil_eal"] ?? "—"} | Score ponderado ${e["evaluacion_eal"] ?? "—"}`)
+          .join("\n"),
+    );
+  }
+
+  const picds = (picdRes.data ?? []) as unknown as Array<Record<string, unknown>>;
+  if (picds.length) {
+    parts.push(
+      `## PICD — ASPIRACIONES DECLARADAS (últimos 2 ciclos)\n` +
+        picds
+          .map((p) => {
+            const aspira = [p["puesto_futuro_opcion1"], p["puesto_futuro_opcion2"]].filter(Boolean).join(", ");
+            return `Ciclo ${p["ciclo_año"]}: Aspira a → ${aspira || "No declarado"} | Áreas de oportunidad: ${p["areas_oportunidad"] ?? "—"} | Cumplimiento compromisos: ${p["porcentaje_cumplimiento"] ?? "—"}%`;
+          })
+          .join("\n"),
+    );
+  }
+
+  const sucesionPicd = (sucesionPicdRes.data ?? []) as unknown as Array<Record<string, unknown>>;
+  if (sucesionPicd.length) {
+    parts.push(
+      `## HISTORIAL DE PROPUESTAS COMO SUCESOR\n` +
+        sucesionPicd
+          .map((s) => `Ciclo ${s["ciclo_año"]}: Propuesto por su jefe (readiness declarado: ${s["listo_para_rol"] ?? "—"})`)
+          .join("\n"),
+    );
+  }
+
+  const matchData = matchRes.data as unknown as { readiness: string } | null;
+  if (matchData?.readiness) {
+    parts.push(`## READINESS VALIDADO POR CAPITAL HUMANO\n${matchData.readiness}`);
+  }
+
+  return parts.join("\n\n");
+}
+
 export async function generarSugerenciasIA(params: {
   planId: string;
+  colaboradorId: string;
+  matchId?: string | null;
   objetivoId?: string | null;
   dimension: PlanCarreraAccion["dimension"];
   puestoObjetivo: string;
-  snapshot: Record<string, unknown>;
   brecha?: string | null;
 }): Promise<{ ok: boolean; sugerencias?: IASugerencia[]; error?: string }> {
   try {
     const { supabase, userId } = await getAdminUser();
 
-    // Get active prompt + API config
-    const [promptRes, apiRes] = await Promise.all([
+    // Build enriched snapshot + fetch prompt/config in parallel
+    const [snapshotText, promptRes, apiRes] = await Promise.all([
+      buildEnrichedSnapshot(supabase, params.colaboradorId, params.matchId ?? null),
       supabase
         .from("configuracion_prompts")
         .select("id, contenido")
@@ -481,16 +643,16 @@ export async function generarSugerenciasIA(params: {
     if (!promptRes.data) throw new Error("Prompt plano_carrera_sugerencias no configurado");
 
     const DIMENSION_LABELS: Record<string, string> = {
-      tecnica:    "Competencias Técnicas",
-      liderazgo:  "Liderazgo y Gestión",
-      visibilidad:"Visibilidad Ejecutiva",
-      operativa:  "Experiencia Operativa",
+      tecnica:     "Competencias Técnicas",
+      liderazgo:   "Liderazgo y Gestión",
+      visibilidad: "Visibilidad Ejecutiva",
+      operativa:   "Experiencia Operativa",
     };
 
     const prompt = promptRes.data.contenido
       .replace("{{dimension}}", DIMENSION_LABELS[params.dimension] ?? params.dimension)
       .replace("{{puesto_objetivo}}", params.puestoObjetivo)
-      .replace("{{snapshot}}", JSON.stringify(params.snapshot))
+      .replace("{{snapshot}}", snapshotText)
       .replace("{{brecha}}", params.brecha ?? "No especificada");
 
     const client = new Anthropic();

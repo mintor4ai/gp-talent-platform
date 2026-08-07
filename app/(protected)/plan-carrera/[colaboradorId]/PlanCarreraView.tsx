@@ -440,9 +440,10 @@ export default function PlanCarreraView({
                       />
                       <IAButton
                         planId={plan.id}
+                        colaboradorId={plan.colaborador_id}
+                        matchId={activeObjetivos[0]?.match_id ?? null}
                         dimension={dim}
                         puestoObjetivo={activeObjetivos[0]?.puesto_nombre ?? ""}
-                        snapshot={plan.snapshot_json}
                         objetivoId={activeObjetivos[0]?.id ?? null}
                         onGeneradas={handleSugerenciasGeneradas}
                         onFlash={showFlash}
@@ -821,17 +822,19 @@ function AddAccionInline({
 
 function IAButton({
   planId,
+  colaboradorId,
+  matchId,
   dimension,
   puestoObjetivo,
-  snapshot,
   objetivoId,
   onGeneradas,
   onFlash,
 }: {
   planId: string;
+  colaboradorId: string;
+  matchId: string | null;
   dimension: Dimension;
   puestoObjetivo: string;
-  snapshot: Record<string, unknown>;
   objetivoId: string | null;
   onGeneradas: (acciones: PlanCarreraAccion[]) => void;
   onFlash: (msg: string, ok?: boolean) => void;
@@ -844,10 +847,11 @@ function IAButton({
     setLoading(true);
     const res = await generarSugerenciasIA({
       planId,
+      colaboradorId,
+      matchId,
       objetivoId,
       dimension,
       puestoObjetivo,
-      snapshot,
       brecha: brecha.trim() || null,
     });
     setLoading(false);
