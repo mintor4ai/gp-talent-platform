@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
+import Link from "next/link";
 import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 import {
   recalcularMatches,
@@ -271,6 +272,14 @@ function MatchCard({
                   className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
                   Validar
                 </button>
+              )}
+              {match.validado_ch && match.colaborador_id && (
+                <Link
+                  href={`/plan-carrera/${match.colaborador_id}`}
+                  className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-80 hover:bg-opacity-100 transition-colors border border-current border-opacity-30 flex items-center gap-1"
+                >
+                  📐 Plano de Carrera
+                </Link>
               )}
               <button onClick={() => setShowDiscardForm(true)}
                 className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-40 hover:bg-opacity-70 transition-colors border border-current border-opacity-20">

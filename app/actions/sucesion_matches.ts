@@ -62,9 +62,17 @@ export async function recalcularMatches(cicloAño: number): Promise<{
   }
 }
 
-export async function validarMatch(matchId: string): Promise<{ ok: boolean; error?: string }> {
+export async function validarMatch(matchId: string): Promise<{ ok: boolean; planCreado?: boolean; error?: string }> {
   try {
     const { supabase, userId } = await getAdminUser();
+
+    // Fetch match data before updating for plan creation
+    const { data: matchRaw } = await supabase
+      .from("sucesion_matches")
+      .select("*")
+      .eq("id", matchId)
+      .single();
+    const match = matchRaw as unknown as { colaborador_id: string | null; puesto_catalogo_id: string | null; ciclo_año: number } | null;
 
     const { error } = await supabase
       .from("sucesion_matches")
@@ -77,8 +85,37 @@ export async function validarMatch(matchId: string): Promise<{ ok: boolean; erro
 
     if (error) throw error;
 
+    // Auto-create Plano de Carrera if the match has a collaborator
+    let planCreado = false;
+    if (match?.colaborador_id && match?.puesto_catalogo_id) {
+      const { data: colabRaw } = await supabase
+        .from("colaboradores")
+        .select("*")
+        .eq("id", match.colaborador_id)
+        .single();
+      const colab = colabRaw as unknown as Record<string, unknown> | null;
+
+      const snapshot: Record<string, unknown> = {
+        puesto: colab?.["puesto"] ?? null,
+        nivel: colab?.["nivel"] ?? null,
+        area: colab?.["area"] ?? null,
+        organización: colab?.["organización"] ?? null,
+        fecha_validacion: new Date().toISOString(),
+      };
+
+      const { crearPlanCarrera } = await import("@/app/actions/plan_carrera");
+      const planRes = await crearPlanCarrera({
+        colaboradorId: match.colaborador_id,
+        matchId,
+        puestoCatalogoId: match.puesto_catalogo_id,
+        cicloAño: match.ciclo_año,
+        snapshot,
+      });
+      planCreado = planRes.ok;
+    }
+
     revalidatePath("/sucesion");
-    return { ok: true };
+    return { ok: true, planCreado };
   } catch (err) {
     const msg =
       err instanceof Error
