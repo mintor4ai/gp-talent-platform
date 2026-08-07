@@ -20,34 +20,47 @@ export default async function SucesionPage() {
   const isAdmin = rol === "capital_humano" || rol === "superadmin";
   if (!isAdmin) redirect("/dashboard");
 
-  const [
-    { data: planesRaw },
-    { data: colabsRaw },
-    { data: catalogoRaw },
-    { data: matchesRaw },
-  ] = await Promise.all([
-    supabase
-      .from("plan_sucesion")
-      .select("*")
-      .order("ciclo_año", { ascending: false })
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("colaboradores")
-      .select("id, nombre_completo, puesto, nivel, area, organización, puesto_catalogo_id")
-      .eq("activo", true)
-      .order("nombre_completo"),
-    supabase
-      .from("catalogo_puestos")
-      .select("*")
+  // PostgREST default limit is 1000 rows — paginate any table that can exceed it
+  async function fetchAllRows<T>(
+    queryFn: (from: number, to: number) => PromiseLike<{ data: T[] | null }>
+  ): Promise<T[]> {
+    const PAGE = 1000;
+    const results: T[] = [];
+    for (let start = 0; ; start += PAGE) {
+      const { data } = await queryFn(start, start + PAGE - 1);
+      if (!data?.length) break;
+      results.push(...data);
+      if (data.length < PAGE) break;
+    }
+    return results;
+  }
+
+  const [planesRaw, colabsRaw, catalogoResult, matchesRaw] = await Promise.all([
+    fetchAllRows((from, to) =>
+      supabase.from("plan_sucesion").select("*")
+        .order("ciclo_año", { ascending: false })
+        .order("created_at", { ascending: false })
+        .range(from, to)
+    ),
+    fetchAllRows((from, to) =>
+      supabase.from("colaboradores")
+        .select("id, nombre_completo, puesto, nivel, area, organización, puesto_catalogo_id")
+        .eq("activo", true)
+        .order("nombre_completo")
+        .range(from, to)
+    ),
+    supabase.from("catalogo_puestos").select("*")
       .eq("activo", true)
       .order("es_critico", { ascending: false })
       .order("nombre", { ascending: true }),
-    supabase
-      .from("sucesion_matches")
-      .select("*")
-      .order("ciclo_año", { ascending: false })
-      .order("tipo_match"),
+    fetchAllRows((from, to) =>
+      supabase.from("sucesion_matches").select("*")
+        .order("ciclo_año", { ascending: false })
+        .order("tipo_match")
+        .range(from, to)
+    ),
   ]);
+  const catalogoRaw = catalogoResult.data;
 
   const planes = (planesRaw ?? []) as unknown as SucesionItem[];
   type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; nivel: string | null; area: string | null; organización: string | null; puesto_catalogo_id: string | null };
@@ -148,14 +161,6 @@ export default async function SucesionPage() {
   }
 
   // Build cobertura per ciclo + combined
-  // DEBUG: trace Director de Capital Humano sucesor resolution
-  const DIR_CAP_HUM_ID = "95d24479-1a3a-486d-a8b1-27a71eb42b98";
-  const planesForDir = planes.filter((p) => {
-    const pp = p as unknown as { puesto_catalogo_id: string | null; ciclo_año: number };
-    return pp.puesto_catalogo_id === DIR_CAP_HUM_ID;
-  });
-  console.log("[DEBUG sucesion] planes para Director Capital Humano:", planesForDir.length, JSON.stringify(planesForDir.map((p) => ({ ...(p as any) })).map(p => ({ id: p.id, ciclo: p.ciclo_año, sucesor: p.sucesor_nombre, pcat: p.puesto_catalogo_id }))));
-
   const coberturaAllCiclos = buildPuestos(planes, rawMatches);
   const puestosByCiclo: Record<number, PuestoCoberturaItem[]> = {};
   for (const ciclo of ciclos) {
