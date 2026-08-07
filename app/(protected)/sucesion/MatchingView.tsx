@@ -35,6 +35,7 @@ export type MatchRow = {
   puesto_nombre?: string | null;
   puesto_org?: string | null;
   puesto_area?: string | null;
+  colaborador_area?: string | null;
   validado_por_nombre?: string | null;
   descartado_por_nombre?: string | null;
 };
@@ -864,17 +865,17 @@ export default function MatchingView({
   };
 
   // ── Cascade options ────────────────────────────────────────────────────────
-  // Available areas given selected UEN
+  // Available areas (from collaborator's area field) given selected UEN
   const availableAreas = useMemo(() => {
     const source = selectedUen === "all" ? matches : matches.filter((m) => m.puesto_org === selectedUen);
-    return Array.from(new Set(source.map((m) => m.puesto_area).filter(Boolean))).sort() as string[];
+    return Array.from(new Set(source.map((m) => m.colaborador_area).filter(Boolean))).sort() as string[];
   }, [matches, selectedUen]);
 
   // Available puestos given selected UEN + Area
   const availablePuestos = useMemo(() => {
     let source = matches;
     if (selectedUen !== "all") source = source.filter((m) => m.puesto_org === selectedUen);
-    if (selectedArea !== "all") source = source.filter((m) => m.puesto_area === selectedArea);
+    if (selectedArea !== "all") source = source.filter((m) => m.colaborador_area === selectedArea);
     return Array.from(new Set(source.map((m) => m.puesto_nombre).filter(Boolean))).sort() as string[];
   }, [matches, selectedUen, selectedArea]);
 
@@ -884,7 +885,7 @@ export default function MatchingView({
     if (selectedCiclo !== "all" && m.ciclo_año !== selectedCiclo) return false;
     if (includeTipo && selectedTipo !== "all" && m.tipo_match !== selectedTipo) return false;
     if (selectedUen !== "all" && m.puesto_org !== selectedUen) return false;
-    if (selectedArea !== "all" && m.puesto_area !== selectedArea) return false;
+    if (selectedArea !== "all" && m.colaborador_area !== selectedArea) return false;
     if (selectedPuesto !== "all" && m.puesto_nombre !== selectedPuesto) return false;
     if (soloCriticos && !m.es_puesto_critico) return false;
     if (search.trim()) {
