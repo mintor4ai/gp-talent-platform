@@ -936,7 +936,7 @@ export default function MatchingView({
     if (selectedEstado === "descartado") return discardedFiltered;
     if (selectedEstado === "pendiente") return activeFiltered.filter((m) => !m.validado_ch);
     if (selectedEstado === "validado")  return activeFiltered.filter((m) => !!m.validado_ch);
-    return activeFiltered.sort((a, b) => TIPO_CONFIG[a.tipo_match].order - TIPO_CONFIG[b.tipo_match].order);
+    return [...activeFiltered].sort((a, b) => TIPO_CONFIG[a.tipo_match].order - TIPO_CONFIG[b.tipo_match].order);
   }, [activeFiltered, discardedFiltered, selectedEstado]);
 
   const gapsCriticos = useMemo(
@@ -1199,7 +1199,10 @@ export default function MatchingView({
           )}
         </div>
       ) : viewMode === "cards" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div
+          key={`cards|${selectedCiclo}|${selectedUen}|${selectedArea}|${selectedPuesto}|${selectedTipo}|${selectedEstado}|${soloCriticos}`}
+          className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3"
+        >
           {gridMatches.map((m) => (
             <MatchCard
               key={m.id}
