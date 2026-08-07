@@ -191,11 +191,11 @@ function MatchCard({
               </div>
             )}
             {match.titular_nombres && match.titular_nombres.length > 0 && (
-              <div className="flex items-start gap-1.5">
+              <div className="flex items-center gap-1.5">
                 <span className="opacity-60 flex-shrink-0">
                   {match.titular_nombres.length > 1 ? "Titulares:" : "Titular:"}
                 </span>
-                <span className="font-medium break-words">{match.titular_nombres.join(", ")}</span>
+                <TitularBadge nombres={match.titular_nombres} />
               </div>
             )}
             {localReadiness && (
@@ -434,6 +434,41 @@ function MatchCard({
   );
 }
 
+// ── TitularBadge ────────────────────────────────────────────────────────────
+function TitularBadge({ nombres, inTable = false }: { nombres: string[] | undefined; inTable?: boolean }) {
+  if (!nombres || nombres.length === 0) return <span className="text-gray-300">—</span>;
+
+  if (nombres.length === 1) {
+    return <span className={inTable ? "text-gray-600" : "font-medium text-xs break-words"}>{nombres[0]}</span>;
+  }
+
+  return (
+    <div className="relative group inline-block">
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200 cursor-default select-none">
+        <svg className="w-3 h-3 opacity-60" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 14s-1 0-1-1 1-4 7-4 7 3 7 4-1 1-1 1H2Z"/>
+          <path d="M12.5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm2 6.5s.5 0 .5-.5c0-.5-.3-3-3-3.5"/>
+        </svg>
+        {nombres.length} titulares
+      </span>
+      {/* Tooltip */}
+      <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 pointer-events-none">
+        <div className="bg-gray-900 text-white rounded-lg px-3 py-2 shadow-xl min-w-[160px] max-w-[260px]">
+          <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold mb-1.5">
+            {nombres.length} titulares
+          </p>
+          <ul className="space-y-1">
+            {nombres.map((n, i) => (
+              <li key={i} className="text-[11px] leading-snug text-gray-100">{n}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="w-2.5 h-2.5 bg-gray-900 rotate-45 ml-3 -mt-1.5" />
+      </div>
+    </div>
+  );
+}
+
 function StatChip({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
@@ -554,11 +589,8 @@ function MatchTable({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500 max-w-[160px]">
-                    {m.titular_nombres && m.titular_nombres.length > 0
-                      ? <span className="break-words">{m.titular_nombres.join(", ")}</span>
-                      : <span className="text-gray-300">—</span>
-                    }
+                  <td className="px-4 py-2.5 text-gray-500">
+                    <TitularBadge nombres={m.titular_nombres} inTable />
                   </td>
                   <td className="px-4 py-2.5 text-right whitespace-nowrap">
                     <div className="flex items-center gap-1.5 justify-end">
