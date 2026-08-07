@@ -100,8 +100,9 @@ export default async function SucesionPage() {
 
   // Colaborador id → nombre (needed in buildPuestos for aspirantes)
   const colabById = new Map(colabs.map((c) => [c.id, c.nombre_completo ?? ""]));
-  // Colaborador id → area (for match filter)
+  // Colaborador id → area / organización (for match filters)
   const colabAreaById = new Map(colabs.map((c) => [c.id, c.area ?? null]));
+  const colabOrgById  = new Map(colabs.map((c) => [c.id, c.organización ?? null]));
 
   // Raw matches array (typed)
   const rawMatches = (matchesRaw ?? []) as unknown as MatchRow[];
@@ -216,6 +217,7 @@ export default async function SucesionPage() {
       puesto_org: puesto?.org || null,
       puesto_area: puesto?.area ?? null,
       colaborador_area: m.colaborador_id ? (colabAreaById.get(m.colaborador_id) ?? null) : null,
+      colaborador_org:  m.colaborador_id ? (colabOrgById.get(m.colaborador_id)  ?? null) : null,
       validado_por_nombre: m.validado_por ? (adminNames.get(m.validado_por) ?? null) : null,
       descartado_por_nombre: m.descartado_por ? (adminNames.get(m.descartado_por) ?? null) : null,
     };

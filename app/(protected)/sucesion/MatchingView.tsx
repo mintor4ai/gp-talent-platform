@@ -36,6 +36,7 @@ export type MatchRow = {
   puesto_org?: string | null;
   puesto_area?: string | null;
   colaborador_area?: string | null;
+  colaborador_org?: string | null;
   validado_por_nombre?: string | null;
   descartado_por_nombre?: string | null;
 };
@@ -865,16 +866,20 @@ export default function MatchingView({
   };
 
   // ── Cascade options ────────────────────────────────────────────────────────
-  // Available areas (from collaborator's area field) given selected UEN
+  // Available areas: collaborator.area, restricted to collaborators whose own UEN matches the selected UEN
   const availableAreas = useMemo(() => {
-    const source = selectedUen === "all" ? matches : matches.filter((m) => m.puesto_org === selectedUen);
+    let source = matches;
+    if (selectedUen !== "all") {
+      // Only show areas from collaborators who belong to the same UEN as the target puesto
+      source = source.filter((m) => m.puesto_org === selectedUen && m.colaborador_org === selectedUen);
+    }
     return Array.from(new Set(source.map((m) => m.colaborador_area).filter(Boolean))).sort() as string[];
   }, [matches, selectedUen]);
 
   // Available puestos given selected UEN + Area
   const availablePuestos = useMemo(() => {
     let source = matches;
-    if (selectedUen !== "all") source = source.filter((m) => m.puesto_org === selectedUen);
+    if (selectedUen !== "all") source = source.filter((m) => m.puesto_org === selectedUen && m.colaborador_org === selectedUen);
     if (selectedArea !== "all") source = source.filter((m) => m.colaborador_area === selectedArea);
     return Array.from(new Set(source.map((m) => m.puesto_nombre).filter(Boolean))).sort() as string[];
   }, [matches, selectedUen, selectedArea]);
