@@ -38,7 +38,8 @@ export type PuestoCoberturaItem = {
 type RiesgoLevel = "sin_sucesor" | "tres_mas" | "listo" | "vacante";
 
 function getRiesgo(p: PuestoCoberturaItem): RiesgoLevel {
-  if (p.titulares.length === 0) return "vacante";
+  // Vacante real solo si no hay titular NI sucesor ni aspirante; si hay plan, evaluar readiness
+  if (p.titulares.length === 0 && p.sucesores.length === 0) return "vacante";
   if (p.sucesores.length === 0) return "sin_sucesor";
   const readinessValues = p.sucesores.map((s) => s.readiness ?? s.tiempo_estimado ?? "");
   if (readinessValues.some((r) => r === "listo_ahora" || r === "uno_dos_anios")) return "listo";
@@ -49,7 +50,7 @@ const RIESGO_CONFIG: Record<RiesgoLevel, { label: string; color: string; dot: st
   sin_sucesor: { label: "Sin sucesor",  color: "bg-red-100 text-red-700",     dot: "bg-red-500",    order: 0 },
   tres_mas:    { label: "3+ años",       color: "bg-amber-100 text-amber-700", dot: "bg-amber-400",  order: 1 },
   listo:       { label: "Con sucesor",   color: "bg-green-100 text-green-700", dot: "bg-green-500",  order: 2 },
-  vacante:     { label: "Vacante",        color: "bg-gray-100 text-gray-500",   dot: "bg-gray-400",   order: 3 },
+  vacante:     { label: "Vacante",         color: "bg-gray-100 text-gray-500",   dot: "bg-gray-400",   order: 3 },
 };
 
 const READINESS_LABEL: Record<string, string> = {
