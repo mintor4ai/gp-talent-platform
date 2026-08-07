@@ -256,11 +256,11 @@ export async function POST(req: NextRequest) {
   const duplicados   = previewRows.filter((r) => r.isDuplicate).length;
   const ciclos       = Array.from(new Set(previewRows.map((r) => r.ciclo_año))).sort();
 
-  // Aspiration summary: unique employees with at least one puesto resolved
+  // Aspiration summary: unique sucesores with at least one puesto resolved
   const aspiracionesSet = new Set<string>();
   for (const r of previewRows) {
-    if (r.empleado_matched && (r.puesto1_id || r.puesto2_id)) {
-      aspiracionesSet.add(`${r.id_empleado_num}|${r.ciclo_año}`);
+    if (r.sucesor_id && (r.puesto1_id || r.puesto2_id)) {
+      aspiracionesSet.add(`${r.sucesor_id}|${r.ciclo_año}`);
     }
   }
   const aspiraciones_resueltas = aspiracionesSet.size;
@@ -310,8 +310,10 @@ export async function POST(req: NextRequest) {
   }
 
   // ── UPSERT ASPIRACIONES en picd ───────────────────────────────────────────
-  // Build unique aspirations per (employee, ciclo) — only for matched employees with resolved puestos
-  type AspiracionKey = string; // `${uuid}|${ciclo}`
+  // Build unique aspirations per (sucesor, ciclo) — NombrePuesto1/2 = the SUCESOR's career aspirations
+  // Must be keyed by sucesor_id (not id_empleado/titular) so the motor can detect bidireccional matches:
+  // bidireccional = sucesor aspires to a position AND is formally nominated for it by a titular
+  type AspiracionKey = string; // `${sucesor_uuid}|${ciclo}`
   const aspiracionMap = new Map<AspiracionKey, {
     uuid: string; ciclo: number;
     p1Nombre: string | null; p1Id: string | null;
@@ -319,13 +321,12 @@ export async function POST(req: NextRequest) {
   }>();
 
   for (const r of previewRows) {
-    if (!r.empleado_matched) continue;
+    if (!r.sucesor_id) continue; // need a matched sucesor UUID
     if (!r.puesto1_id && !r.puesto2_id) continue; // nothing to save
-    const colab = colabByEmpId.get(r.id_empleado_num)!;
-    const key: AspiracionKey = `${colab.uuid}|${r.ciclo_año}`;
+    const key: AspiracionKey = `${r.sucesor_id}|${r.ciclo_año}`;
     if (!aspiracionMap.has(key)) {
       aspiracionMap.set(key, {
-        uuid: colab.uuid, ciclo: r.ciclo_año,
+        uuid: r.sucesor_id, ciclo: r.ciclo_año,
         p1Nombre: r.puesto1_nombre, p1Id: r.puesto1_id,
         p2Nombre: r.puesto2_nombre, p2Id: r.puesto2_id,
       });
