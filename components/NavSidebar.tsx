@@ -27,6 +27,7 @@ const ADMIN_NAV: NavItem[] = [
       { href: "/talento-clave", label: "Talento Clave" },
       { href: "/movilidad",     label: "Movilidad" },
       { href: "/sucesion",      label: "Plan de Sucesión" },
+      { href: "/plan-carrera",  label: "Plano de Carrera" },
       { href: "/picd-admin",    label: "Ciclos PICD" },
     ],
   },

@@ -29,9 +29,10 @@ type Usuario = { id: string; rol: string; coach_habilitado: boolean | null; id_e
 export type { AuthUsuario };
 
 const PROMPT_TIPOS = [
-  { key: "coach_colaborador", label: "Colaborador", desc: "Para usuarios con rol colaborador" },
-  { key: "coach_jefe",        label: "Jefe",         desc: "Para usuarios con rol jefe" },
-  { key: "coach_admin",       label: "Admin / Capital Humano", desc: "Para capital_humano y superadmin" },
+  { key: "coach_colaborador",          label: "Colaborador",          desc: "Para usuarios con rol colaborador" },
+  { key: "coach_jefe",                 label: "Jefe",                 desc: "Para usuarios con rol jefe" },
+  { key: "coach_admin",                label: "Admin / Capital Humano", desc: "Para capital_humano y superadmin" },
+  { key: "plano_carrera_sugerencias",  label: "Plano de Carrera — Sugerencias IA", desc: "Genera acciones de desarrollo por dimensión. Variables: {{dimension}}, {{snapshot}}, {{puesto_objetivo}}, {{brecha}}" },
 ];
 
 const GRUPO_LABELS: Record<string, string> = {
