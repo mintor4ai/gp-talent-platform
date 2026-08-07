@@ -148,6 +148,14 @@ export default async function SucesionPage() {
   }
 
   // Build cobertura per ciclo + combined
+  // DEBUG: trace Director de Capital Humano sucesor resolution
+  const DIR_CAP_HUM_ID = "95d24479-1a3a-486d-a8b1-27a71eb42b98";
+  const planesForDir = planes.filter((p) => {
+    const pp = p as unknown as { puesto_catalogo_id: string | null; ciclo_año: number };
+    return pp.puesto_catalogo_id === DIR_CAP_HUM_ID;
+  });
+  console.log("[DEBUG sucesion] planes para Director Capital Humano:", planesForDir.length, JSON.stringify(planesForDir.map((p) => ({ ...(p as any) })).map(p => ({ id: p.id, ciclo: p.ciclo_año, sucesor: p.sucesor_nombre, pcat: p.puesto_catalogo_id }))));
+
   const coberturaAllCiclos = buildPuestos(planes, rawMatches);
   const puestosByCiclo: Record<number, PuestoCoberturaItem[]> = {};
   for (const ciclo of ciclos) {
