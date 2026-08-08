@@ -15,7 +15,9 @@ import {
   actualizarNotasObjetivo,
   desactivarObjetivo,
   agregarAccion,
+  actualizarAccion,
   actualizarEstadoAccion,
+  calificarAccion,
   eliminarAccion,
   generarSugerenciasIA,
   crearRevision,
@@ -155,16 +157,42 @@ export default function PlanCarreraView({
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  function handleAccionEstadoChange(accionId: string, nuevoEstado: AccionEstado) {
+  function handleAccionEstadoChange(accionId: string, nuevoEstado: AccionEstado, comentario?: string) {
     if (!plan) return;
     startTransition(async () => {
-      const res = await actualizarEstadoAccion(accionId, nuevoEstado);
+      const res = await actualizarEstadoAccion(accionId, nuevoEstado, comentario ?? null);
       if (!res.ok) { showFlash(res.error ?? "Error", false); return; }
       setPlan((prev) => prev ? {
         ...prev,
         acciones: prev.acciones.map((a) =>
-          a.id === accionId ? { ...a, estado: nuevoEstado } : a
+          a.id === accionId
+            ? { ...a, estado: nuevoEstado, comentario_resultado: comentario ?? a.comentario_resultado }
+            : a
         ),
+      } : prev);
+    });
+  }
+
+  function handleAccionUpdate(accionId: string, fields: { titulo?: string; descripcion?: string }) {
+    if (!plan) return;
+    startTransition(async () => {
+      const res = await actualizarAccion(accionId, fields);
+      if (!res.ok) { showFlash(res.error ?? "Error al guardar", false); return; }
+      setPlan((prev) => prev ? {
+        ...prev,
+        acciones: prev.acciones.map((a) => a.id === accionId ? { ...a, ...fields } : a),
+      } : prev);
+    });
+  }
+
+  function handleCalificarAccion(accionId: string, cal: number | null) {
+    if (!plan) return;
+    startTransition(async () => {
+      const res = await calificarAccion(accionId, cal);
+      if (!res.ok) { showFlash(res.error ?? "Error", false); return; }
+      setPlan((prev) => prev ? {
+        ...prev,
+        acciones: prev.acciones.map((a) => a.id === accionId ? { ...a, calificacion: cal } : a),
       } : prev);
     });
   }
@@ -418,6 +446,8 @@ export default function PlanCarreraView({
                             accion={accion}
                             dimConfig={cfg}
                             onEstadoChange={handleAccionEstadoChange}
+                            onUpdate={handleAccionUpdate}
+                            onCalificar={handleCalificarAccion}
                             onEliminar={handleEliminarAccion}
                             isPending={isPending}
                           />
@@ -620,33 +650,104 @@ function ObjetivosSection({
 
 // ── AccionRow ──────────────────────────────────────────────────────────────
 
+function StarRating({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  disabled: boolean;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((star) => {
+        const filled = (hovered ?? value ?? 0) >= star;
+        return (
+          <button
+            key={star}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(value === star ? null : star)}
+            onMouseEnter={() => setHovered(star)}
+            onMouseLeave={() => setHovered(null)}
+            className={`text-base leading-none transition-colors disabled:cursor-default ${
+              filled ? "text-amber-400" : "text-gray-200 hover:text-amber-300"
+            }`}
+            title={`${star} estrella${star > 1 ? "s" : ""}`}
+          >
+            ★
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function AccionRow({
   accion,
   dimConfig,
   onEstadoChange,
+  onUpdate,
+  onCalificar,
   onEliminar,
   isPending,
 }: {
   accion: PlanCarreraAccion;
   dimConfig: (typeof DIMENSION_CONFIG)[Dimension];
-  onEstadoChange: (id: string, estado: AccionEstado) => void;
+  onEstadoChange: (id: string, estado: AccionEstado, comentario?: string) => void;
+  onUpdate: (id: string, fields: { titulo?: string; descripcion?: string }) => void;
+  onCalificar: (id: string, cal: number | null) => void;
   onEliminar: (id: string) => void;
   isPending: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const estadoCfg = ESTADO_ACCION_CONFIG[accion.estado];
+  const [editing, setEditing] = useState(false);
+  const [editTitulo, setEditTitulo] = useState(accion.titulo);
+  const [editDesc, setEditDesc] = useState(accion.descripcion ?? "");
+  const [showComentario, setShowComentario] = useState(false);
+  const [comentario, setComentario] = useState(accion.comentario_resultado ?? "");
+  const [pendingEstado, setPendingEstado] = useState<AccionEstado | null>(null);
 
+  const estadoCfg = ESTADO_ACCION_CONFIG[accion.estado];
   const estadoOptions: AccionEstado[] = ["pendiente", "en_progreso", "completado", "cancelado"];
+  const needsComentario = (e: string) => e === "completado" || e === "cancelado";
+
+  function handleEstadoChange(nuevoEstado: AccionEstado) {
+    if (needsComentario(nuevoEstado)) {
+      setPendingEstado(nuevoEstado);
+      setShowComentario(true);
+    } else {
+      onEstadoChange(accion.id, nuevoEstado);
+    }
+  }
+
+  function handleConfirmComentario() {
+    if (!pendingEstado) return;
+    onEstadoChange(accion.id, pendingEstado, comentario.trim() || undefined);
+    setShowComentario(false);
+    setPendingEstado(null);
+  }
+
+  function handleSaveEdit() {
+    if (!editTitulo.trim()) return;
+    onUpdate(accion.id, {
+      titulo: editTitulo.trim(),
+      descripcion: editDesc.trim() || undefined,
+    });
+    setEditing(false);
+  }
 
   return (
     <div className={`px-5 py-3 ${accion.estado === "cancelado" ? "opacity-40" : ""}`}>
       <div className="flex items-start gap-3">
-        {/* Estado toggle */}
+        {/* Estado select */}
         <select
           value={accion.estado}
-          onChange={(e) => onEstadoChange(accion.id, e.target.value as AccionEstado)}
+          onChange={(e) => handleEstadoChange(e.target.value as AccionEstado)}
           disabled={isPending}
-          className={`text-sm border-0 bg-transparent cursor-pointer focus:outline-none pt-0.5 ${estadoCfg.color}`}
+          className={`text-sm border-0 bg-transparent cursor-pointer focus:outline-none pt-0.5 flex-shrink-0 ${estadoCfg.color}`}
           title="Cambiar estado"
         >
           {estadoOptions.map((e) => (
@@ -655,33 +756,144 @@ function AccionRow({
         </select>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-2 flex-wrap">
-            <p
-              className={`text-sm font-medium text-gray-900 cursor-pointer hover:text-[#1a3a5c] transition-colors ${
-                accion.estado === "completado" ? "line-through text-gray-400" : ""
-              }`}
-              onClick={() => setExpanded((v) => !v)}
-            >
-              {accion.titulo}
-            </p>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${TIPO_COLORS[accion.tipo]}`}>
-              {TIPO_LABELS[accion.tipo]}
-            </span>
-            {accion.origen === "ia" && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-purple-100 text-purple-600">
-                ✨ IA
-              </span>
-            )}
-          </div>
-          {expanded && accion.descripcion && (
-            <p className="text-xs text-gray-500 mt-1 leading-relaxed">{accion.descripcion}</p>
+          {editing ? (
+            /* ── Edit mode ── */
+            <div className="space-y-2">
+              <input
+                autoFocus
+                value={editTitulo}
+                onChange={(e) => setEditTitulo(e.target.value)}
+                className="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]"
+              />
+              <textarea
+                rows={2}
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                placeholder="Descripción (opcional)"
+                className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c] resize-none"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={isPending}
+                  className="text-xs bg-[#1a3a5c] text-white px-3 py-1 rounded-lg hover:bg-[#152e4d] disabled:opacity-50"
+                >
+                  Guardar
+                </button>
+                <button
+                  onClick={() => { setEditing(false); setEditTitulo(accion.titulo); setEditDesc(accion.descripcion ?? ""); }}
+                  className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* ── View mode ── */
+            <>
+              <div className="flex items-start gap-2 flex-wrap">
+                <p
+                  className={`text-sm font-medium cursor-pointer hover:text-[#1a3a5c] transition-colors ${
+                    accion.estado === "completado" ? "line-through text-gray-400" : "text-gray-900"
+                  }`}
+                  onClick={() => setExpanded((v) => !v)}
+                >
+                  {accion.titulo}
+                </p>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${TIPO_COLORS[accion.tipo]}`}>
+                  {TIPO_LABELS[accion.tipo]}
+                </span>
+                {accion.origen === "ia" && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-purple-100 text-purple-600">
+                    ✨ IA
+                  </span>
+                )}
+                <button
+                  onClick={() => setEditing(true)}
+                  className="text-[10px] text-gray-300 hover:text-gray-500 transition-colors"
+                  title="Editar acción"
+                >
+                  ✎
+                </button>
+              </div>
+
+              {expanded && (
+                <div className="mt-1 space-y-1.5">
+                  {accion.descripcion && (
+                    <p className="text-xs text-gray-500 leading-relaxed">{accion.descripcion}</p>
+                  )}
+                  {accion.fecha_fin_estimada && (
+                    <p className="text-[10px] text-gray-400">
+                      Estimado: {new Date(accion.fecha_fin_estimada + "T12:00:00").toLocaleDateString("es-MX", {
+                        day: "numeric", month: "short", year: "numeric",
+                      })}
+                    </p>
+                  )}
+                  {accion.comentario_resultado && (
+                    <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                        {accion.estado === "completado" ? "Aprendizaje / Resultado" : "Motivo / Comentario"}
+                      </p>
+                      <p className="text-xs text-gray-700 leading-relaxed">{accion.comentario_resultado}</p>
+                    </div>
+                  )}
+                  {/* Star rating — always visible in expanded view */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-gray-400">Calificación CH:</span>
+                    <StarRating
+                      value={accion.calificacion}
+                      onChange={(v) => onCalificar(accion.id, v)}
+                      disabled={isPending}
+                    />
+                    {accion.calificacion && (
+                      <span className="text-[10px] text-amber-500 font-medium">{accion.calificacion}/5</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!expanded && accion.calificacion && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  {"★".repeat(accion.calificacion).split("").map((_, i) => (
+                    <span key={i} className="text-[10px] text-amber-400">★</span>
+                  ))}
+                </div>
+              )}
+            </>
           )}
-          {accion.fecha_fin_estimada && (
-            <p className="text-[10px] text-gray-400 mt-1">
-              Estimado: {new Date(accion.fecha_fin_estimada + "T12:00:00").toLocaleDateString("es-MX", {
-                day: "numeric", month: "short", year: "numeric",
-              })}
-            </p>
+
+          {/* Comentario modal on estado change */}
+          {showComentario && (
+            <div className="mt-2 bg-blue-50 rounded-lg p-3 border border-blue-200 space-y-2">
+              <p className="text-xs font-medium text-blue-700">
+                {pendingEstado === "completado"
+                  ? "¿Qué se aprendió o logró con esta acción?"
+                  : "¿Por qué se cancela esta acción?"}
+              </p>
+              <textarea
+                rows={2}
+                autoFocus
+                value={comentario}
+                onChange={(e) => setComentario(e.target.value)}
+                placeholder="Comentario (opcional, pero ayuda al historial)"
+                className="w-full text-xs border border-blue-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none bg-white"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleConfirmComentario}
+                  disabled={isPending}
+                  className="text-xs bg-[#1a3a5c] text-white px-3 py-1 rounded-lg hover:bg-[#152e4d] disabled:opacity-50"
+                >
+                  Confirmar
+                </button>
+                <button
+                  onClick={() => { setShowComentario(false); setPendingEstado(null); }}
+                  className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
           )}
         </div>
 

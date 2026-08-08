@@ -32,6 +32,8 @@ export type PlanCarreraAccion = {
   fecha_fin_estimada: string | null;
   fecha_completado: string | null;
   origen: "manual" | "ia";
+  calificacion: number | null;
+  comentario_resultado: string | null;
   created_at: string;
 };
 
@@ -401,9 +403,32 @@ export async function agregarAccion(params: {
   }
 }
 
+export async function actualizarAccion(
+  accionId: string,
+  fields: {
+    titulo?: string;
+    descripcion?: string;
+    tipo?: PlanCarreraAccion["tipo"];
+    fecha_fin_estimada?: string | null;
+  }
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { supabase, userId } = await getAdminUser();
+    const { error } = await supabase
+      .from("plan_carrera_acciones")
+      .update({ ...fields, updated_by: userId })
+      .eq("id", accionId);
+    if (error) throw error;
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function actualizarEstadoAccion(
   accionId: string,
-  estado: PlanCarreraAccion["estado"]
+  estado: PlanCarreraAccion["estado"],
+  comentarioResultado?: string | null
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const { supabase, userId } = await getAdminUser();
@@ -415,10 +440,28 @@ export async function actualizarEstadoAccion(
         fecha_completado: estado === "completado" ? new Date().toISOString().split("T")[0] : null,
         validado_por: estado === "completado" ? userId : null,
         fecha_validacion: estado === "completado" ? new Date().toISOString() : null,
+        comentario_resultado: comentarioResultado ?? null,
         updated_by: userId,
       })
       .eq("id", accionId);
 
+    if (error) throw error;
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function calificarAccion(
+  accionId: string,
+  calificacion: number | null
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { supabase, userId } = await getAdminUser();
+    const { error } = await supabase
+      .from("plan_carrera_acciones")
+      .update({ calificacion, updated_by: userId })
+      .eq("id", accionId);
     if (error) throw error;
     return { ok: true };
   } catch (err) {
@@ -456,7 +499,7 @@ async function buildEnrichedSnapshot(
   colaboradorId: string,
   matchId: string | null,
 ): Promise<string> {
-  const [colabRes, historialRes, formacionRes, eipRes, ealRes, picdRes, sucesionPicdRes, matchRes] =
+  const [colabRes, historialRes, formacionRes, eipRes, ealRes, picdRes, sucesionPicdRes, matchRes, comp360Res] =
     await Promise.all([
       supabase.from("colaboradores").select("*").eq("id", colaboradorId).single(),
       supabase
@@ -497,6 +540,12 @@ async function buildEnrichedSnapshot(
       matchId
         ? supabase.from("sucesion_matches").select("readiness").eq("id", matchId).single()
         : Promise.resolve({ data: null }),
+      supabase
+        .from("competencias_360_percentiles")
+        .select("competencia, tipo_competencia, percentil, calificacion_promedio, ciclo_año")
+        .eq("colaborador_id", colaboradorId)
+        .order("ciclo_año", { ascending: false })
+        .limit(20),
     ]);
 
   const c = colabRes.data as unknown as Record<string, unknown> | null;
@@ -608,6 +657,29 @@ Disponible para cambio de residencia: ${c["dispuesto_cambiar_residencia"] ? "Sí
     parts.push(`## READINESS VALIDADO POR CAPITAL HUMANO\n${matchData.readiness}`);
   }
 
+  // 360 competencies (most recent cycle)
+  const comp360 = (comp360Res.data ?? []) as unknown as Array<Record<string, unknown>>;
+  if (comp360.length) {
+    const byCiclo = new Map<number, Array<Record<string, unknown>>>();
+    for (const row of comp360) {
+      const ciclo = row["ciclo_año"] as number;
+      if (!byCiclo.has(ciclo)) byCiclo.set(ciclo, []);
+      byCiclo.get(ciclo)!.push(row);
+    }
+    const latestCiclo = Math.max(...byCiclo.keys());
+    const rows = byCiclo.get(latestCiclo) ?? [];
+    const sorted = [...rows].sort(
+      (a, b) => (a["calificacion_promedio"] as number) - (b["calificacion_promedio"] as number),
+    );
+    const debilidades = sorted.slice(0, 3).map((r) => `${r["competencia"]} (${Number(r["calificacion_promedio"]).toFixed(1)})`);
+    const fortalezas = sorted.slice(-3).reverse().map((r) => `${r["competencia"]} (${Number(r["calificacion_promedio"]).toFixed(1)})`);
+    parts.push(
+      `## EVALUACIÓN 360 DE COMPETENCIAS (Ciclo ${latestCiclo})\n` +
+        `Fortalezas destacadas: ${fortalezas.join(", ")}\n` +
+        `Áreas de menor calificación: ${debilidades.join(", ")}`,
+    );
+  }
+
   return parts.join("\n\n");
 }
 
@@ -623,8 +695,8 @@ export async function generarSugerenciasIA(params: {
   try {
     const { supabase, userId } = await getAdminUser();
 
-    // Build enriched snapshot + fetch prompt/config in parallel
-    const [snapshotText, promptRes, apiRes] = await Promise.all([
+    // Build enriched snapshot + fetch prompt/config + existing actions in parallel
+    const [snapshotText, promptRes, apiRes, accionesExistentesRes] = await Promise.all([
       buildEnrichedSnapshot(supabase, params.colaboradorId, params.matchId ?? null),
       supabase
         .from("configuracion_prompts")
@@ -638,6 +710,11 @@ export async function generarSugerenciasIA(params: {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabase
+        .from("plan_carrera_acciones")
+        .select("titulo, tipo, dimension, estado")
+        .eq("plan_id", params.planId)
+        .neq("estado", "cancelado"),
     ]);
 
     if (!promptRes.data) throw new Error("Prompt plano_carrera_sugerencias no configurado");
@@ -649,10 +726,21 @@ export async function generarSugerenciasIA(params: {
       operativa:   "Experiencia Operativa",
     };
 
+    // Build existing actions context to prevent duplicates
+    const accionesExistentes = (accionesExistentesRes.data ?? []) as Array<{
+      titulo: string; tipo: string; dimension: string; estado: string;
+    }>;
+    const accionesContext = accionesExistentes.length
+      ? accionesExistentes
+          .map((a) => `• [${DIMENSION_LABELS[a.dimension] ?? a.dimension}] ${a.titulo} (${a.tipo}, ${a.estado})`)
+          .join("\n")
+      : "Ninguna todavía";
+
     const prompt = promptRes.data.contenido
       .replace("{{dimension}}", DIMENSION_LABELS[params.dimension] ?? params.dimension)
       .replace("{{puesto_objetivo}}", params.puestoObjetivo)
       .replace("{{snapshot}}", snapshotText)
+      .replace("{{acciones_existentes}}", accionesContext)
       .replace("{{brecha}}", params.brecha ?? "No especificada");
 
     const client = new Anthropic();
