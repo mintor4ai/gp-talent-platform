@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import {
   getCandidatosParaPuesto,
   buscarColaboradores,
+  obtenerPerfilCandidatos,
   guardarEscenario,
   cargarEscenario,
   eliminarEscenario,
@@ -325,6 +326,7 @@ export default function RutasTalentoClient({
   // IA state
   const [analisisIA, setAnalisisIA] = useState<Record<string, string>>({}); // uid → text
   const [loadingIA, setLoadingIA] = useState<string | null>(null); // uid or "reporte"
+  const [loadingStep, setLoadingStep] = useState<string>(""); // "Preparando datos…" | "Generando análisis…"
   const [reporteIA, setReporteIA] = useState<string | null>(null);
   const [showReporte, setShowReporte] = useState(false);
 
@@ -494,6 +496,12 @@ export default function RutasTalentoClient({
     const uid = nivel.uid;
 
     setLoadingIA(uid);
+    setLoadingStep("Preparando datos…");
+
+    const perfiles = await obtenerPerfilCandidatos([sel.colaboradorId]);
+    const perfilContexto = perfiles[sel.colaboradorId];
+
+    setLoadingStep("Generando análisis…");
     const riesgo = calcRiesgoConTipo(sel);
     const result = await generarAnalisisNivelIA({
       puestoNombre: nivel.puestoNombre,
@@ -505,8 +513,10 @@ export default function RutasTalentoClient({
       tieneSucesor: sel.tieneSucesor,
       readinessMejorSucesor: sel.readinessMejorSucesor,
       riesgo,
+      perfilContexto,
     });
     setLoadingIA(null);
+    setLoadingStep("");
     if (result.ok && result.analisis) {
       setAnalisisIA((prev) => ({ ...prev, [uid]: result.analisis! }));
     }
@@ -517,11 +527,23 @@ export default function RutasTalentoClient({
   async function handleReporteIA() {
     if (!puestoObjetivo) return;
     setLoadingIA("reporte");
+    setLoadingStep("Preparando datos del perfil…");
+
+    // Collect all real colaborador IDs from the chain
+    const idsToFetch = cadena
+      .slice(1)
+      .map((n) => n.seleccionado?.colaboradorId)
+      .filter((id): id is string => !!id && !id.startsWith("__"));
+
+    const perfiles = await obtenerPerfilCandidatos(idsToFetch);
+
+    setLoadingStep("Generando reporte…");
 
     const cadenaConRiesgoLocal = cadena.map((nivel, i) => {
       if (i === 0) return { puestoNombre: nivel.puestoNombre, esCritico: nivel.esCritico, candidatoNombre: "", candidatoTipo: "interno" as const, readiness: null, riesgo: null };
       const sel = nivel.seleccionado;
       return {
+        colaboradorId: sel?.colaboradorId,
         puestoNombre: nivel.puestoNombre,
         esCritico: nivel.esCritico,
         candidatoNombre: sel?.nombre ?? "Sin candidato",
@@ -534,8 +556,10 @@ export default function RutasTalentoClient({
     const result = await generarReporteCompletoIA({
       puestoObjetivoNombre: puestoObjetivo.nombre,
       niveles: cadenaConRiesgoLocal,
+      perfiles,
     });
     setLoadingIA(null);
+    setLoadingStep("");
     if (result.ok && result.reporte) {
       setReporteIA(result.reporte);
       setShowReporte(true);
@@ -868,7 +892,7 @@ export default function RutasTalentoClient({
                             disabled={isLoadingThisNivel}
                             className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1 hover:bg-blue-100 transition-colors disabled:opacity-50"
                           >
-                            {isLoadingThisNivel ? "Generando…" : hasAnalisis ? "✦ Ocultar análisis" : "✦ Análisis IA"}
+                            {isLoadingThisNivel ? (loadingStep || "Preparando…") : hasAnalisis ? "✦ Ocultar análisis" : "✦ Análisis IA"}
                           </button>
                           <button
                             onClick={() => {
@@ -966,7 +990,7 @@ export default function RutasTalentoClient({
                       className="flex items-center gap-2 px-4 py-2.5 bg-white border border-blue-200 text-blue-700 rounded-xl text-sm font-semibold hover:bg-blue-50 transition-colors disabled:opacity-50 shadow-sm"
                     >
                       <span className="text-base">✦</span>
-                      {loadingIA === "reporte" ? "Generando reporte…"
+                      {loadingIA === "reporte" ? (loadingStep || "Preparando…")
                         : reporteIA ? "Ver Reporte IA"
                         : "Generar Reporte IA completo"}
                     </button>

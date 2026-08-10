@@ -373,6 +373,156 @@ export async function buscarColaboradores(
   return results.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
+// ─── Enrich candidate profiles for AI ────────────────────────────────────────
+
+export async function obtenerPerfilCandidatos(
+  colaboradorIds: string[]
+): Promise<Record<string, string>> {
+  const realIds = colaboradorIds.filter((id) => !id.startsWith("__"));
+  if (!realIds.length) return {};
+
+  const supabase = await createClient();
+
+  const twoYearsAgo = new Date(new Date().getFullYear() - 2, 0, 1).toISOString().split("T")[0];
+
+  const [eipRes, desRes, ealRes, comp360Res, cursosRes, formAcadRes, picdRes] =
+    await Promise.all([
+      supabase.from("evaluacion_integral_personal")
+        .select("id_empleado, ciclo_año, zona_evaluacion, evaluacion_potencial_total, desempeno_logra, eal_score, cumplimiento_picd, años_experiencia, años_en_puesto, num_puestos, escolaridad_texto, horas_cursos")
+        .in("id_empleado", realIds)
+        .order("ciclo_año", { ascending: false }),
+
+      supabase.from("evaluacion_desempeno_anual")
+        .select("id_empleado, ciclo_año, planea, ejecuta, optimiza, trabaja_equipo, atiende_cliente, informa, resultado_logra")
+        .in("id_empleado", realIds)
+        .order("ciclo_año", { ascending: false }),
+
+      supabase.from("evaluacion_anual_liderazgo")
+        .select("id_lider_evaluado, ciclo_año, promedio_eal, percentil_eal, num_evaluadores")
+        .in("id_lider_evaluado", realIds)
+        .order("ciclo_año", { ascending: false }),
+
+      supabase.from("competencias_360_percentiles")
+        .select("colaborador_id, ciclo_año, promedio_general, percentil_empresa, percentil_segmento")
+        .in("colaborador_id", realIds)
+        .order("ciclo_año", { ascending: false }),
+
+      supabase.from("cursos_formacion")
+        .select("colaborador_id, nombre_curso, horas_efectivas, tipo_curso, evaluacion_final, estado_completitud, fecha_fin")
+        .in("colaborador_id", realIds)
+        .gte("fecha_fin", twoYearsAgo)
+        .order("fecha_fin", { ascending: false })
+        .limit(200),
+
+      supabase.from("formacion_academica")
+        .select("colaborador_id, nivel_estudio, nombre_carrera, institucion")
+        .in("colaborador_id", realIds),
+
+      supabase.from("picd")
+        .select("id_empleado, ciclo_año, areas_oportunidad, compromisos, porcentaje_cumplimiento, puesto_futuro_opcion1, puesto_futuro_opcion2")
+        .in("id_empleado", realIds)
+        .order("ciclo_año", { ascending: false }),
+    ]);
+
+  type EipRow = { id_empleado: string; ciclo_año: number; zona_evaluacion: string | null; evaluacion_potencial_total: number | null; desempeno_logra: number | null; eal_score: number | null; cumplimiento_picd: number | null; años_experiencia: number | null; años_en_puesto: number | null; num_puestos: number | null; escolaridad_texto: string | null; horas_cursos: number | null };
+  type DesRow = { id_empleado: string; ciclo_año: number; planea: number | null; ejecuta: number | null; optimiza: number | null; trabaja_equipo: number | null; atiende_cliente: number | null; informa: number | null; resultado_logra: number | null };
+  type EalRow = { id_lider_evaluado: string; ciclo_año: number; promedio_eal: number | null; percentil_eal: number | null; num_evaluadores: number | null };
+  type C360Row = { colaborador_id: string; ciclo_año: number; promedio_general: number | null; percentil_empresa: number | null; percentil_segmento: number | null };
+  type CursoRow = { colaborador_id: string; nombre_curso: string | null; horas_efectivas: number | null; tipo_curso: string | null; evaluacion_final: number | null; estado_completitud: string | null; fecha_fin: string | null };
+  type FormRow = { colaborador_id: string; nivel_estudio: string | null; nombre_carrera: string | null; institucion: string | null };
+  type PicdRow = { id_empleado: string; ciclo_año: number; areas_oportunidad: string | null; compromisos: string | null; porcentaje_cumplimiento: number | null; puesto_futuro_opcion1: string | null; puesto_futuro_opcion2: string | null };
+
+  const groupById = <T>(rows: T[], key: keyof T) => {
+    const m = new Map<string, T[]>();
+    for (const r of rows) { const k = String(r[key]); if (!m.has(k)) m.set(k, []); m.get(k)!.push(r); }
+    return m;
+  };
+
+  const eipMap = groupById(eipRes.data as EipRow[] ?? [], "id_empleado");
+  const desMap = groupById(desRes.data as DesRow[] ?? [], "id_empleado");
+  const ealMap = groupById(ealRes.data as EalRow[] ?? [], "id_lider_evaluado");
+  const c360Map = groupById(comp360Res.data as C360Row[] ?? [], "colaborador_id");
+  const cursosMap = groupById(cursosRes.data as CursoRow[] ?? [], "colaborador_id");
+  const formMap = groupById(formAcadRes.data as FormRow[] ?? [], "colaborador_id");
+  const picdMap = groupById(picdRes.data as PicdRow[] ?? [], "id_empleado");
+
+  const n = (v: number | null, dec = 1) => v != null ? v.toFixed(dec) : "N/D";
+
+  const result: Record<string, string> = {};
+
+  for (const id of realIds) {
+    const lines: string[] = [];
+
+    const eips = (eipMap.get(id) ?? []).slice(0, 2);
+    if (eips.length) {
+      lines.push("EIP (Evaluación Integral Personal):");
+      for (const e of eips) {
+        lines.push(`  Ciclo ${e.ciclo_año}: Zona 9-box: ${e.zona_evaluacion ?? "N/D"} · Potencial: ${n(e.evaluacion_potencial_total)}/100 · Desempeño: ${n(e.desempeno_logra)}`);
+        lines.push(`    Exp total: ${n(e.años_experiencia)} años · En puesto: ${n(e.años_en_puesto)} años · Puestos ocupados: ${e.num_puestos ?? "N/D"}`);
+        if (e.escolaridad_texto) lines.push(`    Escolaridad: ${e.escolaridad_texto}`);
+        lines.push(`    Horas formación: ${n(e.horas_cursos, 0)}h · EAL score: ${n(e.eal_score)} · Cumpl. PICD: ${n(e.cumplimiento_picd, 0)}%`);
+      }
+    }
+
+    const dess = (desMap.get(id) ?? []).slice(0, 2);
+    if (dess.length) {
+      lines.push("Evaluación de Desempeño (por dimensión):");
+      for (const d of dess) {
+        lines.push(`  Ciclo ${d.ciclo_año}: Planea:${n(d.planea)} Ejecuta:${n(d.ejecuta)} Optimiza:${n(d.optimiza)} Equipo:${n(d.trabaja_equipo)} Cliente:${n(d.atiende_cliente)} Informa:${n(d.informa)} → Resultado logra:${n(d.resultado_logra)}`);
+      }
+    }
+
+    const eals = (ealMap.get(id) ?? []).slice(0, 2);
+    if (eals.length) {
+      lines.push("EAL (Evaluación de Liderazgo):");
+      for (const e of eals) {
+        lines.push(`  Ciclo ${e.ciclo_año}: Promedio ${n(e.promedio_eal, 2)} · Percentil ${n(e.percentil_eal, 0)}% · ${e.num_evaluadores ?? "N/D"} evaluadores`);
+      }
+    }
+
+    const c360s = (c360Map.get(id) ?? []).slice(0, 2);
+    if (c360s.length) {
+      lines.push("Competencias 360:");
+      for (const c of c360s) {
+        lines.push(`  Ciclo ${c.ciclo_año}: Promedio ${n(c.promedio_general, 2)} · Percentil empresa ${n(c.percentil_empresa, 0)}% · Percentil segmento ${n(c.percentil_segmento, 0)}%`);
+      }
+    }
+
+    const forms = formMap.get(id) ?? [];
+    if (forms.length) {
+      lines.push("Formación Académica:");
+      for (const f of forms.slice(0, 3)) {
+        lines.push(`  ${f.nivel_estudio ?? ""}: ${f.nombre_carrera ?? ""}${f.institucion ? ` — ${f.institucion}` : ""}`);
+      }
+    }
+
+    const cursos = cursosMap.get(id) ?? [];
+    if (cursos.length) {
+      lines.push(`Cursos/Formación reciente (${cursos.length} en últimos 2 años):`);
+      for (const c of cursos.slice(0, 6)) {
+        const cal = c.evaluacion_final != null ? ` Cal:${n(c.evaluacion_final, 0)}` : "";
+        lines.push(`  - ${c.nombre_curso ?? "Curso"} (${n(c.horas_efectivas, 0)}h)${cal} [${c.estado_completitud ?? ""}]`);
+      }
+      if (cursos.length > 6) lines.push(`  ... y ${cursos.length - 6} cursos más`);
+    }
+
+    const picds = (picdMap.get(id) ?? []).slice(0, 2);
+    if (picds.length) {
+      lines.push("PICD:");
+      for (const p of picds) {
+        lines.push(`  Ciclo ${p.ciclo_año}: Cumplimiento ${n(p.porcentaje_cumplimiento, 0)}%`);
+        if (p.puesto_futuro_opcion1) lines.push(`    Aspiración: ${p.puesto_futuro_opcion1}${p.puesto_futuro_opcion2 ? ` / ${p.puesto_futuro_opcion2}` : ""}`);
+        if (p.areas_oportunidad) lines.push(`    Áreas de oportunidad: ${p.areas_oportunidad.slice(0, 250)}`);
+        if (p.compromisos) lines.push(`    Compromisos: ${p.compromisos.slice(0, 250)}`);
+      }
+    }
+
+    result[id] = lines.length > 0 ? lines.join("\n") : "Sin datos de evaluación disponibles.";
+  }
+
+  return result;
+}
+
 // ─── AI: per-level analysis ────────────────────────────────────────────────────
 
 export type AnalisisNivelParams = {
@@ -385,6 +535,7 @@ export type AnalisisNivelParams = {
   tieneSucesor: boolean;
   readinessMejorSucesor: string | null;
   riesgo: "verde" | "amarillo" | "rojo";
+  perfilContexto?: string;
 };
 
 function readinessLabelLocal(r: string | null): string {
@@ -399,7 +550,7 @@ export async function generarAnalisisNivelIA(
   params: AnalisisNivelParams
 ): Promise<{ ok: boolean; analisis?: string; error?: string }> {
   const { puestoNombre, esCritico, candidatoNombre, candidatoTipo, readiness,
-    puestoVacanteCritico, tieneSucesor, readinessMejorSucesor, riesgo } = params;
+    puestoVacanteCritico, tieneSucesor, readinessMejorSucesor, riesgo, perfilContexto } = params;
 
   const candidatoDesc =
     candidatoTipo === "externo"
@@ -417,12 +568,13 @@ export async function generarAnalisisNivelIA(
       ? `Puesto CRÍTICO · ${tieneSucesor ? `Tiene sucesor: ${readinessLabelLocal(readinessMejorSucesor)}` : "SIN sucesor"}`
       : "Puesto no crítico";
 
-  const prompt = `Eres un experto en Talent Management. Analiza el siguiente movimiento de talento y proporciona recomendaciones concretas y accionables.
+  const prompt = `Eres un experto en Talent Management. Analiza el siguiente movimiento de talento basándote en el perfil completo del candidato y proporciona recomendaciones concretas y accionables.
 
 POSICIÓN A CUBRIR: ${puestoNombre}${esCritico ? " (PUESTO CRÍTICO)" : ""}
 CANDIDATO SELECCIONADO: ${candidatoDesc}
 POSICIÓN QUE QUEDARÁ VACANTE: ${coberturaDesc}
 NIVEL DE RIESGO CALCULADO: ${riesgo === "verde" ? "VERDE – Cobertura OK" : riesgo === "amarillo" ? "AMARILLO – Riesgo moderado" : "ROJO – Sin cobertura"}
+${perfilContexto ? `\nPERFIL COMPLETO DEL CANDIDATO (datos del sistema):\n${perfilContexto}` : ""}
 
 Proporciona el análisis en este formato exacto:
 
@@ -442,7 +594,7 @@ Responde en español, de forma ejecutiva y directa. Sé específico, no genéric
     const client = new Anthropic();
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 800,
+      max_tokens: 1200,
       messages: [{ role: "user", content: prompt }],
     });
     const text = response.content[0]?.type === "text" ? response.content[0].text : "";
@@ -455,6 +607,7 @@ Responde en español, de forma ejecutiva y directa. Sé específico, no genéric
 // ─── AI: full route report ─────────────────────────────────────────────────────
 
 export type ReporteNivel = {
+  colaboradorId?: string;
   puestoNombre: string;
   esCritico: boolean;
   candidatoNombre: string;
@@ -466,8 +619,9 @@ export type ReporteNivel = {
 export async function generarReporteCompletoIA(params: {
   puestoObjetivoNombre: string;
   niveles: ReporteNivel[];
+  perfiles?: Record<string, string>;
 }): Promise<{ ok: boolean; reporte?: string; error?: string }> {
-  const { puestoObjetivoNombre, niveles } = params;
+  const { puestoObjetivoNombre, niveles, perfiles } = params;
 
   const cadenaSummary = niveles
     .map((n, i) => {
@@ -489,7 +643,15 @@ export async function generarReporteCompletoIA(params: {
     })
     .join("\n");
 
-  const prompt = `Eres un experto senior en Talent Management. Genera un reporte ejecutivo completo del siguiente análisis de ruta de talento.
+  const perfilesSection = perfiles && Object.keys(perfiles).length > 0
+    ? "\n\nPERFILES DETALLADOS DE LOS CANDIDATOS EN LA CADENA:\n" +
+      niveles
+        .filter((n) => n.colaboradorId && perfiles[n.colaboradorId])
+        .map((n) => `--- ${n.candidatoNombre} (→ ${n.puestoNombre}) ---\n${perfiles[n.colaboradorId!]}`)
+        .join("\n\n")
+    : "";
+
+  const prompt = `Eres un experto senior en Talent Management. Genera un reporte ejecutivo completo del siguiente análisis de ruta de talento, sustentando tu análisis en los datos reales de evaluación de cada candidato.
 
 PUESTO OBJETIVO A CUBRIR: ${puestoObjetivoNombre}
 
@@ -497,7 +659,7 @@ CADENA DE MOVIMIENTOS:
 ${cadenaSummary}
 
 CONFLICTOS Y RIESGOS IDENTIFICADOS:
-${conflictos || "No se identificaron conflictos — ruta viable."}
+${conflictos || "No se identificaron conflictos — ruta viable."}${perfilesSection}
 
 Genera el reporte en este formato:
 
@@ -531,7 +693,7 @@ Responde en español, tono ejecutivo, específico y accionable. Máximo 600 pala
     const client = new Anthropic();
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 1200,
+      max_tokens: 2000,
       messages: [{ role: "user", content: prompt }],
     });
     const text = response.content[0]?.type === "text" ? response.content[0].text : "";
