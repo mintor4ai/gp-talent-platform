@@ -18,6 +18,7 @@ type NavItem = {
 const ADMIN_NAV: NavItem[] = [
   { href: "/dashboard",     label: "Inicio",        icon: "⊞", exact: true },
   { href: "/colaboradores", label: "Colaboradores", icon: "👥" },
+  { href: "/organigrama",   label: "Organigrama",   icon: "🏗️" },
   {
     label: "Talent Intelligence",
     icon: "✦",
