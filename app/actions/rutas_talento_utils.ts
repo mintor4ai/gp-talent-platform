@@ -2,6 +2,8 @@
 
 export type FuenteCandidato = "sucesion" | "plano" | "picd";
 
+export type TipoCandidato = "interno" | "externo" | "sin_candidato";
+
 export type Candidato = {
   colaboradorId: string;
   nombre: string;
@@ -12,6 +14,7 @@ export type Candidato = {
   readiness: string | null;
   tieneSucesor: boolean;
   readinessMejorSucesor: string | null;
+  tipo?: TipoCandidato;
 };
 
 export type PuestoOption = {
@@ -48,4 +51,44 @@ export function calcRiesgo(
   if (!tieneSucesor) return "rojo";
   if (readinessMejorSucesor === "listo_ahora") return "verde";
   return "amarillo";
+}
+
+export function calcRiesgoConTipo(candidato: Candidato): "verde" | "amarillo" | "rojo" {
+  if (candidato.tipo === "externo") return "amarillo";
+  if (candidato.tipo === "sin_candidato") return "rojo";
+  return calcRiesgo(
+    candidato.puestoActualEsCritico,
+    candidato.tieneSucesor,
+    candidato.readinessMejorSucesor
+  );
+}
+
+export function candidatoExterno(): Candidato {
+  return {
+    colaboradorId: "__externo__",
+    nombre: "Candidato Externo",
+    puestoActual: "Reclutamiento externo",
+    puestoCatalogoId: null,
+    puestoActualEsCritico: false,
+    fuentes: [],
+    readiness: null,
+    tieneSucesor: true,
+    readinessMejorSucesor: null,
+    tipo: "externo",
+  };
+}
+
+export function candidatoSinDefinir(): Candidato {
+  return {
+    colaboradorId: "__sin_candidato__",
+    nombre: "Sin candidato definido",
+    puestoActual: "Gap no cubierto",
+    puestoCatalogoId: null,
+    puestoActualEsCritico: true,
+    fuentes: [],
+    readiness: null,
+    tieneSucesor: false,
+    readinessMejorSucesor: null,
+    tipo: "sin_candidato",
+  };
 }

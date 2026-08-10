@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import Anthropic from "@anthropic-ai/sdk";
 import type {
   FuenteCandidato,
   Candidato,
@@ -278,4 +279,170 @@ export async function eliminarEscenario(id: string): Promise<{ ok: boolean }> {
     .delete()
     .eq("id", id);
   return { ok: !error };
+}
+
+// ─── AI: per-level analysis ────────────────────────────────────────────────────
+
+export type AnalisisNivelParams = {
+  puestoNombre: string;
+  esCritico: boolean;
+  candidatoNombre: string;
+  candidatoTipo: "interno" | "externo" | "sin_candidato";
+  readiness: string | null;
+  puestoVacanteCritico: boolean;
+  tieneSucesor: boolean;
+  readinessMejorSucesor: string | null;
+  riesgo: "verde" | "amarillo" | "rojo";
+};
+
+function readinessLabelLocal(r: string | null): string {
+  if (!r) return "No definido";
+  if (r === "listo_ahora") return "Listo Ahora";
+  if (r === "uno_dos_anios") return "1-2 años";
+  if (r === "tres_mas_anios") return "3+ años";
+  return r;
+}
+
+export async function generarAnalisisNivelIA(
+  params: AnalisisNivelParams
+): Promise<{ ok: boolean; analisis?: string; error?: string }> {
+  const { puestoNombre, esCritico, candidatoNombre, candidatoTipo, readiness,
+    puestoVacanteCritico, tieneSucesor, readinessMejorSucesor, riesgo } = params;
+
+  const candidatoDesc =
+    candidatoTipo === "externo"
+      ? "Candidato externo (reclutamiento)"
+      : candidatoTipo === "sin_candidato"
+      ? "Sin candidato definido — gap crítico"
+      : `${candidatoNombre} (interno) · Readiness: ${readinessLabelLocal(readiness)}`;
+
+  const coberturaDesc =
+    candidatoTipo !== "interno"
+      ? "No aplica (no hay posición interna que se vacíe)"
+      : puestoVacanteCritico
+      ? `Puesto CRÍTICO · ${tieneSucesor ? `Tiene sucesor: ${readinessLabelLocal(readinessMejorSucesor)}` : "SIN sucesor"}`
+      : "Puesto no crítico";
+
+  const prompt = `Eres un experto en Talent Management. Analiza el siguiente movimiento de talento y proporciona recomendaciones concretas y accionables.
+
+POSICIÓN A CUBRIR: ${puestoNombre}${esCritico ? " (PUESTO CRÍTICO)" : ""}
+CANDIDATO SELECCIONADO: ${candidatoDesc}
+POSICIÓN QUE QUEDARÁ VACANTE: ${coberturaDesc}
+NIVEL DE RIESGO CALCULADO: ${riesgo === "verde" ? "VERDE – Cobertura OK" : riesgo === "amarillo" ? "AMARILLO – Riesgo moderado" : "ROJO – Sin cobertura"}
+
+Proporciona el análisis en este formato exacto:
+
+**DIAGNÓSTICO**
+[2-3 oraciones explicando el riesgo específico de este movimiento y sus implicaciones para la organización]
+
+${candidatoTipo === "interno" && readiness !== "listo_ahora" ? `**ACCIONES DE DESARROLLO PARA ${candidatoNombre.toUpperCase()}**
+[3-4 acciones concretas para acelerar su readiness. Incluye: mentoring con el titular actual, proyectos de mayor exposición, capacitaciones específicas del rol, o rotaciones estratégicas]
+` : ""}${(candidatoTipo !== "interno" || (puestoVacanteCritico && !tieneSucesor)) ? `**ESTRATEGIA DE COBERTURA**
+[2-3 acciones estratégicas para mitigar el gap. Incluye según el caso: plan de reclutamiento preventivo, identificar sucesor de emergencia temporal, redistribución de funciones críticas, o rediseño del puesto]
+` : ""}**PRIORIDAD DE ACCIÓN**
+[Alta / Media / Baja — con una justificación de 1 oración]
+
+Responde en español, de forma ejecutiva y directa. Sé específico, no genérico.`;
+
+  try {
+    const client = new Anthropic();
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 800,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = response.content[0]?.type === "text" ? response.content[0].text : "";
+    return { ok: true, analisis: text };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+// ─── AI: full route report ─────────────────────────────────────────────────────
+
+export type ReporteNivel = {
+  puestoNombre: string;
+  esCritico: boolean;
+  candidatoNombre: string;
+  candidatoTipo: "interno" | "externo" | "sin_candidato";
+  readiness: string | null;
+  riesgo: "verde" | "amarillo" | "rojo" | null;
+};
+
+export async function generarReporteCompletoIA(params: {
+  puestoObjetivoNombre: string;
+  niveles: ReporteNivel[];
+}): Promise<{ ok: boolean; reporte?: string; error?: string }> {
+  const { puestoObjetivoNombre, niveles } = params;
+
+  const cadenaSummary = niveles
+    .map((n, i) => {
+      const tipo =
+        n.candidatoTipo === "externo" ? "Externo"
+        : n.candidatoTipo === "sin_candidato" ? "Sin candidato"
+        : n.candidatoNombre;
+      const r = n.riesgo === "verde" ? "🟢" : n.riesgo === "amarillo" ? "🟡" : n.riesgo === "rojo" ? "🔴" : "—";
+      return `N${i}: ${n.puestoNombre}${n.esCritico ? " ⚠️" : ""} → ${tipo} ${r}`;
+    })
+    .join("\n");
+
+  const conflictos = niveles
+    .filter((n) => n.riesgo === "amarillo" || n.riesgo === "rojo" || n.candidatoTipo !== "interno")
+    .map((n) => {
+      if (n.candidatoTipo === "externo") return `- ${n.puestoNombre}: se cubre con candidato externo (riesgo de adaptación cultural y onboarding)`;
+      if (n.candidatoTipo === "sin_candidato") return `- ${n.puestoNombre}: sin candidato definido — gap crítico`;
+      return `- ${n.puestoNombre}: ${n.candidatoNombre} · Readiness ${readinessLabelLocal(n.readiness)} · ${n.esCritico ? "Puesto crítico" : "No crítico"}`;
+    })
+    .join("\n");
+
+  const prompt = `Eres un experto senior en Talent Management. Genera un reporte ejecutivo completo del siguiente análisis de ruta de talento.
+
+PUESTO OBJETIVO A CUBRIR: ${puestoObjetivoNombre}
+
+CADENA DE MOVIMIENTOS:
+${cadenaSummary}
+
+CONFLICTOS Y RIESGOS IDENTIFICADOS:
+${conflictos || "No se identificaron conflictos — ruta viable."}
+
+Genera el reporte en este formato:
+
+---
+## REPORTE EJECUTIVO — RUTA DE TALENTO
+### ${puestoObjetivoNombre}
+
+**RESUMEN EJECUTIVO**
+[4-5 oraciones. Describe la viabilidad global de la ruta, los riesgos más importantes y el impacto en la organización si se ejecuta el movimiento.]
+
+**ANÁLISIS POR POSICIÓN**
+[Para cada posición con riesgo amarillo o rojo, o con candidato externo/sin candidato, proporciona:
+- Nombre del puesto
+- Situación actual
+- Riesgo específico
+- 2-3 recomendaciones concretas]
+
+**PRIORIDADES DE ACCIÓN** (ordenadas por urgencia)
+1. [Acción más urgente — quién, qué, cuándo]
+2. [Segunda prioridad]
+3. [Tercera prioridad]
+...
+
+**CONCLUSIÓN**
+[1-2 oraciones con la recomendación final: ¿proceder, modificar la ruta, o no ejecutar el movimiento?]
+---
+
+Responde en español, tono ejecutivo, específico y accionable. Máximo 600 palabras.`;
+
+  try {
+    const client = new Anthropic();
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1200,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = response.content[0]?.type === "text" ? response.content[0].text : "";
+    return { ok: true, reporte: text };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }

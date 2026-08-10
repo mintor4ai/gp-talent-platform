@@ -6,9 +6,14 @@ import {
   guardarEscenario,
   cargarEscenario,
   eliminarEscenario,
+  generarAnalisisNivelIA,
+  generarReporteCompletoIA,
 } from "@/app/actions/rutas_talento";
 import {
   calcRiesgo,
+  calcRiesgoConTipo,
+  candidatoExterno,
+  candidatoSinDefinir,
   readinessLabel,
   type Candidato,
   type FuenteCandidato,
@@ -24,7 +29,7 @@ type Nivel = {
   puestoNombre: string;
   esCritico: boolean;
   ocupanteActualNombre: string | null;
-  candidatos: Candidato[] | null; // null = not loaded
+  candidatos: Candidato[] | null;
   seleccionado: Candidato | null;
 };
 
@@ -33,44 +38,52 @@ type Veredicto = {
   rojos: number;
   amarillos: number;
   verdes: number;
-  sinSucesor: number;
 };
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
 const FUENTE_CONFIG: Record<FuenteCandidato, { label: string; color: string; bg: string }> = {
-  sucesion: { label: "Sucesión", color: "text-violet-700", bg: "bg-violet-100" },
+  sucesion: { label: "Sucesión",        color: "text-violet-700", bg: "bg-violet-100" },
   plano:    { label: "Plano de Carrera", color: "text-blue-700",   bg: "bg-blue-100"   },
-  picd:     { label: "PICD",    color: "text-amber-700",  bg: "bg-amber-100"  },
+  picd:     { label: "PICD",            color: "text-amber-700",  bg: "bg-amber-100"  },
 };
 
 const RIESGO_CONFIG = {
-  verde:    { label: "Cobertura OK",      bg: "bg-emerald-50",  border: "border-emerald-300", badge: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500" },
-  amarillo: { label: "Riesgo Moderado",   bg: "bg-amber-50",    border: "border-amber-300",   badge: "bg-amber-100 text-amber-800",    dot: "bg-amber-500"   },
-  rojo:     { label: "Sin Cobertura",     bg: "bg-red-50",      border: "border-red-300",     badge: "bg-red-100 text-red-800",        dot: "bg-red-500"     },
+  verde:    { label: "Cobertura OK",    bg: "bg-emerald-50", border: "border-emerald-300", badge: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500" },
+  amarillo: { label: "Riesgo Moderado", bg: "bg-amber-50",   border: "border-amber-300",   badge: "bg-amber-100 text-amber-800",    dot: "bg-amber-500"   },
+  rojo:     { label: "Sin Cobertura",   bg: "bg-red-50",     border: "border-red-300",     badge: "bg-red-100 text-red-800",        dot: "bg-red-500"     },
 };
 
 // ─── Avatar ────────────────────────────────────────────────────────────────────
 
 function Avatar({ id, nombre, size = 40 }: { id: string; nombre: string; size?: number }) {
   const [err, setErr] = useState(false);
+  const isSpecial = id.startsWith("__");
   const initials = nombre.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-  const photoUrl = `${SUPABASE_URL}/storage/v1/object/public/colaboradores/fotos/${id}.jpg`;
 
-  if (!err && SUPABASE_URL) {
+  if (!isSpecial && !err && SUPABASE_URL) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={photoUrl} alt={nombre} width={size} height={size}
+      <img
+        src={`${SUPABASE_URL}/storage/v1/object/public/colaboradores/fotos/${id}.jpg`}
+        alt={nombre} width={size} height={size}
         style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-        onError={() => setErr(true)} />
+        onError={() => setErr(true)}
+      />
     );
   }
+
+  const bg = isSpecial && id === "__externo__"
+    ? "linear-gradient(135deg,#92400e,#d97706)"
+    : isSpecial
+    ? "linear-gradient(135deg,#7f1d1d,#dc2626)"
+    : "linear-gradient(135deg,#1a3a5c,#2d6a9f)";
+
   return (
     <div style={{ width: size, height: size, borderRadius: "50%", flexShrink: 0,
-      background: "linear-gradient(135deg,#1a3a5c,#2d6a9f)",
-      display: "flex", alignItems: "center", justifyContent: "center",
+      background: bg, display: "flex", alignItems: "center", justifyContent: "center",
       color: "white", fontWeight: 700, fontSize: Math.round(size * 0.35) }}>
-      {initials}
+      {isSpecial ? (id === "__externo__" ? "🌐" : "—") : initials}
     </div>
   );
 }
@@ -78,9 +91,7 @@ function Avatar({ id, nombre, size = 40 }: { id: string; nombre: string; size?: 
 // ─── Candidate Card ────────────────────────────────────────────────────────────
 
 function CandidatoCard({
-  candidato,
-  onSeleccionar,
-  isSelected,
+  candidato, onSeleccionar, isSelected,
 }: {
   candidato: Candidato;
   onSeleccionar: () => void;
@@ -94,18 +105,17 @@ function CandidatoCard({
   const rCfg = RIESGO_CONFIG[riesgoPos];
 
   return (
-    <div className={`border-2 rounded-xl p-4 transition-all cursor-pointer ${
-      isSelected
-        ? "border-[#1a3a5c] bg-[#1a3a5c]/5 shadow-md"
-        : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm"
-    }`} onClick={onSeleccionar}>
+    <div
+      className={`border-2 rounded-xl p-4 transition-all cursor-pointer ${
+        isSelected ? "border-[#1a3a5c] bg-[#1a3a5c]/5 shadow-md" : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm"
+      }`}
+      onClick={onSeleccionar}
+    >
       <div className="flex items-start gap-3">
         <Avatar id={candidato.colaboradorId} nombre={candidato.nombre} size={40} />
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 text-sm leading-tight">{candidato.nombre}</p>
           <p className="text-xs text-gray-500 mt-0.5 leading-tight">{candidato.puestoActual}</p>
-
-          {/* Source badges */}
           <div className="flex flex-wrap gap-1 mt-2">
             {candidato.fuentes.map((f) => {
               const cfg = FUENTE_CONFIG[f];
@@ -116,8 +126,6 @@ function CandidatoCard({
               );
             })}
           </div>
-
-          {/* Readiness */}
           {candidato.readiness && (
             <p className="text-xs text-gray-500 mt-1.5">
               Readiness: <span className="font-medium text-gray-700">{readinessLabel(candidato.readiness)}</span>
@@ -125,14 +133,11 @@ function CandidatoCard({
           )}
         </div>
       </div>
-
-      {/* Risk of their current position */}
       <div className={`mt-3 rounded-lg px-3 py-2 ${rCfg.bg} border ${rCfg.border}`}>
         <div className="flex items-center gap-1.5">
           <div className={`w-2 h-2 rounded-full ${rCfg.dot}`} />
           <p className="text-xs font-medium text-gray-700">
-            Puesto actual:{" "}
-            {candidato.puestoActualEsCritico ? "⚠️ Crítico" : "No crítico"}
+            Puesto actual: {candidato.puestoActualEsCritico ? "⚠️ Crítico" : "No crítico"}
             {candidato.puestoActualEsCritico && (
               <span className="ml-1 text-gray-500">
                 · {candidato.tieneSucesor
@@ -143,7 +148,6 @@ function CandidatoCard({
           </p>
         </div>
       </div>
-
       {isSelected && (
         <div className="mt-2 text-center">
           <span className="text-xs font-semibold text-[#1a3a5c]">✓ Seleccionado</span>
@@ -153,13 +157,66 @@ function CandidatoCard({
   );
 }
 
-// ─── Position Slot ─────────────────────────────────────────────────────────────
+// ─── External / No-candidate special cards ────────────────────────────────────
+
+function SpecialCandidatoCard({
+  tipo, onSeleccionar, isSelected,
+}: {
+  tipo: "externo" | "sin_candidato";
+  onSeleccionar: () => void;
+  isSelected: boolean;
+}) {
+  const isExterno = tipo === "externo";
+  return (
+    <div
+      onClick={onSeleccionar}
+      className={`border-2 rounded-xl p-4 cursor-pointer transition-all ${
+        isSelected
+          ? isExterno
+            ? "border-amber-400 bg-amber-50 shadow-md"
+            : "border-red-400 bg-red-50 shadow-md"
+          : "border-dashed border-gray-300 bg-white hover:border-gray-400 hover:shadow-sm"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 ${
+          isExterno ? "bg-amber-100" : "bg-red-100"
+        }`}>
+          {isExterno ? "🌐" : "—"}
+        </div>
+        <div>
+          <p className={`font-semibold text-sm ${isExterno ? "text-amber-800" : "text-red-800"}`}>
+            {isExterno ? "Candidato Externo" : "Sin candidato definido"}
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {isExterno
+              ? "Reclutamiento externo · Riesgo de adaptación cultural"
+              : "Gap documentado · Riesgo crítico"}
+          </p>
+        </div>
+      </div>
+      <div className={`mt-3 rounded-lg px-3 py-1.5 text-xs font-medium ${
+        isExterno ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"
+      }`}>
+        {isExterno
+          ? "⚠️ Riesgo moderado — onboarding y adaptación requeridos"
+          : "🔴 Sin cobertura — posición queda expuesta"}
+      </div>
+      {isSelected && (
+        <div className="mt-2 text-center">
+          <span className={`text-xs font-semibold ${isExterno ? "text-amber-700" : "text-red-700"}`}>
+            ✓ Seleccionado
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Position Slot ────────────────────────────────────────────────────────────
 
 function PuestoSlot({
-  puesto,
-  riesgo,
-  nivel,
-  isObjetivo,
+  puesto, riesgo, nivel, isObjetivo,
 }: {
   puesto: { nombre: string; esCritico: boolean; ocupanteActualNombre: string | null };
   riesgo?: "verde" | "amarillo" | "rojo";
@@ -167,23 +224,16 @@ function PuestoSlot({
   isObjetivo?: boolean;
 }) {
   const rCfg = riesgo ? RIESGO_CONFIG[riesgo] : null;
-
   return (
     <div className={`rounded-xl border-2 p-4 ${
-      isObjetivo
-        ? "border-[#1a3a5c] bg-[#1a3a5c]/5"
-        : rCfg
-        ? `${rCfg.border} ${rCfg.bg}`
-        : "border-gray-200 bg-gray-50"
+      isObjetivo ? "border-[#1a3a5c] bg-[#1a3a5c]/5"
+      : rCfg ? `${rCfg.border} ${rCfg.bg}`
+      : "border-gray-200 bg-gray-50"
     }`}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            {isObjetivo && (
-              <span className="text-xs font-bold uppercase tracking-wider text-[#1a3a5c]">
-                🎯 Objetivo
-              </span>
-            )}
+            {isObjetivo && <span className="text-xs font-bold uppercase tracking-wider text-[#1a3a5c]">🎯 Objetivo</span>}
             {!isObjetivo && riesgo && (
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${rCfg!.badge}`}>
                 {rCfg!.label}
@@ -210,25 +260,52 @@ function PuestoSlot({
 
 // ─── Connector ────────────────────────────────────────────────────────────────
 
-function Connector({ label }: { label?: string }) {
+function Connector({ candidato }: { candidato?: Candidato | null }) {
+  if (!candidato) {
+    return (
+      <div className="flex flex-col items-center py-1">
+        <div className="w-0.5 h-6 bg-gray-300" />
+        <div className="text-gray-300 text-sm">▼</div>
+      </div>
+    );
+  }
+
+  const isExterno = candidato.tipo === "externo";
+  const isSin = candidato.tipo === "sin_candidato";
+  const bg = isExterno ? "bg-amber-700" : isSin ? "bg-red-700" : "bg-[#1a3a5c]";
+
   return (
-    <div className="flex flex-col items-center py-1">
+    <div className="flex flex-col items-center py-2">
       <div className="w-0.5 h-4 bg-gray-300" />
-      <div className="flex items-center gap-2">
-        {label && <span className="text-xs text-gray-400 bg-white px-2 py-0.5 border border-gray-200 rounded-full">{label}</span>}
-        {!label && <div className="w-0.5 h-2 bg-gray-300" />}
+      <div className={`flex items-center gap-2 text-white text-xs font-medium px-4 py-1.5 rounded-full ${bg}`}>
+        {!isExterno && !isSin && <Avatar id={candidato.colaboradorId} nombre={candidato.nombre} size={20} />}
+        {isExterno && <span>🌐</span>}
+        {isSin && <span>—</span>}
+        {candidato.nombre} promovido ↑
       </div>
       <div className="w-0.5 h-4 bg-gray-300" />
-      <div className="text-gray-300 text-base leading-none">▼</div>
+      <div className="text-gray-300 text-sm">▼</div>
     </div>
   );
 }
 
-// ─── Main Component ─────────────────────────────────────────────────────────────
+// ─── AI Analysis Panel ────────────────────────────────────────────────────────
+
+function AnalisisPanelInline({ text, onClose }: { text: string; onClose: () => void }) {
+  return (
+    <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-4 relative">
+      <button onClick={onClose} className="absolute top-2 right-2 text-blue-400 hover:text-blue-700 text-sm">✕</button>
+      <p className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-2">✦ Análisis IA — Talent Management</p>
+      <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed prose prose-sm max-w-none"
+        dangerouslySetInnerHTML={{ __html: text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }} />
+    </div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
 
 export default function RutasTalentoClient({
-  puestos,
-  escenariosPrevios,
+  puestos, escenariosPrevios,
 }: {
   puestos: PuestoOption[];
   escenariosPrevios: EscenarioResumen[];
@@ -236,10 +313,16 @@ export default function RutasTalentoClient({
   const [search, setSearch] = useState("");
   const [puestoObjetivo, setPuestoObjetivo] = useState<PuestoOption | null>(null);
   const [cadena, setCadena] = useState<Nivel[]>([]);
-  const [fuentes, setFuentes] = useState<Set<FuenteCandidato>>(
-    new Set(["sucesion", "plano", "picd"])
-  );
+  const [fuentes, setFuentes] = useState<Set<FuenteCandidato>>(new Set(["sucesion", "plano", "picd"]));
   const [veredicto, setVeredicto] = useState<Veredicto | null>(null);
+
+  // IA state
+  const [analisisIA, setAnalisisIA] = useState<Record<string, string>>({}); // uid → text
+  const [loadingIA, setLoadingIA] = useState<string | null>(null); // uid or "reporte"
+  const [reporteIA, setReporteIA] = useState<string | null>(null);
+  const [showReporte, setShowReporte] = useState(false);
+
+  // Modals
   const [showSave, setShowSave] = useState(false);
   const [saveNombre, setSaveNombre] = useState("");
   const [escenarios, setEscenarios] = useState(escenariosPrevios);
@@ -256,18 +339,19 @@ export default function RutasTalentoClient({
   function toggleFuente(f: FuenteCandidato) {
     setFuentes((prev) => {
       const next = new Set(prev);
-      if (next.has(f) && next.size > 1) next.delete(f);
-      else next.add(f);
+      if (next.has(f) && next.size > 1) next.delete(f); else next.add(f);
       return next;
     });
   }
 
-  // ── Select target position ───────────────────────────────────────────────────
+  // ── Select target position ────────────────────────────────────────────────────
 
   function seleccionarPuestoObjetivo(puesto: PuestoOption) {
     setPuestoObjetivo(puesto);
     setVeredicto(null);
     setSearch("");
+    setAnalisisIA({});
+    setReporteIA(null);
 
     const nivel0: Nivel = {
       uid: crypto.randomUUID(),
@@ -278,32 +362,27 @@ export default function RutasTalentoClient({
       candidatos: null,
       seleccionado: null,
     };
-
     setCadena([nivel0]);
 
-    // Fetch candidates
     startTransition(async () => {
       const candidatos = await getCandidatosParaPuesto(puesto.id, [...fuentes]);
       setCadena([{ ...nivel0, candidatos }]);
     });
   }
 
-  // ── Select candidate at level N ──────────────────────────────────────────────
+  // ── Select internal candidate ─────────────────────────────────────────────────
 
   function seleccionarCandidato(nivelIdx: number, candidato: Candidato) {
-    setCadena((prev) => {
-      const updated = prev.map((n, i) =>
-        i === nivelIdx ? { ...n, seleccionado: candidato } : n
-      );
-      // Remove all levels after this one
-      return updated.slice(0, nivelIdx + 1);
-    });
+    const updatedCadena = cadena
+      .map((n, i) => i === nivelIdx ? { ...n, seleccionado: candidato } : n)
+      .slice(0, nivelIdx + 1);
+    setCadena(updatedCadena);
     setVeredicto(null);
+    setAnalisisIA((prev) => { const n = { ...prev }; delete n[cadena[nivelIdx]?.uid ?? ""]; return n; });
 
-    // If the candidate has a catalogued position, expand the chain
-    if (!candidato.puestoCatalogoId) return;
+    // External and sin_candidato stop the chain
+    if (!candidato.puestoCatalogoId || candidato.tipo === "externo" || candidato.tipo === "sin_candidato") return;
 
-    const puestoInfo = puestos.find((p) => p.id === candidato.puestoCatalogoId);
     const nivelNuevo: Nivel = {
       uid: crypto.randomUUID(),
       puestoId: candidato.puestoCatalogoId,
@@ -326,44 +405,97 @@ export default function RutasTalentoClient({
     });
   }
 
-  // ── Stop chain at level N ────────────────────────────────────────────────────
+  // ── Special selections ────────────────────────────────────────────────────────
+
+  function seleccionarEspecial(nivelIdx: number, tipo: "externo" | "sin_candidato") {
+    const candidato = tipo === "externo" ? candidatoExterno() : candidatoSinDefinir();
+    seleccionarCandidato(nivelIdx, candidato);
+  }
+
+  // ── Stop chain ────────────────────────────────────────────────────────────────
 
   function detenerEn(nivelIdx: number) {
     setCadena((prev) => prev.slice(0, nivelIdx + 1));
     setVeredicto(null);
   }
 
-  // ── Analyze route ────────────────────────────────────────────────────────────
+  // ── Analyze route ─────────────────────────────────────────────────────────────
 
   function analizarRuta() {
-    const movimientos = cadena.slice(1); // skip the objective level
-    let verdes = 0, amarillos = 0, rojos = 0, sinSucesor = 0;
-
-    for (const nivel of movimientos) {
-      const candidato = nivel.seleccionado;
-      if (!candidato) { rojos++; sinSucesor++; continue; }
-
-      const r = calcRiesgo(
-        candidato.puestoActualEsCritico,
-        candidato.tieneSucesor,
-        candidato.readinessMejorSucesor
-      );
+    let verdes = 0, amarillos = 0, rojos = 0;
+    for (const nivel of cadena.slice(1)) {
+      const sel = nivel.seleccionado;
+      if (!sel) { rojos++; continue; }
+      const r = calcRiesgoConTipo(sel);
       if (r === "verde") verdes++;
       else if (r === "amarillo") amarillos++;
-      else { rojos++; if (!candidato.tieneSucesor) sinSucesor++; }
+      else rojos++;
     }
-
-    const nivel: Veredicto["nivel"] =
+    const nivelVeredicto: Veredicto["nivel"] =
       rojos > 0 ? "alto" : amarillos > 0 ? "moderado" : "viable";
-
-    setVeredicto({ nivel, rojos, amarillos, verdes, sinSucesor });
+    setVeredicto({ nivel: nivelVeredicto, rojos, amarillos, verdes });
   }
 
-  // ── Save scenario ────────────────────────────────────────────────────────────
+  // ── AI: per-level analysis ────────────────────────────────────────────────────
+
+  async function handleAnalisisNivel(nivel: Nivel, nivelIdx: number) {
+    const sel = nivel.seleccionado;
+    if (!sel) return;
+    const uid = nivel.uid;
+
+    setLoadingIA(uid);
+    const riesgo = calcRiesgoConTipo(sel);
+    const result = await generarAnalisisNivelIA({
+      puestoNombre: nivel.puestoNombre,
+      esCritico: nivel.esCritico,
+      candidatoNombre: sel.nombre,
+      candidatoTipo: sel.tipo ?? "interno",
+      readiness: sel.readiness,
+      puestoVacanteCritico: sel.puestoActualEsCritico,
+      tieneSucesor: sel.tieneSucesor,
+      readinessMejorSucesor: sel.readinessMejorSucesor,
+      riesgo,
+    });
+    setLoadingIA(null);
+    if (result.ok && result.analisis) {
+      setAnalisisIA((prev) => ({ ...prev, [uid]: result.analisis! }));
+    }
+  }
+
+  // ── AI: full report ────────────────────────────────────────────────────────────
+
+  async function handleReporteIA() {
+    if (!puestoObjetivo) return;
+    setLoadingIA("reporte");
+
+    const cadenaConRiesgoLocal = cadena.map((nivel, i) => {
+      if (i === 0) return { puestoNombre: nivel.puestoNombre, esCritico: nivel.esCritico, candidatoNombre: "", candidatoTipo: "interno" as const, readiness: null, riesgo: null };
+      const sel = nivel.seleccionado;
+      return {
+        puestoNombre: nivel.puestoNombre,
+        esCritico: nivel.esCritico,
+        candidatoNombre: sel?.nombre ?? "Sin candidato",
+        candidatoTipo: (sel?.tipo ?? "sin_candidato") as "interno" | "externo" | "sin_candidato",
+        readiness: sel?.readiness ?? null,
+        riesgo: sel ? calcRiesgoConTipo(sel) : "rojo" as const,
+      };
+    });
+
+    const result = await generarReporteCompletoIA({
+      puestoObjetivoNombre: puestoObjetivo.nombre,
+      niveles: cadenaConRiesgoLocal,
+    });
+    setLoadingIA(null);
+    if (result.ok && result.reporte) {
+      setReporteIA(result.reporte);
+      setShowReporte(true);
+    }
+  }
+
+  // ── Save scenario ─────────────────────────────────────────────────────────────
 
   function handleSave() {
     if (!saveNombre.trim() || !puestoObjetivo) return;
-
     const datos = {
       puestoObjetivoId: puestoObjetivo.id,
       puestoObjetivoNombre: puestoObjetivo.nombre,
@@ -373,10 +505,12 @@ export default function RutasTalentoClient({
         esCritico: n.esCritico,
         seleccionadoId: n.seleccionado?.colaboradorId ?? null,
         seleccionadoNombre: n.seleccionado?.nombre ?? null,
+        seleccionadoTipo: n.seleccionado?.tipo ?? null,
       })),
       veredicto,
+      analisisIA,
+      reporteIA,
     };
-
     startTransition(async () => {
       const result = await guardarEscenario(saveNombre.trim(), datos);
       if (result.ok) {
@@ -388,20 +522,16 @@ export default function RutasTalentoClient({
     });
   }
 
-  // ── Load scenario ────────────────────────────────────────────────────────────
+  // ── Load scenario ─────────────────────────────────────────────────────────────
 
   function handleLoadEscenario(id: string) {
     startTransition(async () => {
       const datos = await cargarEscenario(id);
       if (!datos) return;
-
       const pObj = puestos.find((p) => p.id === datos["puestoObjetivoId"]);
       if (!pObj) return;
-
       setPuestoObjetivo(pObj);
       setShowEscenarios(false);
-
-      // Reconstruct chain (simplified — just show the selected names, don't re-fetch)
       const rawCadena = (datos["cadena"] as Array<Record<string, unknown>>) ?? [];
       const reconstructed: Nivel[] = rawCadena.map((c) => ({
         uid: crypto.randomUUID(),
@@ -421,15 +551,16 @@ export default function RutasTalentoClient({
               readiness: null,
               tieneSucesor: false,
               readinessMejorSucesor: null,
+              tipo: (c["seleccionadoTipo"] as "interno" | "externo" | "sin_candidato") ?? "interno",
             } as Candidato)
           : null,
       }));
       setCadena(reconstructed);
       if (datos["veredicto"]) setVeredicto(datos["veredicto"] as Veredicto);
+      if (datos["analisisIA"]) setAnalisisIA(datos["analisisIA"] as Record<string, string>);
+      if (datos["reporteIA"]) setReporteIA(datos["reporteIA"] as string);
     });
   }
-
-  // ── Delete scenario ───────────────────────────────────────────────────────────
 
   function handleDeleteEscenario(id: string) {
     startTransition(async () => {
@@ -438,50 +569,43 @@ export default function RutasTalentoClient({
     });
   }
 
-  // ── Computed chain state ──────────────────────────────────────────────────────
+  // ── Computed ──────────────────────────────────────────────────────────────────
 
   const cadenaConRiesgo = cadena.map((nivel, i) => {
     if (i === 0) return { ...nivel, riesgo: undefined as "verde" | "amarillo" | "rojo" | undefined };
     const sel = nivel.seleccionado;
     if (!sel) return { ...nivel, riesgo: undefined };
-    // Risk is about the position THIS niveau represents (the one being vacated)
-    const riesgo = calcRiesgo(nivel.esCritico, sel.tieneSucesor, sel.readinessMejorSucesor);
+    const riesgo = calcRiesgoConTipo(sel);
     return { ...nivel, riesgo };
   });
 
-  const cadenaCompleta = cadena.length > 1 && cadena[cadena.length - 1].seleccionado !== null;
-
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Rutas de Talento</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Simula movimientos y evalúa el impacto en la cadena de sucesión
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setShowEscenarios(true)}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors"
           >
-            📂 Escenarios guardados ({escenarios.length})
+            📂 Escenarios ({escenarios.length})
           </button>
           {puestoObjetivo && cadena.length > 1 && (
             <>
-              <button
-                onClick={() => setShowSave(true)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors"
-              >
+              <button onClick={() => setShowSave(true)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors">
                 💾 Guardar
               </button>
-              <button
-                onClick={() => window.print()}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors"
-              >
+              <button onClick={() => window.print()}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors">
                 ⬇ PDF
               </button>
             </>
@@ -496,41 +620,27 @@ export default function RutasTalentoClient({
             Selecciona el Puesto Objetivo a Cubrir
           </h2>
           <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar puesto por nombre o UEN…"
             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 mb-4"
             autoFocus
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto">
             {puestosFiltered.slice(0, 60).map((p) => (
-              <button
-                key={p.id}
-                onClick={() => seleccionarPuestoObjetivo(p)}
-                className="text-left border border-gray-200 rounded-xl p-4 hover:border-[#1a3a5c] hover:shadow-sm transition-all group"
-              >
+              <button key={p.id} onClick={() => seleccionarPuestoObjetivo(p)}
+                className="text-left border border-gray-200 rounded-xl p-4 hover:border-[#1a3a5c] hover:shadow-sm transition-all group">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-semibold text-gray-900 text-sm group-hover:text-[#1a3a5c] transition-colors">
-                      {p.nombre}
-                    </p>
+                    <p className="font-semibold text-gray-900 text-sm group-hover:text-[#1a3a5c] transition-colors">{p.nombre}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{p.org}</p>
-                    {p.ocupanteNombre && (
-                      <p className="text-xs text-gray-400 mt-1">👤 {p.ocupanteNombre}</p>
-                    )}
+                    {p.ocupanteNombre && <p className="text-xs text-gray-400 mt-1">👤 {p.ocupanteNombre}</p>}
                   </div>
-                  {p.esCritico && (
-                    <span className="text-xs bg-red-100 text-red-700 font-medium px-2 py-0.5 rounded-full shrink-0">
-                      Crítico
-                    </span>
-                  )}
+                  {p.esCritico && <span className="text-xs bg-red-100 text-red-700 font-medium px-2 py-0.5 rounded-full shrink-0">Crítico</span>}
                 </div>
               </button>
             ))}
             {puestosFiltered.length === 0 && (
-              <p className="text-sm text-gray-400 col-span-full text-center py-8">
-                No se encontraron puestos con ese criterio
-              </p>
+              <p className="text-sm text-gray-400 col-span-full text-center py-8">No se encontraron puestos</p>
             )}
           </div>
         </div>
@@ -539,12 +649,10 @@ export default function RutasTalentoClient({
       {/* Active chain */}
       {puestoObjetivo && (
         <div>
-          {/* Source filters + reset */}
+          {/* Filters + reset */}
           <div className="flex flex-wrap items-center gap-3 mb-4 no-print">
-            <button
-              onClick={() => { setPuestoObjetivo(null); setCadena([]); setVeredicto(null); }}
-              className="text-sm text-gray-500 hover:text-gray-800 transition-colors flex items-center gap-1"
-            >
+            <button onClick={() => { setPuestoObjetivo(null); setCadena([]); setVeredicto(null); setAnalisisIA({}); setReporteIA(null); }}
+              className="text-sm text-gray-500 hover:text-gray-800 transition-colors">
               ← Cambiar puesto
             </button>
             <div className="h-4 border-l border-gray-200" />
@@ -552,15 +660,10 @@ export default function RutasTalentoClient({
             {(["sucesion", "plano", "picd"] as FuenteCandidato[]).map((f) => {
               const cfg = FUENTE_CONFIG[f];
               return (
-                <button
-                  key={f}
-                  onClick={() => toggleFuente(f)}
+                <button key={f} onClick={() => toggleFuente(f)}
                   className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
-                    fuentes.has(f)
-                      ? `${cfg.bg} ${cfg.color} border-transparent`
-                      : "border-gray-200 text-gray-400 bg-white"
-                  }`}
-                >
+                    fuentes.has(f) ? `${cfg.bg} ${cfg.color} border-transparent` : "border-gray-200 text-gray-400 bg-white"
+                  }`}>
                   {cfg.label}
                 </button>
               );
@@ -573,110 +676,128 @@ export default function RutasTalentoClient({
               const isObjetivo = i === 0;
               const isLast = i === cadenaConRiesgo.length - 1;
               const prevSeleccionado = i > 0 ? cadena[i - 1].seleccionado : null;
+              const hasAnalisis = Boolean(analisisIA[nivel.uid]);
+              const isLoadingThisNivel = loadingIA === nivel.uid;
 
               return (
                 <div key={nivel.uid}>
-                  {/* Connector with selected candidate info */}
-                  {i > 0 && prevSeleccionado && (
-                    <div className="flex flex-col items-center py-2">
-                      <div className="w-0.5 h-4 bg-gray-300" />
-                      <div className="flex items-center gap-2 bg-[#1a3a5c] text-white text-xs font-medium px-4 py-1.5 rounded-full">
-                        <Avatar id={prevSeleccionado.colaboradorId} nombre={prevSeleccionado.nombre} size={20} />
-                        {prevSeleccionado.nombre} promovido ↑
-                      </div>
-                      <div className="w-0.5 h-4 bg-gray-300" />
-                      <div className="text-gray-300 text-sm">▼</div>
-                    </div>
-                  )}
-                  {i > 0 && !prevSeleccionado && (
-                    <Connector />
-                  )}
+                  {/* Connector */}
+                  {i > 0 && <Connector candidato={prevSeleccionado} />}
 
                   {/* Position slot */}
                   <PuestoSlot
-                    puesto={{
-                      nombre: nivel.puestoNombre,
-                      esCritico: nivel.esCritico,
-                      ocupanteActualNombre: nivel.ocupanteActualNombre,
-                    }}
+                    puesto={{ nombre: nivel.puestoNombre, esCritico: nivel.esCritico, ocupanteActualNombre: nivel.ocupanteActualNombre }}
                     riesgo={nivel.riesgo}
                     nivel={i}
                     isObjetivo={isObjetivo}
                   />
 
-                  {/* Candidates panel */}
+                  {/* Candidate panel (last level or unselected) */}
                   {(isLast || !nivel.seleccionado) && (
                     <div className="mt-4">
                       {nivel.candidatos === null ? (
                         <div className="text-center py-8 text-gray-400 text-sm">
                           {isPending ? "Buscando candidatos…" : "Cargando…"}
                         </div>
-                      ) : nivel.candidatos.length === 0 ? (
-                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
-                          <p className="text-sm text-gray-500">
-                            No se encontraron candidatos con las fuentes seleccionadas para este puesto.
-                          </p>
-                          {i > 0 && (
-                            <button
-                              onClick={() => detenerEn(i - 1)}
-                              className="mt-3 text-sm text-[#1a3a5c] font-medium hover:underline"
-                            >
-                              Detener cadena aquí
-                            </button>
-                          )}
-                        </div>
                       ) : (
                         <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                              {nivel.candidatos.length} candidato{nivel.candidatos.length !== 1 ? "s" : ""} disponible{nivel.candidatos.length !== 1 ? "s" : ""}
+                          {nivel.candidatos.length > 0 && (
+                            <>
+                              <div className="flex items-center justify-between mb-3">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  {nivel.candidatos.length} candidato{nivel.candidatos.length !== 1 ? "s" : ""} interno{nivel.candidatos.length !== 1 ? "s" : ""}
+                                </p>
+                                {i > 0 && (
+                                  <button onClick={() => detenerEn(i - 1)}
+                                    className="text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1 transition-colors no-print">
+                                    Detener aquí
+                                  </button>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {nivel.candidatos.map((c) => (
+                                  <CandidatoCard key={c.colaboradorId} candidato={c}
+                                    isSelected={nivel.seleccionado?.colaboradorId === c.colaboradorId}
+                                    onSeleccionar={() => seleccionarCandidato(i, c)}
+                                  />
+                                ))}
+                              </div>
+                            </>
+                          )}
+
+                          {nivel.candidatos.length === 0 && (
+                            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center mb-3">
+                              <p className="text-sm text-gray-500">No se encontraron candidatos internos con las fuentes seleccionadas.</p>
+                            </div>
+                          )}
+
+                          {/* Always-visible special options */}
+                          <div className={`${nivel.candidatos.length > 0 ? "mt-4 pt-4 border-t border-gray-100" : ""}`}>
+                            <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">
+                              {nivel.candidatos.length > 0 ? "O bien:" : "Opciones disponibles:"}
                             </p>
-                            {i > 0 && (
-                              <button
-                                onClick={() => detenerEn(i - 1)}
-                                className="text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1 transition-colors no-print"
-                              >
-                                Detener aquí
-                              </button>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {nivel.candidatos.map((c) => (
-                              <CandidatoCard
-                                key={c.colaboradorId}
-                                candidato={c}
-                                isSelected={nivel.seleccionado?.colaboradorId === c.colaboradorId}
-                                onSeleccionar={() => seleccionarCandidato(i, c)}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <SpecialCandidatoCard tipo="externo"
+                                isSelected={nivel.seleccionado?.tipo === "externo"}
+                                onSeleccionar={() => seleccionarEspecial(i, "externo")}
                               />
-                            ))}
+                              <SpecialCandidatoCard tipo="sin_candidato"
+                                isSelected={nivel.seleccionado?.tipo === "sin_candidato"}
+                                onSeleccionar={() => seleccionarEspecial(i, "sin_candidato")}
+                              />
+                            </div>
                           </div>
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* Show selected candidate summary (non-last levels) */}
+                  {/* Confirmed selection row (non-last levels) */}
                   {!isLast && nivel.seleccionado && (
-                    <div className="mt-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Avatar id={nivel.seleccionado.colaboradorId} nombre={nivel.seleccionado.nombre} size={28} />
-                        <span>
-                          <span className="font-semibold text-gray-900">{nivel.seleccionado.nombre}</span>
-                          {" "}seleccionado
-                        </span>
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Avatar id={nivel.seleccionado.colaboradorId} nombre={nivel.seleccionado.nombre} size={28} />
+                          <span>
+                            <span className="font-semibold text-gray-900">{nivel.seleccionado.nombre}</span>
+                            {" "}seleccionado
+                            {nivel.seleccionado.tipo === "externo" && <span className="ml-1 text-xs text-amber-700 font-medium bg-amber-100 px-1.5 py-0.5 rounded">Externo</span>}
+                            {nivel.seleccionado.tipo === "sin_candidato" && <span className="ml-1 text-xs text-red-700 font-medium bg-red-100 px-1.5 py-0.5 rounded">Sin candidato</span>}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 no-print">
+                          {/* AI analysis button */}
+                          <button
+                            onClick={() => hasAnalisis
+                              ? setAnalisisIA((prev) => { const n = { ...prev }; delete n[nivel.uid]; return n; })
+                              : handleAnalisisNivel(nivel, i)}
+                            disabled={isLoadingThisNivel}
+                            className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                          >
+                            {isLoadingThisNivel ? "Generando…" : hasAnalisis ? "✦ Ocultar análisis" : "✦ Análisis IA"}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setCadena((prev) =>
+                                prev.map((n, idx) => idx === i ? { ...n, seleccionado: null } : n).slice(0, i + 1)
+                              );
+                              setVeredicto(null);
+                              setAnalisisIA((prev) => { const n = { ...prev }; delete n[nivel.uid]; return n; });
+                            }}
+                            className="text-xs text-gray-400 hover:text-red-600 transition-colors"
+                          >
+                            Cambiar
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          setCadena((prev) =>
-                            prev.map((n, idx) => idx === i ? { ...n, seleccionado: null } : n)
-                              .slice(0, i + 1)
-                          );
-                          setVeredicto(null);
-                        }}
-                        className="text-xs text-gray-400 hover:text-red-600 transition-colors no-print"
-                      >
-                        Cambiar
-                      </button>
+
+                      {/* Inline AI analysis */}
+                      {hasAnalisis && (
+                        <AnalisisPanelInline
+                          text={analisisIA[nivel.uid]}
+                          onClose={() => setAnalisisIA((prev) => { const n = { ...prev }; delete n[nivel.uid]; return n; })}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -686,11 +807,9 @@ export default function RutasTalentoClient({
 
           {/* Analyze button */}
           {cadena.length > 1 && (
-            <div className="mt-6 flex justify-center no-print">
-              <button
-                onClick={analizarRuta}
-                className="px-6 py-3 bg-[#1a3a5c] text-white rounded-xl font-semibold text-sm hover:bg-[#152e4d] transition-colors shadow-sm"
-              >
+            <div className="mt-6 flex justify-center gap-3 no-print">
+              <button onClick={analizarRuta}
+                className="px-6 py-3 bg-[#1a3a5c] text-white rounded-xl font-semibold text-sm hover:bg-[#152e4d] transition-colors shadow-sm">
                 🔍 Analizar Ruta
               </button>
             </div>
@@ -699,11 +818,9 @@ export default function RutasTalentoClient({
           {/* Verdict */}
           {veredicto && (
             <div className={`mt-6 rounded-xl border-2 p-6 ${
-              veredicto.nivel === "viable"
-                ? "border-emerald-300 bg-emerald-50"
-                : veredicto.nivel === "moderado"
-                ? "border-amber-300 bg-amber-50"
-                : "border-red-300 bg-red-50"
+              veredicto.nivel === "viable" ? "border-emerald-300 bg-emerald-50"
+              : veredicto.nivel === "moderado" ? "border-amber-300 bg-amber-50"
+              : "border-red-300 bg-red-50"
             }`}>
               <div className="flex items-start gap-4">
                 <div className="text-4xl">
@@ -711,37 +828,32 @@ export default function RutasTalentoClient({
                 </div>
                 <div className="flex-1">
                   <h3 className={`text-xl font-bold ${
-                    veredicto.nivel === "viable"
-                      ? "text-emerald-800"
-                      : veredicto.nivel === "moderado"
-                      ? "text-amber-800"
-                      : "text-red-800"
+                    veredicto.nivel === "viable" ? "text-emerald-800"
+                    : veredicto.nivel === "moderado" ? "text-amber-800"
+                    : "text-red-800"
                   }`}>
-                    Ruta{" "}
-                    {veredicto.nivel === "viable"
-                      ? "VIABLE"
-                      : veredicto.nivel === "moderado"
-                      ? "CON RIESGO MODERADO"
+                    Ruta {veredicto.nivel === "viable" ? "VIABLE"
+                      : veredicto.nivel === "moderado" ? "CON RIESGO MODERADO"
                       : "DE ALTO RIESGO"}
                   </h3>
                   <p className="text-sm text-gray-600 mt-2">
                     {veredicto.nivel === "viable"
                       ? "Todos los movimientos tienen cobertura de sucesión adecuada."
                       : veredicto.nivel === "moderado"
-                      ? "Hay posiciones críticas con sucesores disponibles pero no inmediatos."
-                      : "Hay posiciones críticas sin sucesor — el movimiento genera vulnerabilidad."}
+                      ? "Hay posiciones con sucesores disponibles pero no inmediatos, o candidatos externos."
+                      : "Hay posiciones críticas sin sucesor o sin candidato definido."}
                   </p>
                   <div className="flex flex-wrap gap-3 mt-4">
                     {veredicto.verdes > 0 && (
                       <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">
                         <span className="w-2 h-2 bg-emerald-500 rounded-full" />
-                        {veredicto.verdes} posición{veredicto.verdes !== 1 ? "es" : ""} con cobertura
+                        {veredicto.verdes} con cobertura
                       </span>
                     )}
                     {veredicto.amarillos > 0 && (
                       <span className="flex items-center gap-1.5 text-sm font-medium text-amber-700 bg-amber-100 px-3 py-1 rounded-full">
                         <span className="w-2 h-2 bg-amber-500 rounded-full" />
-                        {veredicto.amarillos} con sucesor a futuro
+                        {veredicto.amarillos} riesgo moderado
                       </span>
                     )}
                     {veredicto.rojos > 0 && (
@@ -751,10 +863,59 @@ export default function RutasTalentoClient({
                       </span>
                     )}
                   </div>
+
+                  {/* Generate full AI report */}
+                  <div className="mt-4 pt-4 border-t border-black/10 no-print">
+                    <button
+                      onClick={reporteIA ? () => setShowReporte(true) : handleReporteIA}
+                      disabled={loadingIA === "reporte"}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-white border border-blue-200 text-blue-700 rounded-xl text-sm font-semibold hover:bg-blue-50 transition-colors disabled:opacity-50 shadow-sm"
+                    >
+                      <span className="text-base">✦</span>
+                      {loadingIA === "reporte" ? "Generando reporte…"
+                        : reporteIA ? "Ver Reporte IA"
+                        : "Generar Reporte IA completo"}
+                    </button>
+                    {reporteIA && (
+                      <p className="text-xs text-gray-400 mt-1.5">Reporte generado · Se guardará con el escenario</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Full AI Report Modal */}
+      {showReporte && reporteIA && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">✦ Reporte IA — Talent Management</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{puestoObjetivo?.nombre}</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => window.print()}
+                  className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
+                  ⬇ PDF
+                </button>
+                <button onClick={() => setShowReporte(false)}
+                  className="text-gray-400 hover:text-gray-700 text-xl px-2">✕</button>
+              </div>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: reporteIA
+                  .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+                  .replace(/^## (.*?)$/gm, "<h2 class='text-base font-bold text-gray-900 mt-4 mb-2'>$1</h2>")
+                  .replace(/^### (.*?)$/gm, "<h3 class='text-sm font-bold text-gray-800 mt-3 mb-1'>$1</h3>")
+                  .replace(/^- (.*?)$/gm, "<li class='ml-4 list-disc'>$1</li>")
+                  .replace(/\n\n/g, "<br/><br/>")
+                }} />
+            </div>
+          </div>
         </div>
       )}
 
@@ -764,25 +925,19 @@ export default function RutasTalentoClient({
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
             <h3 className="text-lg font-bold text-gray-900 mb-4">Guardar escenario</h3>
             <input
-              value={saveNombre}
-              onChange={(e) => setSaveNombre(e.target.value)}
+              value={saveNombre} onChange={(e) => setSaveNombre(e.target.value)}
               placeholder="Nombre del escenario…"
               className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
-              autoFocus
-              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              autoFocus onKeyDown={(e) => e.key === "Enter" && handleSave()}
             />
+            {reporteIA && <p className="text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2 mb-4">✦ El reporte IA se guardará con el escenario</p>}
             <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setShowSave(false)}
-                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
-              >
+              <button onClick={() => setShowSave(false)}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
                 Cancelar
               </button>
-              <button
-                onClick={handleSave}
-                disabled={!saveNombre.trim() || isPending}
-                className="px-4 py-2 text-sm font-medium bg-[#1a3a5c] text-white rounded-lg hover:bg-[#152e4d] disabled:opacity-50"
-              >
+              <button onClick={handleSave} disabled={!saveNombre.trim() || isPending}
+                className="px-4 py-2 text-sm font-medium bg-[#1a3a5c] text-white rounded-lg hover:bg-[#152e4d] disabled:opacity-50">
                 Guardar
               </button>
             </div>
@@ -809,21 +964,15 @@ export default function RutasTalentoClient({
                       <p className="text-xs text-gray-500 mt-0.5">
                         {e.puestoObjetivoNombre} · {e.nivelCount} nivel{e.nivelCount !== 1 ? "es" : ""}
                       </p>
-                      <p className="text-xs text-gray-400">
-                        {new Date(e.created_at).toLocaleDateString("es-MX")}
-                      </p>
+                      <p className="text-xs text-gray-400">{new Date(e.created_at).toLocaleDateString("es-MX")}</p>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => handleLoadEscenario(e.id)}
-                        className="text-xs font-medium px-3 py-1.5 bg-[#1a3a5c] text-white rounded-lg hover:bg-[#152e4d] transition-colors"
-                      >
+                      <button onClick={() => handleLoadEscenario(e.id)}
+                        className="text-xs font-medium px-3 py-1.5 bg-[#1a3a5c] text-white rounded-lg hover:bg-[#152e4d] transition-colors">
                         Cargar
                       </button>
-                      <button
-                        onClick={() => handleDeleteEscenario(e.id)}
-                        className="text-xs text-red-600 hover:text-red-800 transition-colors px-2"
-                      >
+                      <button onClick={() => handleDeleteEscenario(e.id)}
+                        className="text-xs text-red-600 hover:text-red-800 transition-colors px-2">
                         ✕
                       </button>
                     </div>
@@ -835,7 +984,6 @@ export default function RutasTalentoClient({
         </div>
       )}
 
-      {/* Print styles */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           .no-print { display: none !important; }
