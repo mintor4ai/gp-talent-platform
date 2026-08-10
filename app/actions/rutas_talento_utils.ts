@@ -15,6 +15,7 @@ export type Candidato = {
   tieneSucesor: boolean;
   readinessMejorSucesor: string | null;
   tipo?: TipoCandidato;
+  picdBorrador?: boolean; // true when the only PICD cycle found is still a draft
 };
 
 export type PuestoOption = {

@@ -124,9 +124,11 @@ function CandidatoCard({
           <div className="flex flex-wrap gap-1 mt-2">
             {candidato.fuentes.map((f) => {
               const cfg = FUENTE_CONFIG[f];
+              const isBorradorPicd = f === "picd" && candidato.picdBorrador;
               return (
-                <span key={f} className={`text-xs font-medium px-1.5 py-0.5 rounded-md ${cfg.bg} ${cfg.color}`}>
-                  {cfg.label}
+                <span key={f} title={isBorradorPicd ? "PICD en borrador — aspiración no confirmada" : undefined}
+                  className={`text-xs font-medium px-1.5 py-0.5 rounded-md ${cfg.bg} ${cfg.color} ${isBorradorPicd ? "opacity-70" : ""}`}>
+                  {cfg.label}{isBorradorPicd ? " ·" : ""}
                 </span>
               );
             })}

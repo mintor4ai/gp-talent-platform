@@ -31,6 +31,7 @@ const ADMIN_NAV: NavItem[] = [
       { href: "/plan-carrera",  label: "Plano de Carrera" },
       { href: "/picd-admin",    label: "Ciclos PICD" },
       { href: "/rutas-talento", label: "Rutas de Talento" },
+      { href: "/configuracion/higiene-picd", label: "Revisión PICD" },
     ],
   },
   { href: "/configuracion/catalogo-puestos", label: "Catálogo de Puestos", icon: "🗂️" },

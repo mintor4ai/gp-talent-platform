@@ -67,7 +67,7 @@ export async function getCandidatosParaPuesto(
 ): Promise<Candidato[]> {
   const supabase = await createClient();
 
-  const map = new Map<string, { fuentes: FuenteCandidato[]; readiness: string | null }>();
+  const map = new Map<string, { fuentes: FuenteCandidato[]; readiness: string | null; picdBorrador?: boolean }>();
 
   if (fuentes.includes("sucesion")) {
     const { data } = await supabase
@@ -118,16 +118,26 @@ export async function getCandidatosParaPuesto(
   if (fuentes.includes("picd")) {
     const { data } = await supabase
       .from("picd")
-      .select("id_empleado")
-      .or(`puesto_futuro_id1.eq.${puestoId},puesto_futuro_id2.eq.${puestoId}`);
+      .select("id_empleado, ciclo_año, estado")
+      .or(`puesto_futuro_id1.eq.${puestoId},puesto_futuro_id2.eq.${puestoId}`)
+      .order("ciclo_año", { ascending: false });
 
-    for (const row of (data ?? []) as Array<{ id_empleado: string | null }>) {
+    // Keep only the most recent cycle per employee
+    const latestPicdByEmpleado = new Map<string, { estado: string }>();
+    for (const row of (data ?? []) as Array<{ id_empleado: string | null; ciclo_año: number; estado: string | null }>) {
       if (!row.id_empleado) continue;
-      const ex = map.get(row.id_empleado);
+      if (!latestPicdByEmpleado.has(row.id_empleado)) {
+        latestPicdByEmpleado.set(row.id_empleado, { estado: row.estado ?? "" });
+      }
+    }
+
+    for (const [empleadoId, picdInfo] of latestPicdByEmpleado.entries()) {
+      const ex = map.get(empleadoId);
       if (ex) {
         if (!ex.fuentes.includes("picd")) ex.fuentes.push("picd");
+        if (picdInfo.estado === "borrador") ex.picdBorrador = true;
       } else {
-        map.set(row.id_empleado, { fuentes: ["picd"], readiness: null });
+        map.set(empleadoId, { fuentes: ["picd"], readiness: null, picdBorrador: picdInfo.estado === "borrador" });
       }
     }
   }
@@ -209,6 +219,7 @@ export async function getCandidatosParaPuesto(
       readiness: partial.readiness,
       tieneSucesor: cobertura?.tieneSucesor ?? false,
       readinessMejorSucesor: cobertura?.mejorReadiness ?? null,
+      picdBorrador: partial.picdBorrador,
     });
   }
 
