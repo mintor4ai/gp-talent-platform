@@ -79,6 +79,17 @@ function buildTree(
   return { roots, nodeMap };
 }
 
+/** Returns the set of node IDs whose children should start collapsed (depth >= maxDepth). */
+function computeCollapsed(roots: OrgNode[], maxDepth: number): Set<string> {
+  const set = new Set<string>();
+  function walk(node: OrgNode, depth: number) {
+    if (depth >= maxDepth - 1) set.add(node.id);
+    for (const child of node.children) walk(child, depth + 1);
+  }
+  for (const root of roots) walk(root, 0);
+  return set;
+}
+
 // ─── Avatar ──────────────────────────────────────────────────────────────────
 
 function Avatar({ id, nombre, size = 52 }: { id: string; nombre: string; size?: number }) {
@@ -185,30 +196,25 @@ function OrgCard({
 
 function OrgTreeNode({
   node,
-  depth,
-  maxDepth,
   collapsed,
   onToggle,
   isRoot,
 }: {
   node: OrgNode;
-  depth: number;
-  maxDepth: number;
   collapsed: Set<string>;
   onToggle: (id: string) => void;
   isRoot?: boolean;
 }) {
   const isCollapsed = collapsed.has(node.id);
-  const reachedMax = depth + 1 >= maxDepth;
-  const hasVisibleChildren = node.children.length > 0 && !reachedMax;
-  const showChildren = hasVisibleChildren && !isCollapsed;
+  const hasChildren = node.children.length > 0;
+  const showChildren = hasChildren && !isCollapsed;
 
   return (
     <li>
       <div className={isRoot ? "org-node-inner org-node-root" : "org-node-inner"}>
         <OrgCard
           node={node}
-          hasChildren={node.children.length > 0}
+          hasChildren={hasChildren}
           isCollapsed={isCollapsed}
           onToggle={() => onToggle(node.id)}
         />
@@ -219,8 +225,6 @@ function OrgTreeNode({
             <OrgTreeNode
               key={child.id}
               node={child}
-              depth={depth + 1}
-              maxDepth={maxDepth}
               collapsed={collapsed}
               onToggle={onToggle}
             />
@@ -493,7 +497,14 @@ export default function OrganigramaClient({
   const [personSearch, setPersonSearch] = useState("");
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [maxDepth, setMaxDepth] = useState(3);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Seed collapsed from initial UEN tree at depth 3
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    const { roots } = buildTree(
+      colaboradores,
+      (c) => (c["organización"] as string) === (uens[0] ?? "")
+    );
+    return computeCollapsed(roots, 3);
+  });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Refs for fullscreen and drag
@@ -595,6 +606,7 @@ export default function OrganigramaClient({
   }
 
   function handleCollapseAll() {
+    // Collapse everything except the roots themselves (so at least level 1 is visible)
     const all = new Set<string>();
     function collectIds(nodes: OrgNode[]) {
       for (const n of nodes) {
@@ -607,18 +619,14 @@ export default function OrganigramaClient({
   }
 
   const totalVisible = useMemo(() => {
-    function count(nodes: OrgNode[], depth: number): number {
-      if (depth >= maxDepth) return 0;
+    function count(nodes: OrgNode[]): number {
       return nodes.reduce(
-        (acc, n) =>
-          acc +
-          1 +
-          (collapsed.has(n.id) ? 0 : count(n.children, depth + 1)),
+        (acc, n) => acc + 1 + (collapsed.has(n.id) ? 0 : count(n.children)),
         0
       );
     }
-    return count(displayRoots, 0);
-  }, [displayRoots, maxDepth, collapsed]);
+    return count(displayRoots);
+  }, [displayRoots, collapsed]);
 
   return (
     <>
@@ -682,8 +690,10 @@ export default function OrganigramaClient({
             <select
               value={selectedUen}
               onChange={(e) => {
-                setSelectedUen(e.target.value);
-                setCollapsed(new Set());
+                const uen = e.target.value;
+                setSelectedUen(uen);
+                const { roots } = buildTree(colaboradores, (c) => (c["organización"] as string) === uen);
+                setCollapsed(computeCollapsed(roots, maxDepth));
               }}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
             >
@@ -715,8 +725,12 @@ export default function OrganigramaClient({
                     <button
                       key={c["id"] as string}
                       onClick={() => {
-                        setSelectedPersonId(c["id"] as string);
+                        const pid = c["id"] as string;
+                        setSelectedPersonId(pid);
                         setPersonSearch(c["nombre_completo"] as string);
+                        const personNode = fullNodeMap.get(pid);
+                        const newRoots = personNode ? [personNode] : [];
+                        setCollapsed(computeCollapsed(newRoots, maxDepth));
                       }}
                       className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
                     >
@@ -742,7 +756,7 @@ export default function OrganigramaClient({
                   key={n}
                   onClick={() => {
                     setMaxDepth(n);
-                    setCollapsed(new Set());
+                    setCollapsed(computeCollapsed(displayRoots, n));
                   }}
                   className={`w-8 h-8 rounded-lg text-sm font-semibold transition-colors ${
                     maxDepth === n
@@ -777,6 +791,7 @@ export default function OrganigramaClient({
         <div
           ref={chartRef}
           className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-auto print-chart org-chart-scroll"
+          style={{ maxHeight: isFullscreen ? "100%" : "calc(100vh - 260px)", minHeight: 240 }}
           onMouseDown={onDragStart}
           onMouseMove={onDragMove}
           onMouseUp={onDragEnd}
@@ -795,8 +810,6 @@ export default function OrganigramaClient({
                   <OrgTreeNode
                     key={node.id}
                     node={node}
-                    depth={0}
-                    maxDepth={maxDepth}
                     collapsed={collapsed}
                     onToggle={toggleCollapse}
                     isRoot
