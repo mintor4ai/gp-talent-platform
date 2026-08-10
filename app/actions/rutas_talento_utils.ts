@@ -1,4 +1,35 @@
-// Shared helpers — no "use server" so they can be imported by client components too
+// Shared types and helpers — no "use server", importable by both client and server
+
+export type FuenteCandidato = "sucesion" | "plano" | "picd";
+
+export type Candidato = {
+  colaboradorId: string;
+  nombre: string;
+  puestoActual: string;
+  puestoCatalogoId: string | null;
+  puestoActualEsCritico: boolean;
+  fuentes: FuenteCandidato[];
+  readiness: string | null;
+  tieneSucesor: boolean;
+  readinessMejorSucesor: string | null;
+};
+
+export type PuestoOption = {
+  id: string;
+  nombre: string;
+  org: string;
+  esCritico: boolean;
+  ocupanteNombre: string | null;
+  ocupanteId: string | null;
+};
+
+export type EscenarioResumen = {
+  id: string;
+  nombre: string;
+  created_at: string;
+  puestoObjetivoNombre: string;
+  nivelCount: number;
+};
 
 export function readinessLabel(r: string | null): string {
   if (!r) return "No definido";

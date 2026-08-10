@@ -1,42 +1,12 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-
-// ─── Shared types ────────────────────────────────────────────────────────────
-
-export type FuenteCandidato = "sucesion" | "plano" | "picd";
-
-export type Candidato = {
-  colaboradorId: string;
-  nombre: string;
-  puestoActual: string;
-  puestoCatalogoId: string | null;
-  puestoActualEsCritico: boolean;
-  fuentes: FuenteCandidato[];
-  readiness: string | null;          // readiness del candidato PARA el puesto objetivo
-  tieneSucesor: boolean;             // cobertura de su puesto actual
-  readinessMejorSucesor: string | null;
-};
-
-export type PuestoOption = {
-  id: string;
-  nombre: string;
-  org: string;
-  esCritico: boolean;
-  ocupanteNombre: string | null;
-  ocupanteId: string | null;
-};
-
-export type EscenarioResumen = {
-  id: string;
-  nombre: string;
-  created_at: string;
-  puestoObjetivoNombre: string;
-  nivelCount: number;
-};
-
-// ─── Helpers (re-exported from shared utils) ──────────────────────────────────
-export { readinessLabel, calcRiesgo } from "./rutas_talento_utils";
+import type {
+  FuenteCandidato,
+  Candidato,
+  PuestoOption,
+  EscenarioResumen,
+} from "./rutas_talento_utils";
 
 // ─── Get positions for selector ──────────────────────────────────────────────
 
@@ -66,7 +36,6 @@ export async function getPuestosParaSelector(): Promise<PuestoOption[]> {
     puesto_catalogo_id: string;
   }>;
 
-  // First occupant per position (arbitrary — for display)
   const ocupanteByPuesto = new Map<string, { id: string; nombre: string }>();
   for (const c of colabs) {
     if (!ocupanteByPuesto.has(c.puesto_catalogo_id)) {
@@ -96,10 +65,8 @@ export async function getCandidatosParaPuesto(
 ): Promise<Candidato[]> {
   const supabase = await createClient();
 
-  // Map: colaboradorId → partial Candidato
   const map = new Map<string, { fuentes: FuenteCandidato[]; readiness: string | null }>();
 
-  // ── Source 1: Sucesión validada ──
   if (fuentes.includes("sucesion")) {
     const { data } = await supabase
       .from("sucesion_matches")
@@ -120,7 +87,6 @@ export async function getCandidatosParaPuesto(
     }
   }
 
-  // ── Source 2: Plano de Carrera ──
   if (fuentes.includes("plano")) {
     const { data: objetivos } = await supabase
       .from("plan_carrera_objetivos")
@@ -147,7 +113,6 @@ export async function getCandidatosParaPuesto(
     }
   }
 
-  // ── Source 3: PICD aspiration ──
   if (fuentes.includes("picd")) {
     const { data } = await supabase
       .from("picd")
@@ -167,7 +132,6 @@ export async function getCandidatosParaPuesto(
 
   if (map.size === 0) return [];
 
-  // ── Enrich: colaborador info ──
   const ids = [...map.keys()];
   const { data: colabsRaw } = await supabase
     .from("colaboradores")
@@ -184,7 +148,6 @@ export async function getCandidatosParaPuesto(
 
   const colabById = new Map(colabs.map((c) => [c.id, c]));
 
-  // ── Enrich: criticality of their current positions ──
   const positionIds = [
     ...new Set(colabs.map((c) => c.puesto_catalogo_id).filter(Boolean) as string[]),
   ];
@@ -202,7 +165,6 @@ export async function getCandidatosParaPuesto(
       criticidadMap.set(p.id, p.es_critico ?? false);
     }
 
-    // Succession coverage for each position
     const { data: sucRaw } = await supabase
       .from("sucesion_matches")
       .select("puesto_catalogo_id, readiness")
@@ -226,12 +188,11 @@ export async function getCandidatosParaPuesto(
     }
   }
 
-  // ── Build final list ──
   const result: Candidato[] = [];
 
   for (const [colabId, partial] of map.entries()) {
     const colab = colabById.get(colabId);
-    if (!colab) continue; // no longer active or not found
+    if (!colab) continue;
 
     const posId = colab.puesto_catalogo_id;
     const cobertura = posId ? coberturaMap.get(posId) : null;
