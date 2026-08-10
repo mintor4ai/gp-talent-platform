@@ -25,6 +25,7 @@ export default async function OrganigramaPage() {
     .from("colaboradores")
     .select("*")
     .eq("activo", true)
+    .neq("tipo_plantilla", "PRACTICANTES")
     .order("nombre_completo");
 
   const colaboradores = (raw ?? []) as unknown as Array<Record<string, unknown>>;
