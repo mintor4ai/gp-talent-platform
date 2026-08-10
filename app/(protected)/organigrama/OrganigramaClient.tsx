@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -428,6 +428,39 @@ const ORG_CHART_CSS = `
   color: #1a3a5c;
 }
 
+/* ── Drag cursor ──────────────────────────────────────────────── */
+
+.org-chart-scroll {
+  cursor: grab;
+  user-select: none;
+}
+.org-chart-scroll.is-dragging {
+  cursor: grabbing;
+}
+
+/* ── Fullscreen ───────────────────────────────────────────────── */
+
+:fullscreen .org-fullscreen-root,
+:-webkit-full-screen .org-fullscreen-root {
+  background: #f8fafc;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+:fullscreen .org-fullscreen-root .print-chart,
+:-webkit-full-screen .org-fullscreen-root .print-chart {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+:fullscreen .org-fullscreen-root h1 {
+  font-size: 1.25rem;
+}
+
 /* ── Print / PDF ──────────────────────────────────────────────── */
 
 @media print {
@@ -461,6 +494,55 @@ export default function OrganigramaClient({
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [maxDepth, setMaxDepth] = useState(3);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Refs for fullscreen and drag
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const drag = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0, moved: false });
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  function onDragStart(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.button !== 0) return;
+    const el = chartRef.current;
+    if (!el) return;
+    drag.current = { active: true, moved: false, startX: e.clientX, startY: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop };
+  }
+
+  function onDragMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (!drag.current.active) return;
+    const dx = e.clientX - drag.current.startX;
+    const dy = e.clientY - drag.current.startY;
+    // Only activate drag cursor after moving 4px (prevents flicker on click)
+    if (!drag.current.moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+    drag.current.moved = true;
+    const el = chartRef.current;
+    if (!el) return;
+    el.classList.add("is-dragging");
+    el.scrollLeft = drag.current.scrollLeft - dx;
+    el.scrollTop  = drag.current.scrollTop  - dy;
+  }
+
+  function onDragEnd(e: React.MouseEvent<HTMLDivElement>) {
+    // If we moved, block the click so links don't fire on drag-release
+    if (drag.current.moved) e.preventDefault();
+    drag.current.active = false;
+    drag.current.moved = false;
+    chartRef.current?.classList.remove("is-dragging");
+  }
 
   // Full tree for persona mode
   const { nodeMap: fullNodeMap } = useMemo(
@@ -542,7 +624,7 @@ export default function OrganigramaClient({
     <>
       <style dangerouslySetInnerHTML={{ __html: ORG_CHART_CSS }} />
 
-      <div className="space-y-4">
+      <div className="space-y-4 org-fullscreen-root" ref={containerRef}>
         {/* Header */}
         <div className="flex items-center justify-between no-print">
           <div>
@@ -552,12 +634,21 @@ export default function OrganigramaClient({
               {totalVisible !== 1 ? "s" : ""}
             </p>
           </div>
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors"
-          >
-            <span>⬇</span> Exportar PDF
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleFullscreen}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors"
+              title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+            >
+              {isFullscreen ? "✕ Salir" : "⤢ Pantalla completa"}
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors"
+            >
+              <span>⬇</span> Exportar PDF
+            </button>
+          </div>
         </div>
 
         {/* Controls */}
@@ -683,7 +774,14 @@ export default function OrganigramaClient({
         </div>
 
         {/* Chart */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-auto print-chart">
+        <div
+          ref={chartRef}
+          className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-auto print-chart org-chart-scroll"
+          onMouseDown={onDragStart}
+          onMouseMove={onDragMove}
+          onMouseUp={onDragEnd}
+          onMouseLeave={() => { drag.current.active = false; drag.current.moved = false; chartRef.current?.classList.remove("is-dragging"); }}
+        >
           <div className="org-tree">
             {displayRoots.length === 0 ? (
               <div className="py-16 text-center text-gray-400">
