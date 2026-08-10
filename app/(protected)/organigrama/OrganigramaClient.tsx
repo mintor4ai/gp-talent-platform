@@ -152,9 +152,9 @@ function OrgCard({
   return (
     <div className="org-card">
       <a
-        href={`/colaboradores/${node.id}`}
+        href={`/carpeta/${node.id}`}
         className="org-avatar-link"
-        title={`Ver perfil de ${node.nombre}`}
+        title={`Ver carpeta de ${node.nombre}`}
       >
         <Avatar id={node.id} nombre={node.nombre} size={52} />
       </a>
