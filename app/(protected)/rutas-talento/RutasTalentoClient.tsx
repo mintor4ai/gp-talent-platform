@@ -6,13 +6,12 @@ import {
   guardarEscenario,
   cargarEscenario,
   eliminarEscenario,
-  calcRiesgo,
-  readinessLabel,
   type Candidato,
   type FuenteCandidato,
   type PuestoOption,
   type EscenarioResumen,
 } from "@/app/actions/rutas_talento";
+import { calcRiesgo, readinessLabel } from "@/app/actions/rutas_talento_utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

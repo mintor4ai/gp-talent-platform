@@ -35,26 +35,8 @@ export type EscenarioResumen = {
   nivelCount: number;
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-export function readinessLabel(r: string | null): string {
-  if (!r) return "No definido";
-  if (r === "listo_ahora") return "Listo Ahora";
-  if (r === "uno_dos_anios") return "1-2 años";
-  if (r === "tres_mas_anios") return "3+ años";
-  return r;
-}
-
-export function calcRiesgo(
-  esCritico: boolean,
-  tieneSucesor: boolean,
-  readinessMejorSucesor: string | null
-): "verde" | "amarillo" | "rojo" {
-  if (!esCritico) return "verde";
-  if (!tieneSucesor) return "rojo";
-  if (readinessMejorSucesor === "listo_ahora") return "verde";
-  return "amarillo";
-}
+// ─── Helpers (re-exported from shared utils) ──────────────────────────────────
+export { readinessLabel, calcRiesgo } from "./rutas_talento_utils";
 
 // ─── Get positions for selector ──────────────────────────────────────────────
 
