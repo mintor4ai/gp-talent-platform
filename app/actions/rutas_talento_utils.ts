@@ -2,7 +2,7 @@
 
 export type FuenteCandidato = "sucesion" | "plano" | "picd";
 
-export type TipoCandidato = "interno" | "externo" | "sin_candidato";
+export type TipoCandidato = "interno" | "externo" | "sin_candidato" | "propuesto";
 
 export type Candidato = {
   colaboradorId: string;
@@ -56,12 +56,32 @@ export function calcRiesgo(
 export function calcRiesgoConTipo(candidato: Candidato): "verde" | "amarillo" | "rojo" {
   if (candidato.tipo === "externo") return "amarillo";
   if (candidato.tipo === "sin_candidato") return "rojo";
+  if (candidato.tipo === "propuesto") {
+    const base =
+      candidato.readiness === "listo_ahora" ? "verde"
+      : candidato.readiness === "tres_mas_anios" ? "rojo"
+      : "amarillo";
+    // Bump: leaving a critical position adds risk
+    if (base === "verde" && candidato.puestoActualEsCritico) return "amarillo";
+    return base;
+  }
   return calcRiesgo(
     candidato.puestoActualEsCritico,
     candidato.tieneSucesor,
     candidato.readinessMejorSucesor
   );
 }
+
+export type ColaboradorBusqueda = {
+  id: string;
+  nombre: string;
+  puestoActual: string;
+  puestoCatalogoId: string | null;
+  org: string;
+  esCritico: boolean;
+  tieneSucesor: boolean;
+  readinessMejorSucesor: string | null;
+};
 
 export function candidatoExterno(): Candidato {
   return {

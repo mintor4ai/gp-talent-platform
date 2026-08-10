@@ -7,6 +7,7 @@ import type {
   Candidato,
   PuestoOption,
   EscenarioResumen,
+  ColaboradorBusqueda,
 } from "./rutas_talento_utils";
 
 // ─── Get positions for selector ──────────────────────────────────────────────
@@ -281,13 +282,104 @@ export async function eliminarEscenario(id: string): Promise<{ ok: boolean }> {
   return { ok: !error };
 }
 
+// ─── Search collaborators (for "proponer") ────────────────────────────────────
+
+export async function buscarColaboradores(
+  query: string,
+  org: string
+): Promise<ColaboradorBusqueda[]> {
+  const supabase = await createClient();
+
+  let q = supabase
+    .from("colaboradores")
+    .select("id, nombre_completo, puesto, puesto_catalogo_id")
+    .eq("activo", true)
+    .limit(40);
+
+  if (query.trim().length >= 2) {
+    q = q.ilike("nombre_completo", `%${query.trim()}%`);
+  }
+
+  const { data: colabsRaw } = await q;
+  const colabs = (colabsRaw ?? []) as Array<{
+    id: string;
+    nombre_completo: string;
+    puesto: string;
+    puesto_catalogo_id: string | null;
+  }>;
+
+  if (!colabs.length) return [];
+
+  const posIds = [...new Set(colabs.map((c) => c.puesto_catalogo_id).filter(Boolean) as string[])];
+
+  const criticidadMap = new Map<string, boolean>();
+  const orgMap = new Map<string, string>();
+  const coberturaMap = new Map<string, { tieneSucesor: boolean; mejorReadiness: string | null }>();
+
+  if (posIds.length > 0) {
+    const { data: puestosRaw } = await supabase
+      .from("catalogo_puestos")
+      .select("id, es_critico, organización, nombre")
+      .in("id", posIds);
+
+    for (const p of (puestosRaw ?? []) as Array<{ id: string; es_critico: boolean; organización: string }>) {
+      criticidadMap.set(p.id, p.es_critico ?? false);
+      orgMap.set(p.id, p["organización"] ?? "");
+    }
+
+    const { data: sucRaw } = await supabase
+      .from("sucesion_matches")
+      .select("puesto_catalogo_id, readiness")
+      .in("puesto_catalogo_id", posIds)
+      .eq("validado_ch", true)
+      .neq("descartado", true);
+
+    const sucByPos = new Map<string, string[]>();
+    for (const s of (sucRaw ?? []) as Array<{ puesto_catalogo_id: string; readiness: string | null }>) {
+      if (!sucByPos.has(s.puesto_catalogo_id)) sucByPos.set(s.puesto_catalogo_id, []);
+      if (s.readiness) sucByPos.get(s.puesto_catalogo_id)!.push(s.readiness);
+    }
+
+    for (const pid of posIds) {
+      const successors = sucByPos.get(pid) ?? [];
+      let mejorReadiness: string | null = null;
+      if (successors.includes("listo_ahora")) mejorReadiness = "listo_ahora";
+      else if (successors.includes("uno_dos_anios")) mejorReadiness = "uno_dos_anios";
+      else if (successors.length > 0) mejorReadiness = successors[0];
+      coberturaMap.set(pid, { tieneSucesor: successors.length > 0, mejorReadiness });
+    }
+  }
+
+  let results: ColaboradorBusqueda[] = colabs.map((c) => {
+    const pid = c.puesto_catalogo_id;
+    const cobertura = pid ? coberturaMap.get(pid) : null;
+    const orgVal = pid ? (orgMap.get(pid) ?? "") : "";
+    return {
+      id: c.id,
+      nombre: c.nombre_completo,
+      puestoActual: c.puesto ?? "",
+      puestoCatalogoId: pid ?? null,
+      org: orgVal,
+      esCritico: pid ? (criticidadMap.get(pid) ?? false) : false,
+      tieneSucesor: cobertura?.tieneSucesor ?? false,
+      readinessMejorSucesor: cobertura?.mejorReadiness ?? null,
+    };
+  });
+
+  if (org) {
+    results = results.filter((r) => r.org === org);
+  }
+
+  return results.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
 // ─── AI: per-level analysis ────────────────────────────────────────────────────
 
 export type AnalisisNivelParams = {
   puestoNombre: string;
   esCritico: boolean;
   candidatoNombre: string;
-  candidatoTipo: "interno" | "externo" | "sin_candidato";
+  candidatoTipo: "interno" | "externo" | "sin_candidato" | "propuesto";
   readiness: string | null;
   puestoVacanteCritico: boolean;
   tieneSucesor: boolean;
@@ -314,7 +406,9 @@ export async function generarAnalisisNivelIA(
       ? "Candidato externo (reclutamiento)"
       : candidatoTipo === "sin_candidato"
       ? "Sin candidato definido — gap crítico"
-      : `${candidatoNombre} (interno) · Readiness: ${readinessLabelLocal(readiness)}`;
+      : candidatoTipo === "propuesto"
+      ? `${candidatoNombre} (propuesto — talento no perfilado previamente) · Readiness asignado: ${readinessLabelLocal(readiness)}`
+      : `${candidatoNombre} (interno perfilado) · Readiness: ${readinessLabelLocal(readiness)}`;
 
   const coberturaDesc =
     candidatoTipo !== "interno"
@@ -364,7 +458,7 @@ export type ReporteNivel = {
   puestoNombre: string;
   esCritico: boolean;
   candidatoNombre: string;
-  candidatoTipo: "interno" | "externo" | "sin_candidato";
+  candidatoTipo: "interno" | "externo" | "sin_candidato" | "propuesto";
   readiness: string | null;
   riesgo: "verde" | "amarillo" | "rojo" | null;
 };

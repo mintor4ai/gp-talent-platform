@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import {
   getCandidatosParaPuesto,
+  buscarColaboradores,
   guardarEscenario,
   cargarEscenario,
   eliminarEscenario,
@@ -19,6 +20,7 @@ import {
   type FuenteCandidato,
   type PuestoOption,
   type EscenarioResumen,
+  type ColaboradorBusqueda,
 } from "@/app/actions/rutas_talento_utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -75,15 +77,17 @@ function Avatar({ id, nombre, size = 40 }: { id: string; nombre: string; size?: 
 
   const bg = isSpecial && id === "__externo__"
     ? "linear-gradient(135deg,#92400e,#d97706)"
-    : isSpecial
+    : isSpecial && id === "__sin_candidato__"
     ? "linear-gradient(135deg,#7f1d1d,#dc2626)"
+    : isSpecial
+    ? "linear-gradient(135deg,#5b21b6,#7c3aed)"
     : "linear-gradient(135deg,#1a3a5c,#2d6a9f)";
 
   return (
     <div style={{ width: size, height: size, borderRadius: "50%", flexShrink: 0,
       background: bg, display: "flex", alignItems: "center", justifyContent: "center",
       color: "white", fontWeight: 700, fontSize: Math.round(size * 0.35) }}>
-      {isSpecial ? (id === "__externo__" ? "🌐" : "—") : initials}
+      {isSpecial ? (id === "__externo__" ? "🌐" : id === "__sin_candidato__" ? "—" : "✦") : initials}
     </div>
   );
 }
@@ -272,13 +276,15 @@ function Connector({ candidato }: { candidato?: Candidato | null }) {
 
   const isExterno = candidato.tipo === "externo";
   const isSin = candidato.tipo === "sin_candidato";
-  const bg = isExterno ? "bg-amber-700" : isSin ? "bg-red-700" : "bg-[#1a3a5c]";
+  const isPropuesto = candidato.tipo === "propuesto";
+  const bg = isExterno ? "bg-amber-700" : isSin ? "bg-red-700" : isPropuesto ? "bg-violet-700" : "bg-[#1a3a5c]";
 
   return (
     <div className="flex flex-col items-center py-2">
       <div className="w-0.5 h-4 bg-gray-300" />
       <div className={`flex items-center gap-2 text-white text-xs font-medium px-4 py-1.5 rounded-full ${bg}`}>
-        {!isExterno && !isSin && <Avatar id={candidato.colaboradorId} nombre={candidato.nombre} size={20} />}
+        {!isExterno && !isSin && !isPropuesto && <Avatar id={candidato.colaboradorId} nombre={candidato.nombre} size={20} />}
+        {isPropuesto && <span>✦</span>}
         {isExterno && <span>🌐</span>}
         {isSin && <span>—</span>}
         {candidato.nombre} promovido ↑
@@ -321,6 +327,16 @@ export default function RutasTalentoClient({
   const [loadingIA, setLoadingIA] = useState<string | null>(null); // uid or "reporte"
   const [reporteIA, setReporteIA] = useState<string | null>(null);
   const [showReporte, setShowReporte] = useState(false);
+
+  // Proponer colaborador modal state
+  const [propuestoModal, setPropuestoModal] = useState<{ nivelIdx: number } | null>(null);
+  const [propuestoSearch, setPropuestoSearch] = useState("");
+  const [propuestoOrg, setPropuestoOrg] = useState("");
+  const [propuestoResultados, setPropuestoResultados] = useState<ColaboradorBusqueda[]>([]);
+  const [propuestoSelected, setPropuestoSelected] = useState<ColaboradorBusqueda | null>(null);
+  const [propuestoReadiness, setPropuestoReadiness] = useState<string>("uno_dos_anios");
+  const [propuestoContinuar, setPropuestoContinuar] = useState(false);
+  const [propuestoBuscando, setPropuestoBuscando] = useState(false);
 
   // Modals
   const [showSave, setShowSave] = useState(false);
@@ -412,6 +428,40 @@ export default function RutasTalentoClient({
     seleccionarCandidato(nivelIdx, candidato);
   }
 
+  // ── Proponer collaborator ─────────────────────────────────────────────────────
+
+  async function handlePropuestoSearch(query: string, org: string) {
+    if (query.trim().length < 2 && !org) { setPropuestoResultados([]); return; }
+    setPropuestoBuscando(true);
+    const results = await buscarColaboradores(query, org);
+    setPropuestoResultados(results);
+    setPropuestoBuscando(false);
+  }
+
+  function confirmarPropuesto() {
+    if (!propuestoSelected || !propuestoModal) return;
+    const candidato: Candidato = {
+      colaboradorId: propuestoSelected.id,
+      nombre: propuestoSelected.nombre,
+      puestoActual: propuestoSelected.puestoActual,
+      puestoCatalogoId: propuestoContinuar ? propuestoSelected.puestoCatalogoId : null,
+      puestoActualEsCritico: propuestoSelected.esCritico,
+      fuentes: [],
+      readiness: propuestoReadiness,
+      tieneSucesor: propuestoSelected.tieneSucesor,
+      readinessMejorSucesor: propuestoSelected.readinessMejorSucesor,
+      tipo: "propuesto",
+    };
+    seleccionarCandidato(propuestoModal.nivelIdx, candidato);
+    setPropuestoModal(null);
+    setPropuestoSearch("");
+    setPropuestoOrg("");
+    setPropuestoResultados([]);
+    setPropuestoSelected(null);
+    setPropuestoReadiness("uno_dos_anios");
+    setPropuestoContinuar(false);
+  }
+
   // ── Stop chain ────────────────────────────────────────────────────────────────
 
   function detenerEn(nivelIdx: number) {
@@ -475,7 +525,7 @@ export default function RutasTalentoClient({
         puestoNombre: nivel.puestoNombre,
         esCritico: nivel.esCritico,
         candidatoNombre: sel?.nombre ?? "Sin candidato",
-        candidatoTipo: (sel?.tipo ?? "sin_candidato") as "interno" | "externo" | "sin_candidato",
+        candidatoTipo: (sel?.tipo ?? "sin_candidato") as "interno" | "externo" | "sin_candidato" | "propuesto",
         readiness: sel?.readiness ?? null,
         riesgo: sel ? calcRiesgoConTipo(sel) : "rojo" as const,
       };
@@ -736,7 +786,7 @@ export default function RutasTalentoClient({
                             <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">
                               {nivel.candidatos.length > 0 ? "O bien:" : "Opciones disponibles:"}
                             </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                               <SpecialCandidatoCard tipo="externo"
                                 isSelected={nivel.seleccionado?.tipo === "externo"}
                                 onSeleccionar={() => seleccionarEspecial(i, "externo")}
@@ -745,6 +795,49 @@ export default function RutasTalentoClient({
                                 isSelected={nivel.seleccionado?.tipo === "sin_candidato"}
                                 onSeleccionar={() => seleccionarEspecial(i, "sin_candidato")}
                               />
+                            </div>
+                            {/* Propose any collaborator */}
+                            <div
+                              onClick={() => {
+                                setPropuestoModal({ nivelIdx: i });
+                                setPropuestoSelected(null);
+                                setPropuestoSearch("");
+                                setPropuestoOrg("");
+                                setPropuestoResultados([]);
+                                setPropuestoReadiness("uno_dos_anios");
+                                setPropuestoContinuar(false);
+                              }}
+                              className={`border-2 rounded-xl p-4 cursor-pointer transition-all ${
+                                nivel.seleccionado?.tipo === "propuesto"
+                                  ? "border-violet-400 bg-violet-50 shadow-md"
+                                  : "border-dashed border-violet-200 bg-white hover:border-violet-400 hover:shadow-sm"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-lg flex-shrink-0">✦</div>
+                                <div>
+                                  <p className="font-semibold text-sm text-violet-800">
+                                    {nivel.seleccionado?.tipo === "propuesto"
+                                      ? nivel.seleccionado.nombre
+                                      : "Proponer colaborador"}
+                                  </p>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    {nivel.seleccionado?.tipo === "propuesto"
+                                      ? `${nivel.seleccionado.puestoActual} · Talento propuesto`
+                                      : "Talento de cualquier UEN, no perfilado previamente"}
+                                  </p>
+                                </div>
+                              </div>
+                              {nivel.seleccionado?.tipo !== "propuesto" && (
+                                <div className="mt-3 rounded-lg px-3 py-1.5 text-xs font-medium bg-violet-100 text-violet-800">
+                                  ＋ Buscar y seleccionar colaborador
+                                </div>
+                              )}
+                              {nivel.seleccionado?.tipo === "propuesto" && (
+                                <div className="mt-2 text-center">
+                                  <span className="text-xs font-semibold text-violet-700">✓ Seleccionado · Click para cambiar</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -763,6 +856,7 @@ export default function RutasTalentoClient({
                             {" "}seleccionado
                             {nivel.seleccionado.tipo === "externo" && <span className="ml-1 text-xs text-amber-700 font-medium bg-amber-100 px-1.5 py-0.5 rounded">Externo</span>}
                             {nivel.seleccionado.tipo === "sin_candidato" && <span className="ml-1 text-xs text-red-700 font-medium bg-red-100 px-1.5 py-0.5 rounded">Sin candidato</span>}
+                            {nivel.seleccionado.tipo === "propuesto" && <span className="ml-1 text-xs text-violet-700 font-medium bg-violet-100 px-1.5 py-0.5 rounded">✦ Propuesto</span>}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 no-print">
@@ -980,6 +1074,159 @@ export default function RutasTalentoClient({
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Proponer Colaborador Modal */}
+      {propuestoModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">✦ Proponer colaborador</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Busca talento de cualquier UEN</p>
+              </div>
+              <button onClick={() => setPropuestoModal(null)} className="text-gray-400 hover:text-gray-700 text-xl px-2">✕</button>
+            </div>
+
+            <div className="p-5 overflow-y-auto flex-1 space-y-4">
+              {/* Search */}
+              <div className="flex gap-2">
+                <input
+                  value={propuestoSearch}
+                  onChange={(e) => {
+                    setPropuestoSearch(e.target.value);
+                    handlePropuestoSearch(e.target.value, propuestoOrg);
+                  }}
+                  placeholder="Buscar por nombre…"
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"
+                  autoFocus
+                />
+                <select
+                  value={propuestoOrg}
+                  onChange={(e) => {
+                    setPropuestoOrg(e.target.value);
+                    handlePropuestoSearch(propuestoSearch, e.target.value);
+                  }}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white"
+                >
+                  <option value="">Todas las UENs</option>
+                  {[...new Set(propuestoResultados.map((r) => r.org).filter(Boolean))].map((org) => (
+                    <option key={org} value={org}>{org}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Results */}
+              {propuestoBuscando && (
+                <p className="text-sm text-gray-400 text-center py-4">Buscando…</p>
+              )}
+              {!propuestoBuscando && propuestoResultados.length > 0 && (
+                <div className="space-y-2 max-h-52 overflow-y-auto">
+                  {propuestoResultados.map((r) => (
+                    <div
+                      key={r.id}
+                      onClick={() => setPropuestoSelected(r)}
+                      className={`border-2 rounded-xl p-3 cursor-pointer transition-all ${
+                        propuestoSelected?.id === r.id
+                          ? "border-violet-400 bg-violet-50"
+                          : "border-gray-200 hover:border-violet-300 hover:bg-violet-50/40"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="font-semibold text-sm text-gray-900">{r.nombre}</p>
+                          <p className="text-xs text-gray-500">{r.puestoActual}</p>
+                          {r.org && <p className="text-xs text-gray-400 mt-0.5">{r.org}</p>}
+                        </div>
+                        <div className="text-right shrink-0 space-y-1">
+                          {r.esCritico && (
+                            <span className="block text-xs bg-red-100 text-red-700 font-medium px-2 py-0.5 rounded-full">Crítico</span>
+                          )}
+                          {r.tieneSucesor && (
+                            <span className="block text-xs bg-emerald-100 text-emerald-700 font-medium px-2 py-0.5 rounded-full">Con sucesor</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!propuestoBuscando && propuestoSearch.length >= 2 && propuestoResultados.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">Sin resultados</p>
+              )}
+              {!propuestoBuscando && propuestoSearch.length < 2 && propuestoResultados.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">Escribe al menos 2 caracteres para buscar</p>
+              )}
+
+              {/* Readiness + chain toggle (shown after selecting) */}
+              {propuestoSelected && (
+                <div className="border-t border-gray-100 pt-4 space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                      Readiness para el puesto objetivo
+                    </p>
+                    <div className="flex gap-2">
+                      {[
+                        { value: "listo_ahora", label: "Listo ahora", color: "emerald" },
+                        { value: "uno_dos_anios", label: "1-2 años", color: "amber" },
+                        { value: "tres_mas_anios", label: "3+ años", color: "red" },
+                      ].map(({ value, label, color }) => (
+                        <button
+                          key={value}
+                          onClick={() => setPropuestoReadiness(value)}
+                          className={`flex-1 py-2 text-xs font-semibold rounded-lg border-2 transition-all ${
+                            propuestoReadiness === value
+                              ? color === "emerald" ? "border-emerald-400 bg-emerald-50 text-emerald-800"
+                                : color === "amber" ? "border-amber-400 bg-amber-50 text-amber-800"
+                                : "border-red-400 bg-red-50 text-red-800"
+                              : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Continuar cadena desde su puesto actual</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {propuestoSelected.esCritico
+                          ? "⚠️ Su puesto actual es crítico — se creará nivel adicional"
+                          : "Crea un nivel adicional para cubrir su puesto vacante"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setPropuestoContinuar((v) => !v)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        propuestoContinuar ? "bg-violet-600" : "bg-gray-200"
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                        propuestoContinuar ? "translate-x-6" : "translate-x-1"
+                      }`} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-gray-100 flex gap-2 justify-end">
+              <button onClick={() => setPropuestoModal(null)}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarPropuesto}
+                disabled={!propuestoSelected}
+                className="px-4 py-2 text-sm font-semibold bg-violet-700 text-white rounded-lg hover:bg-violet-800 disabled:opacity-40 transition-colors"
+              >
+                ✦ Proponer candidato
+              </button>
+            </div>
           </div>
         </div>
       )}
