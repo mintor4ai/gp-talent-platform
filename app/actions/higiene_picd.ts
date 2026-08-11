@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type PicdDiscrepancia = {
+  picdId: string;
   colaboradorId: string;
   colaboradorNombre: string;
   cicloAño: number;
@@ -61,14 +62,14 @@ async function obtenerDiscrepanciasFallback(): Promise<PicdDiscrepancia[]> {
 
   const { data: picdRaw } = await supabase
     .from("picd")
-    .select("id_empleado, ciclo_año, estado, puesto_futuro_opcion1, puesto_futuro_opcion2, puesto_futuro_id1, puesto_futuro_id2")
+    .select("id, id_empleado, ciclo_año, estado, puesto_futuro_opcion1, puesto_futuro_opcion2, puesto_futuro_id1, puesto_futuro_id2")
     .or("puesto_futuro_id1.not.is.null,puesto_futuro_id2.not.is.null")
     .order("ciclo_año", { ascending: false });
 
   if (!picdRaw?.length) return [];
 
   type PicdRaw = {
-    id_empleado: string; ciclo_año: number; estado: string | null;
+    id: string; id_empleado: string; ciclo_año: number; estado: string | null;
     puesto_futuro_opcion1: string | null; puesto_futuro_opcion2: string | null;
     puesto_futuro_id1: string | null; puesto_futuro_id2: string | null;
   };
@@ -99,6 +100,7 @@ async function obtenerDiscrepanciasFallback(): Promise<PicdDiscrepancia[]> {
       const nombreCatalogo = id ? catalogoMap.get(id) : null;
       if (nombreCatalogo && textoEscrito && nombreCatalogo.toUpperCase() !== textoEscrito.toUpperCase()) {
         discrepancias.push({
+          picdId: row.id,
           colaboradorId: row.id_empleado, colaboradorNombre: nombre,
           cicloAño: row.ciclo_año, estado: row.estado ?? "",
           campo, textoEscrito, nombreEnCatalogo: nombreCatalogo, puestoCatalogoId: id!,

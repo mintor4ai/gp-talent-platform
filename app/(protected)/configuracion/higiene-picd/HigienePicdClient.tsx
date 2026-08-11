@@ -51,13 +51,26 @@ function FilterBar({
 
 // ─── Discrepancias tab ────────────────────────────────────────────────────────
 
-function DiscrepanciasTab({ discrepancias }: { discrepancias: PicdDiscrepancia[] }) {
+function DiscrepanciasTab({
+  discrepancias: initialRows,
+  orgOptions,
+}: {
+  discrepancias: PicdDiscrepancia[];
+  orgOptions: OrgOption[];
+}) {
+  const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState("");
   const [filterEstado, setFilterEstado] = useState<"todos" | "borrador" | "publicado">("todos");
+  const [modal, setModal] = useState<ModalState | null>(null);
+  const [modalNombre, setModalNombre] = useState("");
+  const [modalOrg, setModalOrg] = useState("");
+  const [modalArea, setModalArea] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return discrepancias.filter((d) => {
+    return rows.filter((d) => {
       if (filterEstado === "borrador" && d.estado !== "borrador") return false;
       if (filterEstado === "publicado" && d.estado === "borrador") return false;
       if (!q) return true;
@@ -67,11 +80,39 @@ function DiscrepanciasTab({ discrepancias }: { discrepancias: PicdDiscrepancia[]
         d.nombreEnCatalogo.toLowerCase().includes(q)
       );
     });
-  }, [discrepancias, search, filterEstado]);
+  }, [rows, search, filterEstado]);
 
-  const borradorCount = discrepancias.filter((d) => d.estado === "borrador").length;
+  const areaOptions = useMemo(
+    () => orgOptions.find((o) => o.org === modalOrg)?.areas ?? [],
+    [orgOptions, modalOrg]
+  );
 
-  if (discrepancias.length === 0) {
+  const borradorCount = rows.filter((d) => d.estado === "borrador").length;
+
+  function openModal(d: PicdDiscrepancia) {
+    setModal({ picdId: d.picdId, campo: d.campo, colaboradorNombre: d.colaboradorNombre, textoEscrito: d.textoEscrito });
+    setModalNombre(d.textoEscrito);
+    setModalOrg("");
+    setModalArea("");
+    setErrorMsg("");
+  }
+
+  async function handleCrear() {
+    if (!modal) return;
+    if (!modalNombre.trim() || !modalOrg) { setErrorMsg("Nombre y UEN son obligatorios."); return; }
+    setGuardando(true);
+    setErrorMsg("");
+    const result = await crearPuestoPropuesto({
+      picdId: modal.picdId, campo: modal.campo,
+      nombre: modalNombre, org: modalOrg, area: modalArea,
+    });
+    setGuardando(false);
+    if (!result.ok) { setErrorMsg(result.error ?? "Error desconocido."); return; }
+    setRows((prev) => prev.filter((r) => !(r.picdId === modal.picdId && r.campo === modal.campo)));
+    setModal(null);
+  }
+
+  if (rows.length === 0) {
     return (
       <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
         <p className="text-green-700 font-medium">Sin inconsistencias detectadas</p>
@@ -90,12 +131,13 @@ function DiscrepanciasTab({ discrepancias }: { discrepancias: PicdDiscrepancia[]
         </svg>
         <div>
           <p className="text-sm font-semibold text-amber-800">
-            {discrepancias.length} registro{discrepancias.length !== 1 ? "s" : ""} con texto distinto al nombre en catálogo
+            {rows.length} registro{rows.length !== 1 ? "s" : ""} con texto distinto al nombre en catálogo
             {borradorCount > 0 && ` · ${borradorCount} en borrador`}
           </p>
           <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-            El colaborador escribió un texto que no coincide exactamente con el nombre del puesto al que apunta el vínculo interno.
-            Puede ser un error tipográfico, un puesto renombrado, o un vínculo asignado incorrectamente.
+            El texto que escribió el colaborador no coincide con el nombre del puesto vinculado.
+            Si el texto corresponde a un puesto genuinamente nuevo, usa <strong>Crear puesto propuesto</strong>.
+            Si es un typo o vínculo incorrecto, corrígelo en el expediente del colaborador.
           </p>
         </div>
       </div>
@@ -103,7 +145,7 @@ function DiscrepanciasTab({ discrepancias }: { discrepancias: PicdDiscrepancia[]
       <FilterBar
         search={search} onSearch={setSearch}
         filterEstado={filterEstado} onFilterEstado={setFilterEstado}
-        total={discrepancias.length} filtered={filtered.length}
+        total={rows.length} filtered={filtered.length}
       />
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -115,13 +157,9 @@ function DiscrepanciasTab({ discrepancias }: { discrepancias: PicdDiscrepancia[]
                 <th className="text-left px-4 py-3 font-medium w-20">Ciclo</th>
                 <th className="text-left px-4 py-3 font-medium w-28">Estado</th>
                 <th className="text-left px-4 py-3 font-medium w-24">Campo</th>
-                <th className="text-left px-4 py-3 font-medium">
-                  <span className="text-red-500">Texto escrito</span>
-                </th>
-                <th className="text-left px-4 py-3 font-medium">
-                  <span className="text-blue-600">Nombre en catálogo</span>
-                </th>
-                <th className="text-left px-4 py-3 font-medium w-28">Acción sugerida</th>
+                <th className="text-left px-4 py-3 font-medium"><span className="text-red-500">Texto escrito</span></th>
+                <th className="text-left px-4 py-3 font-medium"><span className="text-blue-600">Nombre en catálogo</span></th>
+                <th className="text-left px-4 py-3 font-medium w-44">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -149,9 +187,7 @@ function DiscrepanciasTab({ discrepancias }: { discrepancias: PicdDiscrepancia[]
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                      {CAMPO_LABEL[d.campo] ?? d.campo}
-                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{CAMPO_LABEL[d.campo] ?? d.campo}</td>
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs bg-red-50 text-red-700 px-1.5 py-0.5 rounded">{d.textoEscrito}</span>
                     </td>
@@ -159,11 +195,19 @@ function DiscrepanciasTab({ discrepancias }: { discrepancias: PicdDiscrepancia[]
                       <span className="font-mono text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{d.nombreEnCatalogo}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${
-                        probablyTextError ? "bg-orange-50 text-orange-700" : "bg-purple-50 text-purple-700"
-                      }`}>
-                        {probablyTextError ? "Corregir texto" : "Revisar vínculo"}
-                      </span>
+                      <div className="flex flex-col gap-1.5">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap w-fit ${
+                          probablyTextError ? "bg-orange-50 text-orange-700" : "bg-purple-50 text-purple-700"
+                        }`}>
+                          {probablyTextError ? "Corregir texto" : "Revisar vínculo"}
+                        </span>
+                        <button
+                          onClick={() => openModal(d)}
+                          className="text-xs font-medium px-2 py-1 bg-[#1a3a5c] text-white rounded-lg hover:bg-[#1a3a5c]/85 transition-colors whitespace-nowrap w-fit"
+                        >
+                          + Crear propuesto
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -175,6 +219,80 @@ function DiscrepanciasTab({ discrepancias }: { discrepancias: PicdDiscrepancia[]
           </table>
         </div>
       </div>
+
+      {/* Creation modal */}
+      {modal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+            <div className="px-6 py-5 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900">Crear puesto propuesto</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Colaborador: <strong>{modal.colaboradorNombre}</strong> · {CAMPO_LABEL[modal.campo]}
+              </p>
+              <p className="text-xs text-amber-600 mt-1">
+                El texto escrito reemplazará el vínculo actual al catálogo.
+              </p>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Nombre del puesto</label>
+                <input
+                  value={modalNombre}
+                  onChange={(e) => setModalNombre(e.target.value)}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
+                  placeholder="Nombre del puesto…"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">UEN <span className="text-red-500">*</span></label>
+                <select
+                  value={modalOrg}
+                  onChange={(e) => { setModalOrg(e.target.value); setModalArea(""); }}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white"
+                >
+                  <option value="">Selecciona UEN…</option>
+                  {orgOptions.map((o) => <option key={o.org} value={o.org}>{o.org}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Área</label>
+                {areaOptions.length > 0 ? (
+                  <select
+                    value={modalArea}
+                    onChange={(e) => setModalArea(e.target.value)}
+                    disabled={!modalOrg}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white disabled:opacity-40"
+                  >
+                    <option value="">Sin área específica</option>
+                    {areaOptions.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    value={modalArea}
+                    onChange={(e) => setModalArea(e.target.value)}
+                    placeholder="Escribe el área…"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
+                  />
+                )}
+                <p className="text-xs text-gray-400 mt-1">Ubica el puesto para identificar su cercanía a otros.</p>
+              </div>
+              {errorMsg && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{errorMsg}</p>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+              <button onClick={() => setModal(null)} disabled={guardando} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancelar</button>
+              <button
+                onClick={handleCrear}
+                disabled={guardando || !modalNombre.trim() || !modalOrg}
+                className="px-5 py-2 text-sm font-medium bg-[#1a3a5c] text-white rounded-lg hover:bg-[#1a3a5c]/85 transition-colors disabled:opacity-40"
+              >
+                {guardando ? "Creando…" : "Crear puesto propuesto"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -487,7 +605,7 @@ export default function HigienePicdClient({
       </div>
 
       {tab === "discrepancias"
-        ? <DiscrepanciasTab discrepancias={discrepancias} />
+        ? <DiscrepanciasTab discrepancias={discrepancias} orgOptions={orgOptions} />
         : <SinVinculoTab sinVinculo={sinVinculo} orgOptions={orgOptions} />
       }
 
