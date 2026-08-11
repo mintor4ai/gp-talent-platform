@@ -323,6 +323,7 @@ export default function RutasTalentoClient({
   const [filterUen, setFilterUen] = useState("");
   const [filterArea, setFilterArea] = useState("");
   const [filterSegmento, setFilterSegmento] = useState("");
+  const [filterCritico, setFilterCritico] = useState<"todos" | "critico" | "no_critico">("todos");
   const [puestoObjetivo, setPuestoObjetivo] = useState<PuestoOption | null>(null);
   const [cadena, setCadena] = useState<Nivel[]>([]);
   const [fuentes, setFuentes] = useState<Set<FuenteCandidato>>(new Set(["sucesion", "plano", "picd"]));
@@ -354,24 +355,22 @@ export default function RutasTalentoClient({
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
-  // Cascading filter options
-  const uenOptions = [...new Set(puestos.map((p) => p.razonSocial).filter(Boolean))].sort();
+  // UEN → Area cascading; segmento and crítico are independent
+  const uenOptions = [...new Set(puestos.map((p) => p.org).filter(Boolean))].sort();
   const areaOptions = [...new Set(
-    puestos.filter((p) => !filterUen || p.razonSocial === filterUen).map((p) => p.area).filter(Boolean)
+    puestos.filter((p) => !filterUen || p.org === filterUen).map((p) => p.area).filter(Boolean)
   )].sort();
-  const segmentoOptions = [...new Set(
-    puestos
-      .filter((p) => (!filterUen || p.razonSocial === filterUen) && (!filterArea || p.area === filterArea))
-      .map((p) => p.segmento).filter(Boolean)
-  )].sort();
+  const segmentoOptions = [...new Set(puestos.map((p) => p.segmento).filter(Boolean))].sort();
 
   const puestosFiltered = puestos.filter((p) => {
-    if (filterUen && p.razonSocial !== filterUen) return false;
+    if (filterUen && p.org !== filterUen) return false;
     if (filterArea && p.area !== filterArea) return false;
     if (filterSegmento && p.segmento !== filterSegmento) return false;
+    if (filterCritico === "critico" && !p.esCritico) return false;
+    if (filterCritico === "no_critico" && p.esCritico) return false;
     const q = search.toLowerCase();
     if (!q) return true;
-    return p.nombre.toLowerCase().includes(q) || p.org.toLowerCase().includes(q) || p.razonSocial.toLowerCase().includes(q);
+    return p.nombre.toLowerCase().includes(q) || p.org.toLowerCase().includes(q);
   });
 
   function toggleFuente(f: FuenteCandidato) {
@@ -714,21 +713,21 @@ export default function RutasTalentoClient({
             Selecciona el Puesto Objetivo a Cubrir
           </h2>
 
-          {/* Cascading filters */}
+          {/* Filters: UEN→Area cascade + independent segmento + crítico */}
           <div className="flex flex-wrap gap-2 mb-3">
             <select
               value={filterUen}
-              onChange={(e) => { setFilterUen(e.target.value); setFilterArea(""); setFilterSegmento(""); }}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white text-gray-700 min-w-[180px]"
+              onChange={(e) => { setFilterUen(e.target.value); setFilterArea(""); }}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white text-gray-700 min-w-[160px]"
             >
               <option value="">Todas las UEN</option>
               {uenOptions.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
             <select
               value={filterArea}
-              onChange={(e) => { setFilterArea(e.target.value); setFilterSegmento(""); }}
+              onChange={(e) => setFilterArea(e.target.value)}
               disabled={!filterUen}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white text-gray-700 min-w-[160px] disabled:opacity-40"
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white text-gray-700 min-w-[200px] disabled:opacity-40"
             >
               <option value="">Todas las Áreas</option>
               {areaOptions.map((a) => <option key={a} value={a}>{a}</option>)}
@@ -736,15 +735,23 @@ export default function RutasTalentoClient({
             <select
               value={filterSegmento}
               onChange={(e) => setFilterSegmento(e.target.value)}
-              disabled={!filterArea}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white text-gray-700 min-w-[160px] disabled:opacity-40"
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white text-gray-700 min-w-[140px]"
             >
               <option value="">Todos los Segmentos</option>
               {segmentoOptions.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            {(filterUen || filterArea || filterSegmento) && (
+            <select
+              value={filterCritico}
+              onChange={(e) => setFilterCritico(e.target.value as "todos" | "critico" | "no_critico")}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white text-gray-700 min-w-[130px]"
+            >
+              <option value="todos">Crítico y No Crítico</option>
+              <option value="critico">Solo Críticos</option>
+              <option value="no_critico">Solo No Críticos</option>
+            </select>
+            {(filterUen || filterArea || filterSegmento || filterCritico !== "todos") && (
               <button
-                onClick={() => { setFilterUen(""); setFilterArea(""); setFilterSegmento(""); }}
+                onClick={() => { setFilterUen(""); setFilterArea(""); setFilterSegmento(""); setFilterCritico("todos"); }}
                 className="text-xs text-gray-400 hover:text-gray-700 px-2 transition-colors"
               >
                 ✕ Limpiar

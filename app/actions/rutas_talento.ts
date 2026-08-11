@@ -52,7 +52,6 @@ export async function getPuestosParaSelector(): Promise<PuestoOption[]> {
       id: pid,
       nombre: (p["nombre"] as string) ?? "",
       org: (p["organización"] as string) ?? "",
-      razonSocial: (p["razon_social"] as string) ?? "",
       area: (p["area"] as string) ?? "",
       segmento: (p["segmento_organizacional"] as string) ?? "",
       esCritico: (p["es_critico"] as boolean) ?? false,

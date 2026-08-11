@@ -22,7 +22,6 @@ export type PuestoOption = {
   id: string;
   nombre: string;
   org: string;
-  razonSocial: string;
   area: string;
   segmento: string;
   esCritico: boolean;
