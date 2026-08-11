@@ -97,9 +97,11 @@ export default function ImportadorSucesion() {
         <ul className="text-xs text-blue-700 list-disc list-inside space-y-0.5">
           <li><strong>Ciclo</strong>: Id Periodo 1 → 2026 · Id Periodo 2 → 2027</li>
           <li><strong>Readiness</strong>: Largo Plazo → 3+ años · Mediano Plazo → 1-2 años · Corto Plazo → Listo ahora</li>
-          <li>Si el sucesor no existe en BD se importa <strong>sin vincular</strong> (solo nombre)</li>
+          <li>Si el sucesor no existe en BD se importa <strong>sin vincular</strong> y se taggea para validación del admin</li>
           <li>Si ya existe la combinación empleado + ciclo + sucesor, se <strong>omite</strong> (no sobreescribe)</li>
-          <li>El campo <strong>Listo Rol</strong> del Excel se guarda como referencia visible</li>
+          <li>El campo <strong>Listo Rol</strong> y <strong>Estatus Evaluación</strong> del Excel se guardan como referencia</li>
+          <li><strong>Puesto del sucesor</strong>: se lee del sistema al momento del import (inmutable por ciclo); si no se vincula, se guarda el texto del Excel y se taggea</li>
+          <li><strong>Aspiraciones PICD</strong> (NombrePuesto1/2): son las aspiraciones del <strong>titular</strong>, se guardan en su Plan Individual de Desarrollo. Si el puesto no existe en catálogo se taggea para validación</li>
         </ul>
       </div>
 
