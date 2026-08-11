@@ -771,22 +771,22 @@ export default function CarpetaTabs({
 
       {mainTab === "picd" && (isOwn || isJefe || isAdmin) && (
         <div className="space-y-5">
-          {/* PICD cycle selector */}
-          {ciclos.length > 0 && (
+          {/* PICD cycle selector — uses picd records as source of truth */}
+          {picdRecords.length > 1 && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-500">Ciclo:</span>
               <div className="flex gap-1.5 flex-wrap">
-                {ciclos.map((c) => (
+                {[...picdRecords].sort((a, b) => b.ciclo_año - a.ciclo_año).map((p) => (
                   <button
-                    key={c}
-                    onClick={() => setCicloActual(c)}
+                    key={p.ciclo_año}
+                    onClick={() => setCicloActual(p.ciclo_año)}
                     className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                      c === cicloActual
+                      p.ciclo_año === cicloActual
                         ? "bg-[#1a3a5c] text-white"
                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                     }`}
                   >
-                    {c}
+                    {p.ciclo_año}
                   </button>
                 ))}
               </div>
@@ -805,9 +805,9 @@ export default function CarpetaTabs({
 
           {(isOwn || isJefe || isAdmin) && (
             <PicdEditor
+              key={picdEditorRecord?.id ?? `empty-${cicloActual}`}
               colaboradorId={colaboradorId}
               cicloAño={cicloActual}
-              ciclosDisponibles={[...picdRecords].map(p => p.ciclo_año).sort((a, b) => b - a)}
               picd={picdEditorRecord}
               acciones={picdAccionesCiclo}
               canEdit={picdCanEdit}

@@ -88,6 +88,15 @@ export default function PicdEditor({
     }
   }, []);
 
+  // Reset form fields when the picd record changes (e.g. user switches cycle)
+  useEffect(() => {
+    setPf1Id(picd?.puesto_futuro_id1 ?? "");
+    setPf1Text(picd?.puesto_futuro_opcion1 ?? "");
+    setPf2Id(picd?.puesto_futuro_id2 ?? "");
+    setPf2Text(picd?.puesto_futuro_opcion2 ?? "");
+    setAreasValue(picd?.areas_oportunidad ?? "");
+  }, [picd?.id]);
+
   const actionsByType = {
     desarrollo: acciones.filter((a) => a.tipo_accion !== "normativo_sgi"),
     normativo: acciones.filter((a) => a.tipo_accion === "normativo_sgi"),
@@ -146,8 +155,8 @@ export default function PicdEditor({
   return (
     <div className="space-y-6">
 
-      {/* Selector de ciclo */}
-      {ciclosDisponibles.length > 1 && (
+      {/* Selector de ciclo — solo en modo standalone (/picd/[id]); en carpeta lo maneja el padre */}
+      {!onCicloChange && ciclosDisponibles.length > 1 && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500 font-medium">Ciclo:</span>
           {ciclosDisponibles.map((c) => (
