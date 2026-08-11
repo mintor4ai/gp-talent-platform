@@ -356,15 +356,17 @@ export default function RutasTalentoClient({
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
   // UEN → Area cascading; segmento and crítico are independent
+  const AREA_SIN_ASIGNAR = "__sin_area__";
   const uenOptions = [...new Set(puestos.map((p) => p.org).filter(Boolean))].sort();
-  const areaOptions = [...new Set(
-    puestos.filter((p) => !filterUen || p.org === filterUen).map((p) => p.area).filter(Boolean)
-  )].sort();
+  const areaBaseList = puestos.filter((p) => !filterUen || p.org === filterUen);
+  const areaOptions = [...new Set(areaBaseList.map((p) => p.area).filter(Boolean))].sort();
+  const hasSinArea = areaBaseList.some((p) => !p.area);
   const segmentoOptions = [...new Set(puestos.map((p) => p.segmento).filter(Boolean))].sort();
 
   const puestosFiltered = puestos.filter((p) => {
     if (filterUen && p.org !== filterUen) return false;
-    if (filterArea && p.area !== filterArea) return false;
+    if (filterArea === AREA_SIN_ASIGNAR) { if (p.area) return false; }
+    else if (filterArea && p.area !== filterArea) return false;
     if (filterSegmento && p.segmento !== filterSegmento) return false;
     if (filterCritico === "critico" && !p.esCritico) return false;
     if (filterCritico === "no_critico" && p.esCritico) return false;
@@ -731,6 +733,7 @@ export default function RutasTalentoClient({
             >
               <option value="">Todas las Áreas</option>
               {areaOptions.map((a) => <option key={a} value={a}>{a}</option>)}
+              {hasSinArea && <option value={AREA_SIN_ASIGNAR}>— Sin área asignada</option>}
             </select>
             <select
               value={filterSegmento}
