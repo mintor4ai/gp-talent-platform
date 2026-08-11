@@ -116,28 +116,33 @@ export async function getCandidatosParaPuesto(
   }
 
   if (fuentes.includes("picd")) {
-    const { data } = await supabase
+    // Use only the globally most recent PICD cycle — employees without data
+    // in that cycle are not considered current aspirants
+    const { data: maxCicloRow } = await supabase
       .from("picd")
-      .select("id_empleado, ciclo_año, estado")
-      .or(`puesto_futuro_id1.eq.${puestoId},puesto_futuro_id2.eq.${puestoId}`)
-      .order("ciclo_año", { ascending: false });
+      .select("ciclo_año")
+      .order("ciclo_año", { ascending: false })
+      .limit(1)
+      .single();
 
-    // Keep only the most recent cycle per employee
-    const latestPicdByEmpleado = new Map<string, { estado: string }>();
-    for (const row of (data ?? []) as Array<{ id_empleado: string | null; ciclo_año: number; estado: string | null }>) {
-      if (!row.id_empleado) continue;
-      if (!latestPicdByEmpleado.has(row.id_empleado)) {
-        latestPicdByEmpleado.set(row.id_empleado, { estado: row.estado ?? "" });
-      }
-    }
+    const maxCiclo = (maxCicloRow as { ciclo_año: number } | null)?.ciclo_año;
 
-    for (const [empleadoId, picdInfo] of latestPicdByEmpleado.entries()) {
-      const ex = map.get(empleadoId);
-      if (ex) {
-        if (!ex.fuentes.includes("picd")) ex.fuentes.push("picd");
-        if (picdInfo.estado === "borrador") ex.picdBorrador = true;
-      } else {
-        map.set(empleadoId, { fuentes: ["picd"], readiness: null, picdBorrador: picdInfo.estado === "borrador" });
+    if (maxCiclo) {
+      const { data } = await supabase
+        .from("picd")
+        .select("id_empleado, estado")
+        .or(`puesto_futuro_id1.eq.${puestoId},puesto_futuro_id2.eq.${puestoId}`)
+        .eq("ciclo_año", maxCiclo);
+
+      for (const row of (data ?? []) as Array<{ id_empleado: string | null; estado: string | null }>) {
+        if (!row.id_empleado) continue;
+        const ex = map.get(row.id_empleado);
+        if (ex) {
+          if (!ex.fuentes.includes("picd")) ex.fuentes.push("picd");
+          if (row.estado === "borrador") ex.picdBorrador = true;
+        } else {
+          map.set(row.id_empleado, { fuentes: ["picd"], readiness: null, picdBorrador: row.estado === "borrador" });
+        }
       }
     }
   }
