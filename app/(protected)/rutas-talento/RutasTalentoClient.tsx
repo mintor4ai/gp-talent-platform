@@ -320,6 +320,9 @@ export default function RutasTalentoClient({
   escenariosPrevios: EscenarioResumen[];
 }) {
   const [search, setSearch] = useState("");
+  const [filterUen, setFilterUen] = useState("");
+  const [filterArea, setFilterArea] = useState("");
+  const [filterSegmento, setFilterSegmento] = useState("");
   const [puestoObjetivo, setPuestoObjetivo] = useState<PuestoOption | null>(null);
   const [cadena, setCadena] = useState<Nivel[]>([]);
   const [fuentes, setFuentes] = useState<Set<FuenteCandidato>>(new Set(["sucesion", "plano", "picd"]));
@@ -351,10 +354,25 @@ export default function RutasTalentoClient({
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
-  const puestosFiltered = puestos.filter((p) =>
-    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    p.org.toLowerCase().includes(search.toLowerCase())
-  );
+  // Cascading filter options
+  const uenOptions = [...new Set(puestos.map((p) => p.razonSocial).filter(Boolean))].sort();
+  const areaOptions = [...new Set(
+    puestos.filter((p) => !filterUen || p.razonSocial === filterUen).map((p) => p.area).filter(Boolean)
+  )].sort();
+  const segmentoOptions = [...new Set(
+    puestos
+      .filter((p) => (!filterUen || p.razonSocial === filterUen) && (!filterArea || p.area === filterArea))
+      .map((p) => p.segmento).filter(Boolean)
+  )].sort();
+
+  const puestosFiltered = puestos.filter((p) => {
+    if (filterUen && p.razonSocial !== filterUen) return false;
+    if (filterArea && p.area !== filterArea) return false;
+    if (filterSegmento && p.segmento !== filterSegmento) return false;
+    const q = search.toLowerCase();
+    if (!q) return true;
+    return p.nombre.toLowerCase().includes(q) || p.org.toLowerCase().includes(q) || p.razonSocial.toLowerCase().includes(q);
+  });
 
   function toggleFuente(f: FuenteCandidato) {
     setFuentes((prev) => {
@@ -695,6 +713,45 @@ export default function RutasTalentoClient({
           <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wider">
             Selecciona el Puesto Objetivo a Cubrir
           </h2>
+
+          {/* Cascading filters */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            <select
+              value={filterUen}
+              onChange={(e) => { setFilterUen(e.target.value); setFilterArea(""); setFilterSegmento(""); }}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white text-gray-700 min-w-[180px]"
+            >
+              <option value="">Todas las UEN</option>
+              {uenOptions.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+            <select
+              value={filterArea}
+              onChange={(e) => { setFilterArea(e.target.value); setFilterSegmento(""); }}
+              disabled={!filterUen}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white text-gray-700 min-w-[160px] disabled:opacity-40"
+            >
+              <option value="">Todas las Áreas</option>
+              {areaOptions.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <select
+              value={filterSegmento}
+              onChange={(e) => setFilterSegmento(e.target.value)}
+              disabled={!filterArea}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 bg-white text-gray-700 min-w-[160px] disabled:opacity-40"
+            >
+              <option value="">Todos los Segmentos</option>
+              {segmentoOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {(filterUen || filterArea || filterSegmento) && (
+              <button
+                onClick={() => { setFilterUen(""); setFilterArea(""); setFilterSegmento(""); }}
+                className="text-xs text-gray-400 hover:text-gray-700 px-2 transition-colors"
+              >
+                ✕ Limpiar
+              </button>
+            )}
+          </div>
+
           <input
             value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar puesto por nombre o UEN…"
