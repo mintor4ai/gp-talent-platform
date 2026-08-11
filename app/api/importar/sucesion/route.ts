@@ -199,7 +199,9 @@ export async function POST(req: NextRequest) {
     if (!sucNombre) continue;
 
     const listoRolRaw = col(row, "ListoRol", "Listo Rol", "Readiness", "Disponibilidad", "Plazo");
-    const listoRol = str(listoRolRaw);
+    const listoRolStr = str(listoRolRaw);
+    const listoRolNorm = listoRolStr?.toLowerCase();
+    const listoRol = (listoRolNorm === "n/a" || listoRolNorm === "na" || listoRolStr === "-") ? null : listoRolStr;
     const readiness = mapReadiness(listoRol);
 
     const brechas        = str(col(row, "Brechas", "Gap", "Gaps", "BrechasClave"));
@@ -246,6 +248,8 @@ export async function POST(req: NextRequest) {
     if (!empleadoMatched) error = `Empleado ${empId} no encontrado en BD`;
     else if (!sucMatched && sucNombre.toLowerCase() !== "sucesor externo") error = "Sucesor no encontrado — se importará sin ID";
 
+    const isExternal = sucNombre.toLowerCase() === "sucesor externo";
+
     previewRows.push({
       id_empleado_num: empId,
       empleado_nombre: empleadoColab?.nombre ?? empleadoNombre,
@@ -258,8 +262,8 @@ export async function POST(req: NextRequest) {
       sucesor_matched: sucMatched,
       sucesor_puesto_nombre: sucPuestoNombre,
       sucesor_puesto_catalogo_id: sucPuestoCatalogoId,
-      listo_rol: listoRol,
-      readiness,
+      listo_rol: isExternal ? null : listoRol,
+      readiness: isExternal ? null : readiness,
       brechas,
       acciones_desarrollo: accionesDes,
       estatus_evaluacion: estatusEval,
