@@ -303,12 +303,11 @@ export default function ImportadorSucesion() {
                                 {isCollapsed ? "▶" : "▼"}
                               </button>
                             </td>
-                            <td className="px-3 py-2.5" colSpan={2}>
+                            <td className="px-3 py-2.5">
                               {/* Name + emp ID */}
-                              <p className="font-semibold text-gray-900 truncate max-w-[340px]">
+                              <p className="font-semibold text-gray-900 truncate max-w-[320px]">
                                 {first.empleado_nombre ?? first.id_empleado_num}
                                 <span className="ml-1.5 text-[10px] text-gray-400 font-mono font-normal">#{first.id_empleado_num}</span>
-                                <span className="ml-2 text-[10px] font-mono text-gray-500 font-normal">Ciclo {first.ciclo_año}</span>
                               </p>
                               {/* Puesto actual */}
                               {first.empleado_puesto && (
@@ -338,6 +337,9 @@ export default function ImportadorSucesion() {
                                   )}
                                 </p>
                               )}
+                            </td>
+                            <td className="px-3 py-2.5 text-center align-top font-mono text-gray-600 whitespace-nowrap">
+                              {first.ciclo_año}
                             </td>
                             <td colSpan={3} className="px-3 py-2.5 text-right align-top">
                               <span className="text-[10px] text-gray-400">{rows.length} sucesor{rows.length !== 1 ? "es" : ""}</span>
