@@ -310,10 +310,9 @@ export async function POST(req: NextRequest) {
   }
 
   // ── UPSERT ASPIRACIONES en picd ───────────────────────────────────────────
-  // Build unique aspirations per (sucesor, ciclo) — NombrePuesto1/2 = the SUCESOR's career aspirations
-  // Must be keyed by sucesor_id (not id_empleado/titular) so the motor can detect bidireccional matches:
-  // bidireccional = sucesor aspires to a position AND is formally nominated for it by a titular
-  type AspiracionKey = string; // `${sucesor_uuid}|${ciclo}`
+  // NombrePuesto1/2 are the EMPLOYEE's (titular) own career aspirations.
+  // Key by (empleado_uuid, ciclo) — one upsert per titular even if they have multiple successors.
+  type AspiracionKey = string; // `${empleado_uuid}|${ciclo}`
   const aspiracionMap = new Map<AspiracionKey, {
     uuid: string; ciclo: number;
     p1Nombre: string | null; p1Id: string | null;
@@ -321,12 +320,14 @@ export async function POST(req: NextRequest) {
   }>();
 
   for (const r of previewRows) {
-    if (!r.sucesor_id) continue; // need a matched sucesor UUID
-    if (!r.puesto1_id && !r.puesto2_id) continue; // nothing to save
-    const key: AspiracionKey = `${r.sucesor_id}|${r.ciclo_año}`;
+    if (!r.empleado_matched) continue;
+    if (!r.puesto1_id && !r.puesto2_id) continue;
+    const empleadoColab = colabByEmpId.get(r.id_empleado_num);
+    if (!empleadoColab) continue;
+    const key: AspiracionKey = `${empleadoColab.uuid}|${r.ciclo_año}`;
     if (!aspiracionMap.has(key)) {
       aspiracionMap.set(key, {
-        uuid: r.sucesor_id, ciclo: r.ciclo_año,
+        uuid: empleadoColab.uuid, ciclo: r.ciclo_año,
         p1Nombre: r.puesto1_nombre, p1Id: r.puesto1_id,
         p2Nombre: r.puesto2_nombre, p2Id: r.puesto2_id,
       });
