@@ -41,11 +41,14 @@ export type SucesionPreviewRow = {
   sucesor_nombre: string;
   sucesor_id: string | null;
   sucesor_matched: boolean;
+  sucesor_puesto_nombre: string | null;    // from BD snapshot (matched) or Excel text (unmatched)
+  sucesor_puesto_catalogo_id: string | null; // BD snapshot only when sucesor matched
   listo_rol: string | null;
   readiness: string | null;
   brechas: string | null;
   acciones_desarrollo: string | null;
-  // aspiraciones (puesto futuro)
+  estatus_evaluacion: string | null;
+  // aspiraciones del titular (puesto futuro)
   puesto1_nombre: string | null;
   puesto1_id: string | null;
   puesto2_nombre: string | null;
@@ -135,14 +138,15 @@ export async function POST(req: NextRequest) {
 
   // ── Load reference data ───────────────────────────────────────────────────
   const [{ data: colabsRaw }, { data: catalogoRaw }, { data: existingRaw }] = await Promise.all([
-    supabase.from("colaboradores").select("id, id_empleado, nombre_completo, puesto, organización"),
+    supabase.from("colaboradores").select("id, id_empleado, nombre_completo, puesto, puesto_catalogo_id, organización"),
     supabase.from("catalogo_puestos").select("id, nombre, organización").eq("activo", true),
     supabase.from("plan_sucesion").select("id_empleado, ciclo_año, sucesor_nombre"),
   ]);
 
   // Employee lookups
-  const colabByEmpId = new Map<string, { uuid: string; nombre: string; puesto: string | null; org: string | null }>();
+  const colabByEmpId = new Map<string, { uuid: string; nombre: string; puesto: string | null; org: string | null; puestoCatalogoId: string | null }>();
   const colabByName  = new Map<string, string>(); // nombre lowercase → uuid
+  const colabByUUID  = new Map<string, { puesto: string | null; org: string | null; puestoCatalogoId: string | null }>();
   for (const c of colabsRaw ?? []) {
     if (c.id_empleado) {
       colabByEmpId.set(String(c.id_empleado).trim(), {
@@ -150,9 +154,15 @@ export async function POST(req: NextRequest) {
         nombre: c.nombre_completo ?? "",
         puesto: (c as Record<string, unknown>)["puesto"] as string | null,
         org: (c as Record<string, unknown>)["organización"] as string | null,
+        puestoCatalogoId: (c as Record<string, unknown>)["puesto_catalogo_id"] as string | null,
       });
     }
     if (c.nombre_completo) colabByName.set((c.nombre_completo as string).toLowerCase().trim(), c.id);
+    colabByUUID.set(c.id, {
+      puesto: (c as Record<string, unknown>)["puesto"] as string | null,
+      org: (c as Record<string, unknown>)["organización"] as string | null,
+      puestoCatalogoId: (c as Record<string, unknown>)["puesto_catalogo_id"] as string | null,
+    });
   }
 
   // Catalog lookup (for aspiraciones NombrePuesto1/2 and for employee's own position)
@@ -190,8 +200,9 @@ export async function POST(req: NextRequest) {
     const listoRol = str(listoRolRaw);
     const readiness = mapReadiness(listoRol);
 
-    const brechas     = str(col(row, "Brechas", "Gap", "Gaps", "BrechasClave"));
-    const accionesDes = str(col(row, "AccionesDesarrollo", "Acciones Desarrollo", "Acciones", "PlanDesarrollo", "DesarrolloNecesario", "Desarrollo Necesario"));
+    const brechas        = str(col(row, "Brechas", "Gap", "Gaps", "BrechasClave"));
+    const accionesDes    = str(col(row, "AccionesDesarrollo", "Acciones Desarrollo", "Acciones", "PlanDesarrollo", "DesarrolloNecesario", "Desarrollo Necesario"));
+    const estatusEval    = str(col(row, "EstatusEvaluacion", "Estatus Evaluacion", "EstatusSucesion", "Estatus"));
     const empleadoNombre = str(col(row, "NombreCompleto", "Nombre Completo", "Nombre", "Empleado"));
 
     // Aspiraciones: NombrePuesto1 / NombrePuesto2
@@ -213,6 +224,18 @@ export async function POST(req: NextRequest) {
       if (byName) { sucId = byName; sucMatched = true; }
     }
 
+    // Sucesor puesto: read from BD snapshot if matched (immutable per cycle), else use Excel text + tag
+    const sucPuestoExcel = str(col(row, "NombrePuestoSucesor", "Nombre Puesto Sucesor", "PuestoSucesor", "Puesto Sucesor"));
+    let sucPuestoNombre: string | null = null;
+    let sucPuestoCatalogoId: string | null = null;
+    if (sucMatched && sucId) {
+      const sucInfo = colabByUUID.get(sucId);
+      sucPuestoNombre = sucInfo?.puesto ?? null;
+      sucPuestoCatalogoId = sucInfo?.puestoCatalogoId ?? null;
+    } else {
+      sucPuestoNombre = sucPuestoExcel;
+    }
+
     const isDuplicate = empleadoMatched
       ? existingSet.has(`${empleadoColab!.uuid}|${cicloAño}|${sucNombre.toLowerCase().trim()}`)
       : false;
@@ -229,10 +252,13 @@ export async function POST(req: NextRequest) {
       sucesor_nombre: sucNombre,
       sucesor_id: sucId,
       sucesor_matched: sucMatched,
+      sucesor_puesto_nombre: sucPuestoNombre,
+      sucesor_puesto_catalogo_id: sucPuestoCatalogoId,
       listo_rol: listoRol,
       readiness,
       brechas,
       acciones_desarrollo: accionesDes,
+      estatus_evaluacion: estatusEval,
       puesto1_nombre: puesto1Nombre,
       puesto1_id: puesto1Id,
       puesto2_nombre: puesto2Nombre,
@@ -256,14 +282,22 @@ export async function POST(req: NextRequest) {
   const duplicados   = previewRows.filter((r) => r.isDuplicate).length;
   const ciclos       = Array.from(new Set(previewRows.map((r) => r.ciclo_año))).sort();
 
-  // Aspiration summary: unique sucesores with at least one puesto resolved
+  // Aspiration summary: unique titulares with at least one puesto resolved
   const aspiracionesSet = new Set<string>();
+  let aspiraciones_pendientes_validacion = 0;
   for (const r of previewRows) {
-    if (r.sucesor_id && (r.puesto1_id || r.puesto2_id)) {
-      aspiracionesSet.add(`${r.sucesor_id}|${r.ciclo_año}`);
+    if (!r.empleado_matched) continue;
+    const empleadoColab2 = colabByEmpId.get(r.id_empleado_num);
+    if (!empleadoColab2) continue;
+    if (r.puesto1_id || r.puesto2_id) {
+      aspiracionesSet.add(`${empleadoColab2.uuid}|${r.ciclo_año}`);
+    }
+    if ((r.puesto1_nombre && !r.puesto1_id) || (r.puesto2_nombre && !r.puesto2_id)) {
+      aspiraciones_pendientes_validacion++;
     }
   }
   const aspiraciones_resueltas = aspiracionesSet.size;
+  const sucesores_sin_match = previewRows.filter((r) => r.empleado_matched && !r.sucesor_matched && r.sucesor_nombre.toLowerCase() !== "sucesor externo").length;
 
   if (modo === "preview") {
     const firstRowKeys = rows.length > 0 ? Object.keys(rows[0]).slice(0, 20) : [];
@@ -275,6 +309,8 @@ export async function POST(req: NextRequest) {
       suc_unmatched: sucUnmatched,
       duplicados,
       aspiraciones_resueltas,
+      aspiraciones_pendientes_validacion,
+      sucesores_sin_match,
       ciclos,
       _debug: { raw_rows: rows.length, first_row_keys: firstRowKeys },
     });
@@ -292,17 +328,21 @@ export async function POST(req: NextRequest) {
     const empleadoPuestoCatalogoId = lookupCatalog(catalogLookup, colab.puesto, colab.org);
 
     const { error: err } = await supabase.from("plan_sucesion").insert({
-      id_empleado:         colab.uuid,
-      ciclo_año:           r.ciclo_año,
-      sucesor_nombre:      r.sucesor_nombre,
-      sucesor_id:          r.sucesor_id,
-      readiness:           r.readiness ?? "tres_mas_anios",
-      listo_rol:           r.listo_rol,
-      brechas:             r.brechas,
-      acciones_desarrollo: r.acciones_desarrollo,
-      estado:              "borrador",
-      fuente:              "importacion",
-      puesto_catalogo_id:  empleadoPuestoCatalogoId,
+      id_empleado:               colab.uuid,
+      ciclo_año:                 r.ciclo_año,
+      sucesor_nombre:            r.sucesor_nombre,
+      sucesor_id:                r.sucesor_id,
+      sucesor_sin_match:         !r.sucesor_matched,
+      sucesor_puesto_nombre:     r.sucesor_puesto_nombre,
+      sucesor_puesto_catalogo_id: r.sucesor_puesto_catalogo_id,
+      readiness:                 r.readiness ?? "tres_mas_anios",
+      listo_rol:                 r.listo_rol,
+      brechas:                   r.brechas,
+      acciones_desarrollo:       r.acciones_desarrollo,
+      estatus_evaluacion:        r.estatus_evaluacion,
+      estado:                    "borrador",
+      fuente:                    "importacion",
+      puesto_catalogo_id:        empleadoPuestoCatalogoId,
     });
 
     if (err) errors.push(`${r.empleado_nombre ?? r.id_empleado_num} → ${r.sucesor_nombre}: ${err.message}`);
@@ -355,6 +395,8 @@ export async function POST(req: NextRequest) {
     skipped_emp: empUnmatched,
     skipped_dup: duplicados,
     aspiraciones_guardadas,
+    sucesores_sin_match,
+    aspiraciones_pendientes_validacion,
     errors: errors.slice(0, 20),
   });
 }
