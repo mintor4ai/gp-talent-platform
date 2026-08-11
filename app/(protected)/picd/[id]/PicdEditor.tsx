@@ -52,6 +52,7 @@ export default function PicdEditor({
   isAdmin,
   cicloEstado,
   catalogoPuestos = [],
+  onCicloChange,
 }: {
   colaboradorId: string;
   cicloAño: number;
@@ -63,6 +64,7 @@ export default function PicdEditor({
   isAdmin: boolean;
   cicloEstado: CicloEstado;
   catalogoPuestos?: CatalogoPuesto[];
+  onCicloChange?: (ciclo: number) => void;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -151,7 +153,7 @@ export default function PicdEditor({
           {ciclosDisponibles.map((c) => (
             <button
               key={c}
-              onClick={() => router.push(`?ciclo=${c}`)}
+              onClick={() => onCicloChange ? onCicloChange(c) : router.push(`?ciclo=${c}`)}
               className={`text-xs px-3 py-1 rounded-full border transition-colors ${
                 c === cicloAño
                   ? "bg-[#1a3a5c] text-white border-[#1a3a5c]"

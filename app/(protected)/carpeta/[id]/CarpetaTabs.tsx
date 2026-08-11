@@ -807,6 +807,7 @@ export default function CarpetaTabs({
             <PicdEditor
               colaboradorId={colaboradorId}
               cicloAño={cicloActual}
+              ciclosDisponibles={[...picdRecords].map(p => p.ciclo_año).sort((a, b) => b - a)}
               picd={picdEditorRecord}
               acciones={picdAccionesCiclo}
               canEdit={picdCanEdit}
@@ -814,6 +815,7 @@ export default function CarpetaTabs({
               isAdmin={isAdmin}
               cicloEstado={cicloEstado}
               catalogoPuestos={catalogoPuestos}
+              onCicloChange={(c) => setCicloActual(c)}
             />
           )}
 
