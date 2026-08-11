@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { upsertPicd, updateAccionProgress, submitPicd } from "@/app/actions/picd";
 import { cerrarCicloPicd } from "@/app/actions/picd_ciclo";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -43,6 +44,7 @@ type CicloEstado = {
 export default function PicdEditor({
   colaboradorId,
   cicloAño,
+  ciclosDisponibles = [],
   picd,
   acciones,
   canEdit,
@@ -53,6 +55,7 @@ export default function PicdEditor({
 }: {
   colaboradorId: string;
   cicloAño: number;
+  ciclosDisponibles?: number[];
   picd: PicdRecord;
   acciones: PicdAccion[];
   canEdit: boolean;
@@ -61,6 +64,7 @@ export default function PicdEditor({
   cicloEstado: CicloEstado;
   catalogoPuestos?: CatalogoPuesto[];
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"desarrollo" | "normativo">("desarrollo");
@@ -139,6 +143,26 @@ export default function PicdEditor({
 
   return (
     <div className="space-y-6">
+
+      {/* Selector de ciclo */}
+      {ciclosDisponibles.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 font-medium">Ciclo:</span>
+          {ciclosDisponibles.map((c) => (
+            <button
+              key={c}
+              onClick={() => router.push(`?ciclo=${c}`)}
+              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                c === cicloAño
+                  ? "bg-[#1a3a5c] text-white border-[#1a3a5c]"
+                  : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Banner: ciclo en revisión */}
       {cicloEstado?.estado === "enviado_revision" && (

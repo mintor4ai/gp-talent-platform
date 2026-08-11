@@ -4,8 +4,15 @@ import type { Rol } from "@/lib/types";
 import PicdEditor from "./PicdEditor";
 import { getCicloEstado } from "@/app/actions/picd_ciclo";
 
-export default async function PicdPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PicdPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ ciclo?: string }>;
+}) {
   const { id } = await params;
+  const { ciclo: cicloParam } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -52,16 +59,19 @@ export default async function PicdPage({ params }: { params: Promise<{ id: strin
     if (!ids.includes(id)) redirect("/dashboard");
   }
 
-  // Obtener ciclo activo (el más reciente con acciones)
-  const { data: cicloRow } = await supabase
-    .from("picd_acciones")
-    .select("*")
+  // Obtener ciclos disponibles desde picd (fuente de verdad)
+  const { data: ciclosData } = await supabase
+    .from("picd")
+    .select("ciclo_año")
     .eq("id_empleado", id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
+    .order("ciclo_año", { ascending: false });
 
-  const cicloAño = (cicloRow as { ciclo_año?: number } | null)?.ciclo_año ?? new Date().getFullYear();
+  const ciclosDisponibles = (ciclosData ?? []).map((r) => (r as unknown as { ciclo_año: number }).ciclo_año);
+  const maxCiclo = ciclosDisponibles[0] ?? new Date().getFullYear();
+  const cicloParamNum = cicloParam ? parseInt(cicloParam) : null;
+  const cicloAño = cicloParamNum && ciclosDisponibles.includes(cicloParamNum)
+    ? cicloParamNum
+    : maxCiclo;
 
   const [{ data: picdRecord }, { data: acciones }, cicloEstado, { data: catalogoPuestos }] = await Promise.all([
     supabase
@@ -132,6 +142,7 @@ export default async function PicdPage({ params }: { params: Promise<{ id: strin
       <PicdEditor
         colaboradorId={id}
         cicloAño={cicloAño}
+        ciclosDisponibles={ciclosDisponibles}
         picd={picdRecord ?? null}
         acciones={acciones ?? []}
         canEdit={canEdit}
