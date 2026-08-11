@@ -5,7 +5,7 @@ import CatalogoPuestosClient from "./CatalogoPuestosClient";
 export type PuestoCatalogo = {
   id: string;
   id_externo: number | null;
-  clave: string;
+  clave: string | null;
   nombre: string;
   organización: string | null;
   segmento_organizacional: string | null;
@@ -15,6 +15,7 @@ export type PuestoCatalogo = {
   razon_social: string | null;
   es_critico: boolean;
   activo: boolean;
+  propuesto: boolean;
   titulares_count: number;
   sucesion_count: number;
 };
@@ -80,7 +81,7 @@ export default async function CatalogoPuestosPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Catálogo de Puestos</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {puestos.length} puestos · {puestos.filter((p) => p.es_critico).length} críticos · {puestos.filter((p) => p.activo).length} activos
+            {puestos.length} puestos · {puestos.filter((p) => p.es_critico).length} críticos · {puestos.filter((p) => p.activo).length} activos · {puestos.filter((p) => p.propuesto).length} propuestos
           </p>
         </div>
         <a
