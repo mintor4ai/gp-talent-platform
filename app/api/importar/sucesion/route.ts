@@ -36,6 +36,8 @@ export type SucesionPreviewRow = {
   id_empleado_num: string;
   empleado_nombre: string | null;
   empleado_matched: boolean;
+  empleado_puesto: string | null;      // titular's current position (for display)
+  empleado_puesto_id: string | null;   // catalog ID of titular's position
   // succession entry
   ciclo_año: number;
   sucesor_nombre: string;
@@ -248,6 +250,8 @@ export async function POST(req: NextRequest) {
       id_empleado_num: empId,
       empleado_nombre: empleadoColab?.nombre ?? empleadoNombre,
       empleado_matched: empleadoMatched,
+      empleado_puesto: empleadoColab?.puesto ?? null,
+      empleado_puesto_id: empleadoColab?.puestoCatalogoId ?? null,
       ciclo_año: cicloAño,
       sucesor_nombre: sucNombre,
       sucesor_id: sucId,
