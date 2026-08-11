@@ -18,7 +18,7 @@ export async function getPuestosParaSelector(): Promise<PuestoOption[]> {
   const { data: puestosRaw } = await supabase
     .from("catalogo_puestos")
     .select("*")
-    .eq("activo", true)
+    .or("activo.eq.true,propuesto.eq.true")
     .order("nombre");
 
   const puestos = (puestosRaw ?? []) as unknown as Array<Record<string, unknown>>;
@@ -55,6 +55,7 @@ export async function getPuestosParaSelector(): Promise<PuestoOption[]> {
       area: (p["area"] as string) ?? "",
       segmento: (p["segmento_organizacional"] as string) ?? "",
       esCritico: (p["es_critico"] as boolean) ?? false,
+      propuesto: (p["propuesto"] as boolean) ?? false,
       ocupanteNombre: ocu?.nombre ?? null,
       ocupanteId: ocu?.id ?? null,
     };

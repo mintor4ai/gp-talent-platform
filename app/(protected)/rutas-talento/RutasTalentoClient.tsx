@@ -778,7 +778,10 @@ export default function RutasTalentoClient({
                     <p className="text-xs text-gray-500 mt-0.5">{p.org}</p>
                     {p.ocupanteNombre && <p className="text-xs text-gray-400 mt-1">👤 {p.ocupanteNombre}</p>}
                   </div>
-                  {p.esCritico && <span className="text-xs bg-red-100 text-red-700 font-medium px-2 py-0.5 rounded-full shrink-0">Crítico</span>}
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {p.esCritico && <span className="text-xs bg-red-100 text-red-700 font-medium px-2 py-0.5 rounded-full">Crítico</span>}
+                    {p.propuesto && <span className="text-xs bg-violet-100 text-violet-700 font-medium px-2 py-0.5 rounded-full">Propuesto</span>}
+                  </div>
                 </div>
               </button>
             ))}

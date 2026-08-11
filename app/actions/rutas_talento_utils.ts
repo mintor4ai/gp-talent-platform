@@ -25,6 +25,7 @@ export type PuestoOption = {
   area: string;
   segmento: string;
   esCritico: boolean;
+  propuesto: boolean;
   ocupanteNombre: string | null;
   ocupanteId: string | null;
 };
