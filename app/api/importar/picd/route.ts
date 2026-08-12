@@ -28,23 +28,50 @@ function num(v: unknown): number | null {
   return isNaN(n) ? null : n;
 }
 
-function parseDate(v: unknown): Date | null {
-  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+function parseDate(v: unknown): string | null {
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return null;
+    return v.toISOString().slice(0, 10);
+  }
   if (typeof v === "number") {
     const d = XLSX.SSF.parse_date_code(v);
     if (!d) return null;
-    return new Date(d.y, d.m - 1, d.d);
+    return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
   }
   if (typeof v === "string") {
     const dmy = v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (dmy) return new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
-    const ymd = v.match(/^\d{4}-\d{2}-\d{2}$/);
-    if (ymd) return new Date(v);
+    if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) return v.trim();
   }
   return null;
 }
 
+function cicloFromPeriodo(idPeriodo: number): number {
+  // 1 → 2026, 2 → 2027, n → n + 2025
+  return idPeriodo + 2025;
+}
+
 // ── types ─────────────────────────────────────────────────────────────────────
+
+type ActionRow = {
+  idEvaluacionDet: number | null;
+  accionDescripcion: string;
+  tipoAccion: string;
+  institucionPlataforma: string | null;
+  fechaCumplimiento: string | null;
+  horasCapacitacion: number | null;
+  porcentaje1: number | null;
+  porcentaje2: number | null;
+  objetivoLogrado: string | null;
+};
+
+type Group = {
+  empleadoId: string;
+  nombre: string | null;
+  idPeriodo: number;
+  idEvaluacion: number | null;
+  actions: ActionRow[];
+};
 
 export type PicdPreviewRow = {
   id_empleado_num: string;
@@ -102,17 +129,6 @@ export async function POST(req: NextRequest) {
 
   // ── Group rows by (EmpleadoId, Id Periodo) ────────────────────────────────
   type GroupKey = string; // `${empleadoId}|${idPeriodo}`
-  type Group = {
-    empleadoId: string;
-    nombre: string | null;
-    idPeriodo: number;
-    idEvaluacion: number | null;
-    fechaCierre: Date | null;
-    porcentaje1Values: number[];
-    porcentaje2Values: number[];
-    numAcciones: number;
-  };
-
   const groups = new Map<GroupKey, Group>();
 
   for (const row of rows) {
@@ -127,29 +143,33 @@ export async function POST(req: NextRequest) {
     const key: GroupKey = `${empleadoId}|${idPeriodo}`;
 
     if (!groups.has(key)) {
-      const idEvalRaw = col(row, "c", "IdEvaluacion", "Id Evaluacion", "IdEval");
-      const fechaCierreRaw = col(row, "Fecha Cierre", "FechaCierre", "Cierre");
+      const idEvalRaw = col(row, "IdEvaluacion", "Id Evaluacion", "Id_Evaluacion", "IdEval", "EvaluacionId");
       groups.set(key, {
         empleadoId,
         nombre: str(col(row, "NombreCompleto", "Nombre Completo", "Nombre")),
         idPeriodo,
         idEvaluacion: idEvalRaw != null ? (num(idEvalRaw) ?? null) : null,
-        fechaCierre: parseDate(fechaCierreRaw),
-        porcentaje1Values: [],
-        porcentaje2Values: [],
-        numAcciones: 0,
+        actions: [],
       });
     }
 
     const g = groups.get(key)!;
-    g.numAcciones++;
 
-    const p1 = num(col(row, "Porcentaje1", "Porcentaje 1", "% Avance 1", "Avance1"));
-    const p2 = num(col(row, "Porcentaje2", "Porcentaje 2", "% Avance 2", "Avance2"));
+    const p1 = num(col(row, "Porcentaje1", "Porcentaje 1", "% Avance 1", "Avance1", "PorcentajeEtapa1"));
+    const p2 = num(col(row, "Porcentaje2", "Porcentaje 2", "% Avance 2", "Avance2", "PorcentajeEtapa2"));
+    const idEvalDetRaw = col(row, "IdEvaluacionDet", "Id Evaluacion Det", "IdEvalDet", "EvaluacionDetId");
 
-    // Empty Porcentaje1/Porcentaje2 count as 0
-    g.porcentaje1Values.push(p1 ?? 0);
-    g.porcentaje2Values.push(p2 ?? 0);
+    g.actions.push({
+      idEvaluacionDet: idEvalDetRaw != null ? (num(idEvalDetRaw) ?? null) : null,
+      accionDescripcion: str(col(row, "AccionDeDesarrollo", "Accion De Desarrollo", "Accion", "Descripcion", "AccionDescripcion")) ?? "(sin descripción)",
+      tipoAccion: str(col(row, "TipoAccion", "Tipo Accion", "Tipo")) ?? "Capacitación",
+      institucionPlataforma: str(col(row, "Institucion", "Plataforma", "InstitucionPlataforma", "Institucion Plataforma")),
+      fechaCumplimiento: parseDate(col(row, "FechaCumplimiento", "Fecha Cumplimiento", "FechaCierre", "Fecha Cierre")),
+      horasCapacitacion: num(col(row, "HorasCapacitacion", "Horas Capacitacion", "Horas")),
+      porcentaje1: p1,
+      porcentaje2: p2,
+      objetivoLogrado: str(col(row, "ObjetivoLogrado", "Objetivo Logrado", "Logrado")),
+    });
   }
 
   // ── Load existing picd to detect duplicates ───────────────────────────────
@@ -165,28 +185,32 @@ export async function POST(req: NextRequest) {
 
   for (const [, g] of Array.from(groups.entries())) {
     const colab = colabMap.get(g.empleadoId);
+    const cicloAño = cicloFromPeriodo(g.idPeriodo);
+    const numAcciones = g.actions.length;
 
-    // Derive ciclo_año: year(Fecha Cierre) + 1
-    const cicloAño = g.fechaCierre
-      ? g.fechaCierre.getFullYear() + 1
-      : g.idPeriodo === 1 ? 2026 : g.idPeriodo === 2 ? 2027 : g.idPeriodo + 2025;
+    // porcentaje_p1: avg of P1 per action (empty counts as 0)
+    const porcentaje_p1 = numAcciones
+      ? Math.round((g.actions.reduce((sum, a) => sum + (a.porcentaje1 ?? 0), 0) / numAcciones) * 100) / 100
+      : 0;
 
-    const avg = (vals: number[]) =>
-      vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : 0;
+    // porcentaje_cumplimiento: avg of best-available per action (P2 if set, else P1, else 0)
+    const porcentaje_cumplimiento = numAcciones
+      ? Math.round((g.actions.reduce((sum, a) => {
+          const best = a.porcentaje2 != null ? a.porcentaje2
+            : a.porcentaje1 != null ? a.porcentaje1
+            : 0;
+          return sum + best;
+        }, 0) / numAcciones) * 100) / 100
+      : 0;
 
-    const porcentaje_p1 = avg(g.porcentaje1Values);
-    const porcentaje_cumplimiento = avg(g.porcentaje2Values);
-
-    const isDuplicate = colab
-      ? existingSet.has(`${colab.uuid}|${cicloAño}`)
-      : false;
+    const isDuplicate = colab ? existingSet.has(`${colab.uuid}|${cicloAño}`) : false;
 
     previewRows.push({
       id_empleado_num: g.empleadoId,
       nombre: colab?.nombre ?? g.nombre,
       id_periodo: g.idPeriodo,
       ciclo_año: cicloAño,
-      num_acciones: g.numAcciones,
+      num_acciones: numAcciones,
       porcentaje_p1,
       porcentaje_cumplimiento,
       id_evaluacion_origen: g.idEvaluacion,
@@ -217,7 +241,7 @@ export async function POST(req: NextRequest) {
     const firstRowKeys = rows.length > 0 ? Object.keys(rows[0]).slice(0, 20) : [];
     const sampleEmpleados = Array.from(groups.keys()).slice(0, 5).map((k) => {
       const g = groups.get(k)!;
-      return { key: k, empleadoId: g.empleadoId, idPeriodo: g.idPeriodo, inColabMap: colabMap.has(g.empleadoId) };
+      return { key: k, empleadoId: g.empleadoId, idPeriodo: g.idPeriodo, numAcciones: g.actions.length, inColabMap: colabMap.has(g.empleadoId) };
     });
     return NextResponse.json({
       rows: previewRows,
@@ -240,15 +264,21 @@ export async function POST(req: NextRequest) {
   const toImport = previewRows.filter((r) => r.matched);
   const errors: string[] = [];
   let upserted = 0;
+  let accionesUpserted = 0;
 
   for (const r of toImport) {
     const colab = colabMap.get(r.id_empleado_num)!;
+    const g = Array.from(groups.values()).find(
+      (grp) => grp.empleadoId === r.id_empleado_num && cicloFromPeriodo(grp.idPeriodo) === r.ciclo_año
+    )!;
 
-    const { error: err } = await supabase.from("picd").upsert(
+    // 1. Upsert picd aggregate row
+    const { error: picdErr } = await supabase.from("picd").upsert(
       {
         id_empleado:             colab.uuid,
         ciclo_año:               r.ciclo_año,
         entrego_picd:            true,
+        porcentaje_p1:           r.porcentaje_p1,
         porcentaje_cumplimiento: r.porcentaje_cumplimiento,
         id_evaluacion_origen:    r.id_evaluacion_origen,
         origen_dato:             "ReportePICD",
@@ -256,13 +286,44 @@ export async function POST(req: NextRequest) {
       { onConflict: "id_empleado,ciclo_año", ignoreDuplicates: false }
     );
 
-    if (err) errors.push(`${r.nombre ?? r.id_empleado_num} (ciclo ${r.ciclo_año}): ${err.message}`);
-    else upserted++;
+    if (picdErr) {
+      errors.push(`${r.nombre ?? r.id_empleado_num} (ciclo ${r.ciclo_año}): ${picdErr.message}`);
+      continue;
+    }
+    upserted++;
+
+    // 2. Upsert picd_acciones for each action that has an idEvaluacionDet
+    for (const action of g.actions) {
+      if (action.idEvaluacionDet == null) continue; // can't upsert without a stable key
+
+      const { error: accErr } = await supabase.from("picd_acciones").upsert(
+        {
+          id_empleado:          colab.uuid,
+          ciclo_año:            r.ciclo_año,
+          id_evaluacion:        g.idEvaluacion,
+          id_evaluacion_det:    action.idEvaluacionDet,
+          tipo_accion:          action.tipoAccion,
+          accion_descripcion:   action.accionDescripcion,
+          institucion_plataforma: action.institucionPlataforma,
+          fecha_cumplimiento:   action.fechaCumplimiento,
+          horas_capacitacion:   action.horasCapacitacion,
+          porcentaje_etapa1:    action.porcentaje1,
+          porcentaje_etapa2:    action.porcentaje2,
+          objetivo_logrado:     action.objetivoLogrado,
+          origen_dato:          "ReportePICD",
+        },
+        { onConflict: "id_evaluacion_det", ignoreDuplicates: false }
+      );
+
+      if (accErr) errors.push(`Acción ${action.idEvaluacionDet} (${r.nombre ?? r.id_empleado_num}): ${accErr.message}`);
+      else accionesUpserted++;
+    }
   }
 
   return NextResponse.json({
     ok: true,
     upserted,
+    accionesUpserted,
     skipped: unmatched.length,
     errors: errors.slice(0, 20),
   });
