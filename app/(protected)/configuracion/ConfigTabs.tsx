@@ -57,6 +57,7 @@ export default function ConfigTabs({
   ponderacionesMap,
   tablaExp,
   tablaMov,
+  sucesionCiclosDisponibles,
 }: {
   grupos: { uens: string[]; departamentos: string[]; areas: string[]; segmentos: string[] };
   reglasAcceso: Regla[];
