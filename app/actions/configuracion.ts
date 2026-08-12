@@ -110,6 +110,26 @@ export async function activarVersionPrompt(id: string, tipo: string) {
   return { ok: true };
 }
 
+// ── Sucesión: recalcular matches ─────────────────────────────────────────────
+
+export async function recalcularTodosLosCiclos(ciclos: number[]) {
+  const { error: authErr, supabase } = await requireSuperadmin();
+  if (authErr || !supabase) return { error: authErr };
+
+  const results: Record<number, unknown> = {};
+  const errors: string[] = [];
+
+  for (const ciclo of ciclos) {
+    const { data, error } = await supabase.rpc("recalcular_sucesion_matches", { p_ciclo: ciclo });
+    if (error) errors.push(`Ciclo ${ciclo}: ${error.message}`);
+    else results[ciclo] = data;
+  }
+
+  revalidatePath("/sucesion");
+  revalidatePath("/configuracion");
+  return { ok: errors.length === 0, results, errors };
+}
+
 // ── API config ───────────────────────────────────────────────────────────────
 
 export async function actualizarConfigApi(modelo: string, maxTokens: number) {

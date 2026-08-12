@@ -8,6 +8,7 @@ import {
   guardarPrompt,
   activarVersionPrompt,
   actualizarConfigApi,
+  recalcularTodosLosCiclos,
 } from "@/app/actions/configuracion";
 import { saveZonaBandsArray, copyZonaBandsFromCycle } from "@/app/actions/zonas";
 import { upsertPeriodo, setPeriodoActivo, deletePeriodo } from "@/app/actions/periodos";
@@ -71,7 +72,7 @@ export default function ConfigTabs({
   tablaExp: TablasEipRow[];
   tablaMov: TablasEipRow[];
 }) {
-  const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones" | "tablas_eip">("usuarios");
+  const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones" | "tablas_eip" | "sucesion">("usuarios");
 
   return (
     <div>
@@ -86,6 +87,7 @@ export default function ConfigTabs({
           { key: "zonas",          label: "Zonas EIP" },
           { key: "ponderaciones",  label: "Ponderaciones EIP" },
           { key: "tablas_eip",     label: "Tablas Exp. / Movilidad" },
+          { key: "sucesion",       label: "Sucesión" },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -109,6 +111,7 @@ export default function ConfigTabs({
       {tab === "zonas"         && <ZonasEipTab zonasMap={zonasMap} availableCycles={availableZonaCycles} periodos={periodos} />}
       {tab === "ponderaciones" && <PonderacionesEipTab ponderacionesMap={ponderacionesMap} periodos={periodos} />}
       {tab === "tablas_eip"    && <TablasEipTab tablaExp={tablaExp} tablaMov={tablaMov} periodos={periodos} />}
+      {tab === "sucesion"      && <SucesionTab periodos={periodos} />}
     </div>
   );
 }
@@ -1165,6 +1168,146 @@ function ZonasEipTab({
             </button>
           </div>
         </form>
+      )}
+    </div>
+  );
+}
+
+// ── Sucesión Tab ──────────────────────────────────────────────────────────────
+
+function SucesionTab({ periodos }: { periodos: Periodo[] }) {
+  const [isPending, startTransition] = useTransition();
+  const [confirmed, setConfirmed] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; results: Record<number, unknown>; errors: string[] } | null>(null);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const ciclos = periodos.map((p) => p.ciclo_año).sort((a, b) => b - a);
+
+  function flash(text: string, ok = true) {
+    setMsg({ text, ok });
+    setTimeout(() => setMsg(null), 6000);
+  }
+
+  function handleRecalcular() {
+    if (!confirmed) { setConfirmed(true); return; }
+    setConfirmed(false);
+    startTransition(async () => {
+      const res = await recalcularTodosLosCiclos(ciclos);
+      setResult(res as { ok: boolean; results: Record<number, unknown>; errors: string[] });
+      if (res.error) flash(`Error: ${res.error}`, false);
+      else if ((res as { errors?: string[] }).errors?.length) flash(`Completado con ${(res as { errors: string[] }).errors.length} error(es)`, false);
+      else flash(`Matches recalculados correctamente para ${ciclos.length} ciclo(s)`);
+    });
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      {msg && (
+        <div className={`text-sm border rounded-lg px-4 py-2.5 ${msg.ok ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+          {msg.text}
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+          <p className="text-sm font-semibold text-gray-700">Recalcular matches de sucesión</p>
+          <p className="text-xs text-gray-400 mt-0.5">Regenera la tabla <code className="font-mono">sucesion_matches</code> para todos los ciclos configurados.</p>
+        </div>
+
+        <div className="p-5 space-y-5">
+          <div>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Cómo funciona el motor</p>
+            <div className="space-y-2">
+              {[
+                { tipo: "Bidireccional", color: "bg-blue-100 text-blue-700", desc: "El colaborador tiene al puesto como aspiración en su PICD y además está propuesto como sucesor para ese mismo puesto por el titular." },
+                { tipo: "Aspiración", color: "bg-purple-100 text-purple-700", desc: "El colaborador aspira al puesto en su PICD, pero aún no ha sido propuesto por ningún titular de ese puesto." },
+                { tipo: "Propuesta", color: "bg-amber-100 text-amber-700", desc: "El titular propone al colaborador como sucesor, pero el colaborador no tiene ese puesto en su PICD." },
+                { tipo: "Gap Crítico", color: "bg-red-100 text-red-700", desc: "Puesto marcado como crítico sin ningún sucesor real propuesto ni aspirantes. Filas BAJA (sin ID de sucesor) no cuentan como cobertura." },
+              ].map(({ tipo, color, desc }) => (
+                <div key={tipo} className="flex gap-3 items-start">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 mt-0.5 ${color}`}>{tipo}</span>
+                  <p className="text-xs text-gray-500">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            <p className="text-xs font-semibold text-amber-800 mb-1">Impacto potencial</p>
+            <ul className="text-xs text-amber-700 space-y-1 list-disc list-inside">
+              <li>Se elimina y regenera <strong>toda</strong> la tabla <code className="font-mono">sucesion_matches</code> para cada ciclo.</li>
+              <li>Los matches que existían se reemplazarán con los datos vigentes al momento de ejecutarse.</li>
+              <li>El proceso utiliza los datos de <code className="font-mono">picd</code> y <code className="font-mono">plan_sucesion</code> actuales.</li>
+              <li>Ciclos a recalcular: {ciclos.length > 0 ? ciclos.join(", ") : "ninguno configurado"}.</li>
+            </ul>
+          </div>
+
+          {ciclos.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {ciclos.map((c) => (
+                <span key={c} className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full font-mono">{c}</span>
+              ))}
+            </div>
+          )}
+
+          <div className="pt-1 flex items-center gap-3">
+            {!confirmed ? (
+              <button
+                onClick={handleRecalcular}
+                disabled={isPending || ciclos.length === 0}
+                className="px-5 py-2 text-sm font-semibold bg-[#1a3a5c] text-white rounded-lg hover:bg-[#152e4d] disabled:opacity-40 transition-colors"
+              >
+                {isPending ? "Recalculando…" : "Recalcular todos los ciclos"}
+              </button>
+            ) : (
+              <>
+                <p className="text-sm text-amber-700 font-medium">¿Confirmar recálculo? Esta acción es irreversible.</p>
+                <button
+                  onClick={handleRecalcular}
+                  disabled={isPending}
+                  className="px-4 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-40 transition-colors"
+                >
+                  {isPending ? "Recalculando…" : "Sí, recalcular"}
+                </button>
+                <button onClick={() => setConfirmed(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">
+                  Cancelar
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {result && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+            <p className="text-sm font-semibold text-gray-700">Resultado del último recálculo</p>
+          </div>
+          <div className="p-5 space-y-3">
+            {Object.entries(result.results).map(([ciclo, data]) => {
+              const d = data as Record<string, number>;
+              return (
+                <div key={ciclo} className="flex items-center gap-4 text-sm">
+                  <span className="font-mono font-semibold text-gray-700 w-12">{ciclo}</span>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">Bidi: {d.bidireccional}</span>
+                    <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full">Aspir.: {d.aspiracion}</span>
+                    <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full">Prop.: {d.propuesta}</span>
+                    <span className="px-2 py-0.5 bg-red-50 text-red-700 rounded-full">Gaps: {d.gap_critico}</span>
+                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">Total: {d.total}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {result.errors.length > 0 && (
+              <div className="mt-3 space-y-1">
+                {result.errors.map((e, i) => (
+                  <p key={i} className="text-xs text-red-600">{e}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

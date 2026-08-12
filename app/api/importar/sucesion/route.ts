@@ -332,6 +332,9 @@ export async function POST(req: NextRequest) {
   for (const r of toImport) {
     const colab = colabByEmpId.get(r.id_empleado_num)!;
 
+    // "Sucesor Externo" is a free-text placeholder — skip entirely, don't save to plan_sucesion
+    if (r.sucesor_nombre.toLowerCase() === "sucesor externo") continue;
+
     // Resolve the employee's own current position for puesto_catalogo_id on the plan
     const empleadoPuestoCatalogoId = lookupCatalog(catalogLookup, colab.puesto, colab.org);
 
@@ -369,7 +372,7 @@ export async function POST(req: NextRequest) {
 
   for (const r of previewRows) {
     if (!r.empleado_matched) continue;
-    if (!r.puesto1_id && !r.puesto2_id) continue;
+    if (!r.puesto1_nombre && !r.puesto2_nombre) continue;
     const empleadoColab = colabByEmpId.get(r.id_empleado_num);
     if (!empleadoColab) continue;
     const key: AspiracionKey = `${empleadoColab.uuid}|${r.ciclo_año}`;
@@ -379,6 +382,13 @@ export async function POST(req: NextRequest) {
         p1Nombre: r.puesto1_nombre, p1Id: r.puesto1_id,
         p2Nombre: r.puesto2_nombre, p2Id: r.puesto2_id,
       });
+    } else {
+      // Merge: fill nulls with non-null values from later rows for same (titular, ciclo)
+      const existing = aspiracionMap.get(key)!;
+      if (!existing.p1Nombre && r.puesto1_nombre) existing.p1Nombre = r.puesto1_nombre;
+      if (!existing.p1Id    && r.puesto1_id)    existing.p1Id    = r.puesto1_id;
+      if (!existing.p2Nombre && r.puesto2_nombre) existing.p2Nombre = r.puesto2_nombre;
+      if (!existing.p2Id    && r.puesto2_id)    existing.p2Id    = r.puesto2_id;
     }
   }
 
