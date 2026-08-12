@@ -182,17 +182,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No hay colaboradores activos con nivel asignado" }, { status: 400 });
   }
 
-  // ── Load ev_comp from existing EIP records ────────────────────────────────
+  // ── Load ev_comp and desempeno_logra from existing EIP records ───────────
   // Avoid .in(colabIds) with large arrays — query all rows for the cycle instead
   const colabIdSet = new Set(colabIds);
   const { data: evCompRaw } = await supabase
     .from("evaluacion_integral_personal")
-    .select("id_empleado, ev_comp")
+    .select("id_empleado, ev_comp, desempeno_logra")
     .eq("ciclo_año", ciclo_año);
   const evCompMap = new Map<string, number | null>();
-  for (const r of (evCompRaw ?? []) as Array<{ id_empleado: string; ev_comp: number | null }>) {
-    if (colabIdSet.has(r.id_empleado))
+  const desempenoMap = new Map<string, number | null>();
+  for (const r of (evCompRaw ?? []) as Array<{ id_empleado: string; ev_comp: number | null; desempeno_logra: number | null }>) {
+    if (colabIdSet.has(r.id_empleado)) {
       evCompMap.set(r.id_empleado, r.ev_comp != null ? Number(r.ev_comp) : null);
+      desempenoMap.set(r.id_empleado, r.desempeno_logra != null ? Number(r.desempeno_logra) : null);
+    }
   }
 
   // ── Load EAL (evaluacion_eal for this cycle) ──────────────────────────────
@@ -307,7 +310,12 @@ export async function POST(req: NextRequest) {
       ) * 100) / 100;
     }
 
-    const zona = total != null ? determineZona(total, zonas) : null;
+    // Zona uses (D+P)/2 average when desempeño is available; falls back to P alone
+    const desempeno = desempenoMap.get(colab.id) ?? null;
+    const zonaInput = total != null
+      ? (desempeno != null ? (total + desempeno) / 2 : total)
+      : null;
+    const zona = zonaInput != null ? determineZona(zonaInput, zonas) : null;
 
     previewRows.push({
       id_empleado: colab.id,
