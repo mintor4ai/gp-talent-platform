@@ -4,7 +4,6 @@ import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
 import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 import {
-  recalcularMatches,
   validarMatch,
   descartarMatch,
   reactivarMatch,
@@ -790,7 +789,6 @@ export default function MatchingView({
 }) {
   const [matches, setMatches] = useState<MatchRow[]>(initialMatches);
   const [isPending, startTransition] = useTransition();
-  const [recalcMsg, setRecalcMsg] = useState<string | null>(null);
 
   // Filters
   const [selectedCiclo, setSelectedCiclo] = useState<number | "all">(ciclosDisponibles[0] ?? "all");
@@ -805,28 +803,7 @@ export default function MatchingView({
   // View
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
-  // Recalcular
-  const [recalcCiclo, setRecalcCiclo] = useState<number>(
-    ciclosDisponibles[0] ?? new Date().getFullYear()
-  );
-
   // ── Actions ──────────────────────────────────────────────────────────────
-  const handleRecalcular = () => {
-    setRecalcMsg(null);
-    startTransition(async () => {
-      const result = await recalcularMatches(recalcCiclo);
-      if (result.ok) {
-        const counts = result.counts ?? {};
-        setRecalcMsg(
-          `Ciclo ${recalcCiclo}: ${counts.bidireccional ?? 0} bidireccional · ${counts.aspiracion ?? 0} aspiración · ${counts.propuesta ?? 0} propuesta · ${counts.gap_critico ?? 0} gap crítico`
-        );
-        setTimeout(() => window.location.reload(), 1800);
-      } else {
-        setRecalcMsg(`Error: ${result.error}`);
-      }
-    });
-  };
-
   const handleValidar = (id: string) => {
     startTransition(async () => {
       const result = await validarMatch(id);
@@ -1142,35 +1119,13 @@ export default function MatchingView({
         </div>
       </div>
 
-      {/* ── Recalcular ──────────────────────────────────────────────────── */}
+      {/* ── Count row ───────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-xs text-gray-400 mr-auto">
           Mostrando <strong className="text-gray-700">{gridMatches.length}</strong> match{gridMatches.length !== 1 ? "es" : ""}
           {selectedCiclo !== "all" ? ` · Ciclo ${selectedCiclo}` : " · Todos los ciclos"}
         </p>
-        <select
-          value={recalcCiclo}
-          onChange={(e) => setRecalcCiclo(parseInt(e.target.value))}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
-        >
-          {ciclosDisponibles.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        <button
-          onClick={handleRecalcular}
-          disabled={isPending}
-          className="text-sm px-4 py-1.5 rounded-lg font-medium bg-[#1a3a5c] text-white hover:bg-[#152e4a] disabled:opacity-60 transition-colors"
-        >
-          {isPending ? "Calculando…" : "Recalcular matches"}
-        </button>
       </div>
-
-      {recalcMsg && (
-        <div className="text-sm px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
-          {recalcMsg}
-        </div>
-      )}
 
       {/* ── Gaps críticos alert ──────────────────────────────────────────── */}
       {gapsCriticos.length > 0 && selectedTipo === "all" && selectedEstado !== "descartado" && (
@@ -1203,7 +1158,7 @@ export default function MatchingView({
           <p className="text-sm">No hay matches con los filtros seleccionados.</p>
           {matches.length === 0 && (
             <p className="text-xs mt-2">
-              Usa <strong>Recalcular matches</strong> para generar el análisis del ciclo seleccionado.
+              Ve a <strong>Configuración → Sucesión</strong> para generar el análisis de matches.
             </p>
           )}
         </div>
