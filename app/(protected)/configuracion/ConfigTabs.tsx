@@ -71,6 +71,7 @@ export default function ConfigTabs({
   ponderacionesMap: Record<number, PonderacionRow[]>;
   tablaExp: TablasEipRow[];
   tablaMov: TablasEipRow[];
+  sucesionCiclosDisponibles: number[];
 }) {
   const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones" | "tablas_eip" | "sucesion">("usuarios");
 
@@ -111,7 +112,7 @@ export default function ConfigTabs({
       {tab === "zonas"         && <ZonasEipTab zonasMap={zonasMap} availableCycles={availableZonaCycles} periodos={periodos} />}
       {tab === "ponderaciones" && <PonderacionesEipTab ponderacionesMap={ponderacionesMap} periodos={periodos} />}
       {tab === "tablas_eip"    && <TablasEipTab tablaExp={tablaExp} tablaMov={tablaMov} periodos={periodos} />}
-      {tab === "sucesion"      && <SucesionTab periodos={periodos} />}
+      {tab === "sucesion"      && <SucesionTab ciclosDisponibles={sucesionCiclosDisponibles} />}
     </div>
   );
 }
@@ -1175,28 +1176,40 @@ function ZonasEipTab({
 
 // ── Sucesión Tab ──────────────────────────────────────────────────────────────
 
-function SucesionTab({ periodos }: { periodos: Periodo[] }) {
+function SucesionTab({ ciclosDisponibles }: { ciclosDisponibles: number[] }) {
   const [isPending, startTransition] = useTransition();
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; results: Record<number, unknown>; errors: string[] } | null>(null);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [selectedCiclos, setSelectedCiclos] = useState<Set<number>>(() => new Set(ciclosDisponibles));
 
-  const ciclos = periodos.map((p) => p.ciclo_año).sort((a, b) => b - a);
+  const ciclos = ciclosDisponibles;
 
   function flash(text: string, ok = true) {
     setMsg({ text, ok });
     setTimeout(() => setMsg(null), 6000);
   }
 
+  function toggleCiclo(c: number) {
+    setSelectedCiclos((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c); else next.add(c);
+      return next;
+    });
+  }
+
+  const ciclosACorrer = ciclos.filter((c) => selectedCiclos.has(c));
+
   function handleRecalcular() {
+    if (ciclosACorrer.length === 0) return;
     if (!confirmed) { setConfirmed(true); return; }
     setConfirmed(false);
     startTransition(async () => {
-      const res = await recalcularTodosLosCiclos(ciclos);
+      const res = await recalcularTodosLosCiclos(ciclosACorrer);
       setResult(res as { ok: boolean; results: Record<number, unknown>; errors: string[] });
       if (res.error) flash(`Error: ${res.error}`, false);
       else if ((res as { errors?: string[] }).errors?.length) flash(`Completado con ${(res as { errors: string[] }).errors.length} error(es)`, false);
-      else flash(`Matches recalculados correctamente para ${ciclos.length} ciclo(s)`);
+      else flash(`Matches recalculados para ciclo(s): ${ciclosACorrer.join(", ")}`);
     });
   }
 
@@ -1232,36 +1245,50 @@ function SucesionTab({ periodos }: { periodos: Periodo[] }) {
             </div>
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-            <p className="text-xs font-semibold text-amber-800 mb-1">Impacto potencial</p>
-            <ul className="text-xs text-amber-700 space-y-1 list-disc list-inside">
-              <li>Se elimina y regenera <strong>toda</strong> la tabla <code className="font-mono">sucesion_matches</code> para cada ciclo.</li>
-              <li>Los matches que existían se reemplazarán con los datos vigentes al momento de ejecutarse.</li>
-              <li>El proceso utiliza los datos de <code className="font-mono">picd</code> y <code className="font-mono">plan_sucesion</code> actuales.</li>
-              <li>Ciclos a recalcular: {ciclos.length > 0 ? ciclos.join(", ") : "ninguno configurado"}.</li>
-            </ul>
-          </div>
-
+          {/* Cycle selector */}
           {ciclos.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {ciclos.map((c) => (
-                <span key={c} className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full font-mono">{c}</span>
-              ))}
+            <div>
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Seleccionar ciclos</p>
+              <div className="flex flex-wrap gap-2">
+                {ciclos.map((c) => (
+                  <label key={c} className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={selectedCiclos.has(c)}
+                      onChange={() => toggleCiclo(c)}
+                      className="w-4 h-4 rounded border-gray-300 text-[#1a3a5c] focus:ring-[#1a3a5c]"
+                    />
+                    <span className="text-sm font-mono text-gray-700">{c}</span>
+                  </label>
+                ))}
+              </div>
+              {ciclosACorrer.length === 0 && (
+                <p className="text-xs text-red-500 mt-1">Selecciona al menos un ciclo.</p>
+              )}
             </div>
           )}
 
-          <div className="pt-1 flex items-center gap-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            <p className="text-xs font-semibold text-amber-800 mb-1">Impacto potencial</p>
+            <ul className="text-xs text-amber-700 space-y-1 list-disc list-inside">
+              <li>Se elimina y regenera <code className="font-mono">sucesion_matches</code> para cada ciclo seleccionado.</li>
+              <li>Los matches existentes se reemplazarán con los datos vigentes al momento de ejecutarse.</li>
+              <li>Ciclos a recalcular: {ciclosACorrer.length > 0 ? ciclosACorrer.join(", ") : "ninguno seleccionado"}.</li>
+            </ul>
+          </div>
+
+          <div className="pt-1 flex items-center gap-3 flex-wrap">
             {!confirmed ? (
               <button
                 onClick={handleRecalcular}
-                disabled={isPending || ciclos.length === 0}
+                disabled={isPending || ciclosACorrer.length === 0}
                 className="px-5 py-2 text-sm font-semibold bg-[#1a3a5c] text-white rounded-lg hover:bg-[#152e4d] disabled:opacity-40 transition-colors"
               >
-                {isPending ? "Recalculando…" : "Recalcular todos los ciclos"}
+                {isPending ? "Recalculando…" : `Recalcular ciclo${ciclosACorrer.length !== 1 ? "s" : ""} ${ciclosACorrer.join(", ")}`}
               </button>
             ) : (
               <>
-                <p className="text-sm text-amber-700 font-medium">¿Confirmar recálculo? Esta acción es irreversible.</p>
+                <p className="text-sm text-amber-700 font-medium">¿Confirmar recálculo de {ciclosACorrer.join(", ")}? Irreversible.</p>
                 <button
                   onClick={handleRecalcular}
                   disabled={isPending}

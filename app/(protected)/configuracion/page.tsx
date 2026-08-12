@@ -20,7 +20,7 @@ export default async function ConfiguracionPage() {
   if (perfil?.rol !== "superadmin") redirect("/dashboard");
 
   // Distinct group values from colaboradores (trim whitespace)
-  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes, ponderacionesRes, tablaExpRes, tablaMovRes] =
+  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes, ponderacionesRes, tablaExpRes, tablaMovRes, sucesionCiclosRes] =
     await Promise.all([
       supabase.from("colaboradores").select("razon_social").not("razon_social", "is", null),
       supabase.from("colaboradores").select("departamento").not("departamento", "is", null),
@@ -37,6 +37,7 @@ export default async function ConfiguracionPage() {
       supabase.from("eip_ponderaciones").select("*").order("ciclo_año", { ascending: false }).order("calif_ponderada"),
       supabase.from("eip_tabla_experiencia").select("ciclo_año, años, nivel_num, score").order("ciclo_año", { ascending: false }).order("años").order("nivel_num"),
       supabase.from("eip_tabla_movilidad").select("ciclo_año, movilidad_floor, nivel_num, score").order("ciclo_año", { ascending: false }).order("movilidad_floor").order("nivel_num"),
+      supabase.from("plan_sucesion").select("ciclo_año").order("ciclo_año", { ascending: false }),
     ]);
 
   type Raw = { [key: string]: string | null };
@@ -55,6 +56,13 @@ export default async function ConfiguracionPage() {
   const availableZonaCycles = Object.keys(zonasMap).map(Number).sort((a, b) => b - a);
   const periodos = (periodosRes.data as unknown as Periodo[]) ?? [];
   const authUsuarios = (authUsersRes.data as unknown as AuthUsuario[]) ?? [];
+
+  // Build distinct succession cycles: union of periodos + plan_sucesion ciclo_año
+  const sucesionCiclosSet = new Set<number>(periodos.map((p) => p.ciclo_año));
+  for (const row of ((sucesionCiclosRes.data as unknown as { ciclo_año: number }[]) ?? [])) {
+    sucesionCiclosSet.add(row.ciclo_año);
+  }
+  const sucesionCiclosDisponibles = Array.from(sucesionCiclosSet).sort((a, b) => b - a);
 
   type PonderacionRow = {
     ciclo_año: number; calif_ponderada: number;
@@ -116,6 +124,7 @@ export default async function ConfiguracionPage() {
         ponderacionesMap={ponderacionesMap}
         tablaExp={tablaExpRows}
         tablaMov={tablaMovRows}
+        sucesionCiclosDisponibles={sucesionCiclosDisponibles}
       />
     </div>
   );
