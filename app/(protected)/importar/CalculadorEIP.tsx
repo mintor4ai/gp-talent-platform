@@ -30,8 +30,9 @@ const ZONA_COLOR: Record<string, string> = {
   "Sobresaliente": "bg-green-100 text-green-700",
 };
 
-export default function CalculadorEIP() {
-  const [cicloAño, setCicloAño] = useState<number>(new Date().getFullYear());
+export default function CalculadorEIP({ ciclos }: { ciclos?: number[] }) {
+  const availableCiclos = ciclos?.length ? ciclos : [2024, 2025, 2026, 2027];
+  const [cicloAño, setCicloAño] = useState<number>(availableCiclos[0] ?? new Date().getFullYear());
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [result, setResult] = useState<CalcResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -92,7 +93,7 @@ export default function CalculadorEIP() {
                 onChange={(e) => { setCicloAño(Number(e.target.value)); reset(); }}
                 className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white"
               >
-                {[2024, 2025, 2026, 2027].map((y) => (
+                {availableCiclos.map((y) => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>

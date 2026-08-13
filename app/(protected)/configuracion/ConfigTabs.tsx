@@ -17,6 +17,7 @@ import type { ZonaBand, Periodo } from "@/lib/types";
 import ZoneBoundaryEditor from "./ZoneBoundaryEditor";
 import UsuariosTab, { type AuthUsuario } from "./UsuariosTab";
 import TablasEipTab, { type TablasEipRow, type TablaFormAcadRow } from "./TablasEipTab";
+import CalculadorEIP from "@/app/(protected)/importar/CalculadorEIP";
 
 type Regla = { id: string; nivel: string; valor: string; habilitado: boolean };
 type Prompt = { id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string };
@@ -76,7 +77,7 @@ export default function ConfigTabs({
   tablaFormAcad: TablaFormAcadRow[];
   sucesionCiclosDisponibles: number[];
 }) {
-  const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones" | "tablas_eip" | "sucesion">("usuarios");
+  const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones" | "tablas_eip" | "sucesion" | "calcular_eip">("usuarios");
 
   return (
     <div>
@@ -92,6 +93,7 @@ export default function ConfigTabs({
           { key: "ponderaciones",  label: "Ponderaciones EIP" },
           { key: "tablas_eip",     label: "Tablas Exp. / Movilidad" },
           { key: "sucesion",       label: "Sucesión" },
+          { key: "calcular_eip",   label: "Recalcular EIP" },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -116,6 +118,7 @@ export default function ConfigTabs({
       {tab === "ponderaciones" && <PonderacionesEipTab ponderacionesMap={ponderacionesMap} periodos={periodos} />}
       {tab === "tablas_eip"    && <TablasEipTab tablaExp={tablaExp} tablaMov={tablaMov} tablaFormAcad={tablaFormAcad} periodos={periodos} />}
       {tab === "sucesion"      && <SucesionTab ciclosDisponibles={sucesionCiclosDisponibles} />}
+      {tab === "calcular_eip"  && <CalculadorEIP ciclos={periodos.map((p) => p.ciclo_año).sort((a, b) => b - a)} />}
     </div>
   );
 }
