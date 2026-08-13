@@ -6,6 +6,8 @@ import {
   saveTablaMov,
   copyTablasExpFromCycle,
   copyTablaMovFromCycle,
+  saveTablaFormAcad,
+  copyTablaFormAcadFromCycle,
 } from "@/app/actions/tablas_eip";
 import type { Periodo } from "@/lib/types";
 
@@ -35,6 +37,26 @@ export type TablasEipRow = {
   nivel_num: number;
   score: number;
 };
+
+export type TablaFormAcadRow = {
+  ciclo_año: number;
+  nivel_num: number;
+  escolaridad: string;
+  score: number;
+};
+
+// Ordered escolaridades (row order in the editor)
+const ESCOLARIDADES = [
+  "Primaria",
+  "Secundaria",
+  "Preparatoria",
+  "Carrera Técnica",
+  "Profesional",
+  "Especialidad",
+  "Maestría",
+  "Doctorado",
+] as const;
+type Escolaridad = typeof ESCOLARIDADES[number];
 
 // Matrix: fila → nivel_num → score
 type Matrix = Record<number, Record<number, number>>;
@@ -173,15 +195,96 @@ function MatrixEditor({
   );
 }
 
+// ── FormAcad editor ───────────────────────────────────────────────────────────
+// formAcadMatrix: nivel_num → escolaridad → score
+
+type FormAcadMatrix = Record<number, Record<string, number>>;
+
+function buildFormAcadMatrix(rows: TablaFormAcadRow[], ciclo: number): FormAcadMatrix {
+  const m: FormAcadMatrix = {};
+  for (const r of rows) {
+    if (r.ciclo_año !== ciclo) continue;
+    if (!m[r.nivel_num]) m[r.nivel_num] = {};
+    m[r.nivel_num][r.escolaridad] = r.score;
+  }
+  return m;
+}
+
+function formAcadMatrixToCells(m: FormAcadMatrix): { nivel_num: number; escolaridad: string; score: number }[] {
+  const cells: { nivel_num: number; escolaridad: string; score: number }[] = [];
+  for (const [nivel, escs] of Object.entries(m)) {
+    for (const [esc, score] of Object.entries(escs)) {
+      cells.push({ nivel_num: Number(nivel), escolaridad: esc, score });
+    }
+  }
+  return cells;
+}
+
+function FormAcadEditor({
+  matrix,
+  onChange,
+}: {
+  matrix: FormAcadMatrix;
+  onChange: (nivel: number, escolaridad: string, score: number) => void;
+}) {
+  const niveles = Array.from({ length: 13 }, (_, i) => i + 1);
+  return (
+    <div className="overflow-x-auto border border-gray-200 rounded-lg">
+      <table className="text-xs border-collapse min-w-full">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200">
+            <th className="sticky left-0 z-10 bg-gray-50 px-3 py-1.5 text-left text-gray-500 font-medium whitespace-nowrap border-r border-gray-200 min-w-[140px]">
+              Escolaridad
+            </th>
+            {niveles.map((n) => (
+              <th key={n} title={NIVEL_SEGMENTOS[n]?.full ?? `N${n}`} className="px-1 py-1.5 text-center text-gray-500 font-medium min-w-[72px] whitespace-nowrap">
+                <span className="block text-[10px] text-gray-400 font-normal">N{n}</span>
+                <span className="block">{NIVEL_SEGMENTOS[n]?.short ?? `N${n}`}</span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {ESCOLARIDADES.map((esc) => (
+            <tr key={esc} className="border-b border-gray-100 hover:bg-gray-50/50">
+              <td className="sticky left-0 z-10 bg-white border-r border-gray-200 px-3 py-1 text-gray-600 font-medium whitespace-nowrap">
+                {esc}
+              </td>
+              {niveles.map((nivel) => {
+                const score = matrix[nivel]?.[esc] ?? 80;
+                return (
+                  <td key={nivel} className="p-0.5">
+                    <select
+                      value={score}
+                      onChange={(e) => onChange(nivel, esc, Number(e.target.value))}
+                      className={`w-full text-center text-xs rounded border-0 py-1 px-0.5 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c] cursor-pointer ${scoreBg(score)}`}
+                    >
+                      {[80, 85, 90, 95, 100, 105, 110, 115, 120].map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── main component ────────────────────────────────────────────────────────────
 
 export default function TablasEipTab({
   tablaExp,
   tablaMov,
+  tablaFormAcad,
   periodos,
 }: {
   tablaExp: TablasEipRow[];
   tablaMov: TablasEipRow[];
+  tablaFormAcad: TablaFormAcadRow[];
   periodos: Periodo[];
 }) {
   const currentYear = new Date().getFullYear();
@@ -200,11 +303,13 @@ export default function TablasEipTab({
   // Local matrices
   const [expMatrix, setExpMatrix] = useState<Matrix>(() => buildMatrix(tablaExp, cicloAño));
   const [movMatrix, setMovMatrix] = useState<Matrix>(() => buildMatrix(tablaMov, cicloAño));
+  const [formAcadMatrix, setFormAcadMatrix] = useState<FormAcadMatrix>(() => buildFormAcadMatrix(tablaFormAcad, cicloAño));
 
   function handleCicloChange(año: number) {
     setCicloAño(año);
     setExpMatrix(buildMatrix(tablaExp, año));
     setMovMatrix(buildMatrix(tablaMov, año));
+    setFormAcadMatrix(buildFormAcadMatrix(tablaFormAcad, año));
     setMsg(null);
   }
 
@@ -233,12 +338,13 @@ export default function TablasEipTab({
 
   function handleSave() {
     startTransition(async () => {
-      const [resExp, resMov] = await Promise.all([
+      const [resExp, resMov, resFormAcad] = await Promise.all([
         saveTablasExp(cicloAño, matrixToCells(expMatrix)),
         saveTablaMov(cicloAño, matrixToCells(movMatrix)),
+        saveTablaFormAcad(cicloAño, formAcadMatrixToCells(formAcadMatrix)),
       ]);
-      if (resExp.error || resMov.error) {
-        flash(resExp.error ?? resMov.error ?? "Error al guardar", false);
+      if (resExp.error || resMov.error || resFormAcad.error) {
+        flash(resExp.error ?? resMov.error ?? resFormAcad.error ?? "Error al guardar", false);
       } else {
         flash(`Tablas EIP ${cicloAño} guardadas correctamente.`);
       }
@@ -247,15 +353,17 @@ export default function TablasEipTab({
 
   function handleCopy() {
     startTransition(async () => {
-      const [resExp, resMov] = await Promise.all([
+      const [resExp, resMov, resFormAcad] = await Promise.all([
         copyTablasExpFromCycle(sourceCiclo, cicloAño),
         copyTablaMovFromCycle(sourceCiclo, cicloAño),
+        copyTablaFormAcadFromCycle(sourceCiclo, cicloAño),
       ]);
-      if (resExp.error || resMov.error) {
-        flash(resExp.error ?? resMov.error ?? "Error al copiar", false);
+      if (resExp.error || resMov.error || resFormAcad.error) {
+        flash(resExp.error ?? resMov.error ?? resFormAcad.error ?? "Error al copiar", false);
       } else {
         setExpMatrix(buildMatrix(tablaExp, sourceCiclo));
         setMovMatrix(buildMatrix(tablaMov, sourceCiclo));
+        setFormAcadMatrix(buildFormAcadMatrix(tablaFormAcad, sourceCiclo));
         flash(`Copiado desde ${sourceCiclo}. Verifica y guarda los cambios.`);
       }
     });
@@ -392,6 +500,25 @@ export default function TablasEipTab({
           filaLabel={(f) => String(f)}
           onChange={setMovCell}
           gaps={movGaps}
+        />
+      </div>
+
+      {/* Tabla Formación Académica */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div className="mb-3">
+          <h4 className="text-sm font-semibold text-gray-800">Tabla Formación Académica</h4>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Filas = nivel de escolaridad · Columnas = nivel organizacional (N1–N13)
+          </p>
+        </div>
+        <FormAcadEditor
+          matrix={formAcadMatrix}
+          onChange={(nivel, esc, score) =>
+            setFormAcadMatrix((prev) => ({
+              ...prev,
+              [nivel]: { ...(prev[nivel] ?? {}), [esc]: score },
+            }))
+          }
         />
       </div>
     </div>

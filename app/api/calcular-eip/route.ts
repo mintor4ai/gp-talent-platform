@@ -3,16 +3,16 @@ import { createClient } from "@/lib/supabase/server";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-// Education level → score (80–120)
-const ESCOLARIDAD_SCORE: Record<string, number> = {
+// Fallback education level → score when no DB table exists for the cycle
+const ESCOLARIDAD_SCORE_FALLBACK: Record<string, number> = {
   "Primaria":          80,
   "Secundaria":        80,
   "(No Especificado)": 80,
-  "Preparatoria":      85,
-  "Carrera Técnica":   90,
+  "Preparatoria":      80,
+  "Carrera Técnica":   80,
   "Profesional":      100,
-  "Especialidad":     105,
-  "Maestría":         110,
+  "Especialidad":     110,
+  "Maestría":         120,
   "Doctorado":        120,
 };
 
@@ -115,9 +115,10 @@ export async function POST(req: NextRequest) {
   const refDate = new Date(refDateStr);
 
   // ── Load lookup tables into memory ────────────────────────────────────────
-  const [tablaExpRes, tablaMovRes] = await Promise.all([
+  const [tablaExpRes, tablaMovRes, tablaFormAcadRes] = await Promise.all([
     supabase.from("eip_tabla_experiencia").select("años, nivel_num, score").eq("ciclo_año", ciclo_año),
     supabase.from("eip_tabla_movilidad").select("movilidad_floor, nivel_num, score").eq("ciclo_año", ciclo_año),
+    supabase.from("eip_tabla_formacion_academica").select("nivel_num, escolaridad, score").eq("ciclo_año", ciclo_año),
   ]);
 
   if (!tablaExpRes.data?.length || !tablaMovRes.data?.length) {
@@ -136,6 +137,14 @@ export async function POST(req: NextRequest) {
     if (!tablaMov.has(r.movilidad_floor)) tablaMov.set(r.movilidad_floor, new Map());
     tablaMov.get(r.movilidad_floor)!.set(r.nivel_num, r.score);
   }
+
+  // formAcadMap: nivel_num → escolaridad → score (falls back to ESCOLARIDAD_SCORE_FALLBACK)
+  const formAcadMap = new Map<number, Map<string, number>>();
+  for (const r of ((tablaFormAcadRes.data ?? []) as Array<{ nivel_num: number; escolaridad: string; score: number }>)) {
+    if (!formAcadMap.has(r.nivel_num)) formAcadMap.set(r.nivel_num, new Map());
+    formAcadMap.get(r.nivel_num)!.set(r.escolaridad, Number(r.score));
+  }
+  const useFormAcadTable = formAcadMap.size > 0;
 
   // ── Load ponderaciones ────────────────────────────────────────────────────
   const { data: ponderacionesRaw } = await supabase
@@ -270,9 +279,16 @@ export async function POST(req: NextRequest) {
       ? Math.round((evAños * evMov / 100) * 100) / 100
       : null;
 
-    // ev_form_acad
+    // ev_form_acad — lookup DB table by (nivel_num, escolaridad), fallback to hardcoded map
     const escolaridad = estudiosMap.get(colab.id) ?? null;
-    const evFormAcad  = escolaridad ? (ESCOLARIDAD_SCORE[escolaridad] ?? 80) : 80;
+    const evFormAcad = (() => {
+      if (!escolaridad) return 80;
+      if (useFormAcadTable) {
+        const nivelMap = formAcadMap.get(nivelNum);
+        if (nivelMap) return nivelMap.get(escolaridad) ?? nivelMap.get("(No Especificado)") ?? 80;
+      }
+      return ESCOLARIDAD_SCORE_FALLBACK[escolaridad] ?? 80;
+    })();
 
     // ev_comp (already calculated, from EIP record)
     const evComp = evCompMap.get(colab.id) ?? null;

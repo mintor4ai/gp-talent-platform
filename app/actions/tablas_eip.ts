@@ -105,3 +105,46 @@ export async function copyTablaMovFromCycle(
   revalidatePath("/configuracion");
   return { count: payload.length };
 }
+
+type FormAcadCell = { nivel_num: number; escolaridad: string; score: number };
+
+export async function saveTablaFormAcad(
+  cicloAño: number,
+  cells: FormAcadCell[]
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  if (!(await isAdmin(supabase))) return { error: "Sin permisos" };
+
+  const payload = cells.map((c) => ({ ciclo_año: cicloAño, nivel_num: c.nivel_num, escolaridad: c.escolaridad, score: c.score }));
+  await supabase.from("eip_tabla_formacion_academica").delete().eq("ciclo_año", cicloAño);
+  const { error } = await supabase.from("eip_tabla_formacion_academica").insert(payload);
+  if (error) return { error: error.message };
+
+  revalidatePath("/configuracion");
+  return {};
+}
+
+export async function copyTablaFormAcadFromCycle(
+  sourceCiclo: number,
+  targetCiclo: number
+): Promise<{ error?: string; count?: number }> {
+  const supabase = await createClient();
+  if (!(await isAdmin(supabase))) return { error: "Sin permisos" };
+
+  const { data } = await supabase
+    .from("eip_tabla_formacion_academica")
+    .select("nivel_num, escolaridad, score")
+    .eq("ciclo_año", sourceCiclo);
+
+  if (!data?.length) return { error: `No hay datos para ciclo ${sourceCiclo}` };
+
+  await supabase.from("eip_tabla_formacion_academica").delete().eq("ciclo_año", targetCiclo);
+  const payload = (data as unknown as FormAcadCell[]).map(
+    (r) => ({ ciclo_año: targetCiclo, nivel_num: r.nivel_num, escolaridad: r.escolaridad, score: r.score })
+  );
+  const { error } = await supabase.from("eip_tabla_formacion_academica").insert(payload);
+  if (error) return { error: error.message };
+
+  revalidatePath("/configuracion");
+  return { count: payload.length };
+}

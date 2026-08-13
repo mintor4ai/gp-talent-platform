@@ -16,7 +16,7 @@ import { savePonderaciones, type PonderacionInput } from "@/app/actions/ponderac
 import type { ZonaBand, Periodo } from "@/lib/types";
 import ZoneBoundaryEditor from "./ZoneBoundaryEditor";
 import UsuariosTab, { type AuthUsuario } from "./UsuariosTab";
-import TablasEipTab, { type TablasEipRow } from "./TablasEipTab";
+import TablasEipTab, { type TablasEipRow, type TablaFormAcadRow } from "./TablasEipTab";
 
 type Regla = { id: string; nivel: string; valor: string; habilitado: boolean };
 type Prompt = { id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string };
@@ -57,6 +57,7 @@ export default function ConfigTabs({
   ponderacionesMap,
   tablaExp,
   tablaMov,
+  tablaFormAcad,
   sucesionCiclosDisponibles,
 }: {
   grupos: { uens: string[]; departamentos: string[]; areas: string[]; segmentos: string[] };
@@ -72,6 +73,7 @@ export default function ConfigTabs({
   ponderacionesMap: Record<number, PonderacionRow[]>;
   tablaExp: TablasEipRow[];
   tablaMov: TablasEipRow[];
+  tablaFormAcad: TablaFormAcadRow[];
   sucesionCiclosDisponibles: number[];
 }) {
   const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones" | "tablas_eip" | "sucesion">("usuarios");
@@ -112,7 +114,7 @@ export default function ConfigTabs({
       {tab === "periodos"      && <PeriodosTab periodos={periodos} />}
       {tab === "zonas"         && <ZonasEipTab zonasMap={zonasMap} availableCycles={availableZonaCycles} periodos={periodos} />}
       {tab === "ponderaciones" && <PonderacionesEipTab ponderacionesMap={ponderacionesMap} periodos={periodos} />}
-      {tab === "tablas_eip"    && <TablasEipTab tablaExp={tablaExp} tablaMov={tablaMov} periodos={periodos} />}
+      {tab === "tablas_eip"    && <TablasEipTab tablaExp={tablaExp} tablaMov={tablaMov} tablaFormAcad={tablaFormAcad} periodos={periodos} />}
       {tab === "sucesion"      && <SucesionTab ciclosDisponibles={sucesionCiclosDisponibles} />}
     </div>
   );

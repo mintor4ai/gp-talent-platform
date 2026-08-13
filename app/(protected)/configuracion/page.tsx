@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import ConfigTabs from "./ConfigTabs";
 import type { ZonaBand, Periodo } from "@/lib/types";
 import type { AuthUsuario } from "./UsuariosTab";
-import type { TablasEipRow } from "./TablasEipTab";
+import type { TablasEipRow, TablaFormAcadRow } from "./TablasEipTab";
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
@@ -20,7 +20,7 @@ export default async function ConfiguracionPage() {
   if (perfil?.rol !== "superadmin") redirect("/dashboard");
 
   // Distinct group values from colaboradores (trim whitespace)
-  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes, ponderacionesRes, tablaExpRes, tablaMovRes, sucesionCiclosRes] =
+  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes, ponderacionesRes, tablaExpRes, tablaMovRes, tablaFormAcadRes, sucesionCiclosRes] =
     await Promise.all([
       supabase.from("colaboradores").select("razon_social").not("razon_social", "is", null),
       supabase.from("colaboradores").select("departamento").not("departamento", "is", null),
@@ -37,6 +37,7 @@ export default async function ConfiguracionPage() {
       supabase.from("eip_ponderaciones").select("*").order("ciclo_año", { ascending: false }).order("calif_ponderada"),
       supabase.from("eip_tabla_experiencia").select("ciclo_año, años, nivel_num, score").order("ciclo_año", { ascending: false }).order("años").order("nivel_num"),
       supabase.from("eip_tabla_movilidad").select("ciclo_año, movilidad_floor, nivel_num, score").order("ciclo_año", { ascending: false }).order("movilidad_floor").order("nivel_num"),
+      supabase.from("eip_tabla_formacion_academica").select("ciclo_año, nivel_num, escolaridad, score").order("ciclo_año", { ascending: false }).order("nivel_num"),
       supabase.from("plan_sucesion").select("ciclo_año").order("ciclo_año", { ascending: false }),
     ]);
 
@@ -104,6 +105,9 @@ export default async function ConfiguracionPage() {
     score: r.score,
   }));
 
+  type TablaFormAcadRaw = { ciclo_año: number; nivel_num: number; escolaridad: string; score: number };
+  const tablaFormAcadRows = ((tablaFormAcadRes.data as unknown as TablaFormAcadRaw[]) ?? []) as TablaFormAcadRow[];
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
@@ -124,6 +128,7 @@ export default async function ConfiguracionPage() {
         ponderacionesMap={ponderacionesMap}
         tablaExp={tablaExpRows}
         tablaMov={tablaMovRows}
+        tablaFormAcad={tablaFormAcadRows}
         sucesionCiclosDisponibles={sucesionCiclosDisponibles}
       />
     </div>
