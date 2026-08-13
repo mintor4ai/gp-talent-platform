@@ -2,12 +2,6 @@
 
 import { useState, useRef } from "react";
 
-const TIPO_COLORS: Record<string, string> = {
-  Gerencial:     "bg-purple-100 text-purple-800",
-  Administrativa:"bg-blue-100 text-blue-800",
-  Operativa:     "bg-orange-100 text-orange-800",
-};
-
 type PreviewRow = {
   fila: number;
   clave: string;
@@ -15,28 +9,42 @@ type PreviewRow = {
   nombre: string;
   organización: string | null;
   segmento_organizacional: string | null;
-  tipo_vacante: string | null;
-  area: string | null;
-  departamento: string | null;
   razon_social: string | null;
+  horario: string | null;
+  tipo_trabajador: string | null;
+  periodo_pago: string | null;
+  tabla_prestaciones: string | null;
   esNuevo: boolean;
+  hayCambios: boolean;
+  cambios: string[];
   error?: string;
+};
+
+type PreviewResponse = {
+  rows: PreviewRow[];
+  total: number;
+  nuevos: number;
+  con_cambios: number;
+  sin_cambios: number;
+  errores: number;
 };
 
 type ImportResult = {
   ok: boolean;
   total: number;
   upserted: number;
+  sin_cambios: number;
   errores: number;
   errors: string[];
 };
 
 export default function ImportadorCatalogoPuestos() {
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<PreviewRow[] | null>(null);
+  const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handlePreview() {
@@ -52,7 +60,7 @@ export default function ImportadorCatalogoPuestos() {
       const res = await fetch("/api/importar/catalogo-puestos", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al leer el archivo");
-      setPreview(data.rows);
+      setPreview(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Error desconocido");
     } finally {
@@ -62,8 +70,8 @@ export default function ImportadorCatalogoPuestos() {
 
   async function handleImport() {
     if (!file || !preview) return;
-    const validos = preview.filter((r) => !r.error).length;
-    if (!confirm(`¿Importar ${validos} puestos al catálogo? Los registros existentes (misma clave) serán actualizados.`)) return;
+    const writeCount = preview.nuevos + preview.con_cambios;
+    if (!confirm(`¿Importar ${writeCount} puestos al catálogo? (${preview.nuevos} nuevos + ${preview.con_cambios} con cambios). Los registros sin cambios se omiten.`)) return;
     setLoading(true);
     setError(null);
     try {
@@ -87,33 +95,39 @@ export default function ImportadorCatalogoPuestos() {
     setPreview(null);
     setResult(null);
     setError(null);
+    setExpandedRow(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  const validCount  = preview?.filter((r) => !r.error).length ?? 0;
-  const errorCount  = preview?.filter((r) => !!r.error).length ?? 0;
-  const nuevosCount = preview?.filter((r) => r.esNuevo && !r.error).length ?? 0;
-  const updateCount = preview?.filter((r) => !r.esNuevo && !r.error).length ?? 0;
+  const writeCount = preview ? preview.nuevos + preview.con_cambios : 0;
 
   return (
     <div className="space-y-5">
 
       {/* Format hint */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 text-sm text-blue-800 space-y-2">
-        <p className="font-semibold">Formato del archivo Excel — Catálogo de Puestos</p>
-        <p>Una hoja con las siguientes columnas (nombres flexibles, se detectan automáticamente):</p>
+        <p className="font-semibold">Formato del archivo Excel — Catálogo de Puestos HRCorp</p>
+        <p className="text-xs text-blue-700">Columnas tal como las exporta HRCorp (el sistema las detecta automáticamente por nombre):</p>
         <div className="overflow-x-auto mt-2">
           <table className="text-xs border-collapse">
             <thead>
               <tr className="text-blue-700">
-                {["Identificador","Nombre","Clave","Organización","Segmento Organizacional","Tipo Vacante","Area","Departamento","Razon Social"].map((h) => (
+                {[
+                  "Identificador", "Nombre", "Clave", "Organización",
+                  "RAZON SOCIAL", "UNIDAD ORGANIZACIONAL", "SEGMENTO ORGANIZACIONAL",
+                  "HORARIO", "TIPO DE TRABAJADOR", "PERIODO DE PAGO", "TABLA DE PRESTACIONES"
+                ].map((h) => (
                   <th key={h} className="border border-blue-200 px-2 py-1 bg-blue-100 font-mono whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               <tr className="text-blue-600">
-                {["1000","JEFE DE ARQUITECTURA","Q1010131","101 GP CONSTRUCCIÓN","JEFE DE DEPTO","Gerencial","DIRECCIÓN DE DISEÑO","ARQUITECTURA Y DISEÑO","GP ARQUITECTURA E INGENIERIA"].map((v, i) => (
+                {[
+                  "1116", "ABOGADO CORPORATIVO", "Q4010001", "401 GP CORPORATIVO",
+                  "SERVICIOS ADMINISTRATIVOS G P", "401 GP CORPORATIVO", "H COORDINADOR DE DEPTO",
+                  "OFICINA", "NO SINDICALIZADO", "QUINCENA", "PRESTACIONES 2023"
+                ].map((v, i) => (
                   <td key={i} className="border border-blue-100 px-2 py-1 whitespace-nowrap">{v}</td>
                 ))}
               </tr>
@@ -121,11 +135,10 @@ export default function ImportadorCatalogoPuestos() {
           </table>
         </div>
         <ul className="text-xs text-blue-600 space-y-0.5 mt-2 list-disc list-inside">
-          <li><strong>Clave</strong> y <strong>Nombre</strong> son obligatorios</li>
-          <li>La <strong>Clave</strong> (código Q) es el identificador único — los registros existentes se actualizan si la clave coincide</li>
-          <li><strong>Tipo Vacante</strong>: Gerencial, Administrativa u Operativa</li>
-          <li>Los campos opcionales (Área, Departamento, Razón Social) pueden estar vacíos</li>
-          <li>El campo <strong>¿Es posición crítica?</strong> se configura manualmente desde el catálogo, no desde el Excel</li>
+          <li><strong>Clave</strong> y <strong>Nombre</strong> son obligatorios — la Clave (código Q) es el identificador único</li>
+          <li>Los registros existentes se actualizan solo si hay cambios en los campos; los registros idénticos se omiten</li>
+          <li>La columna <strong>Perfil de Puesto</strong> se ignora (siempre "PERFIL DEFAULT")</li>
+          <li>El campo <strong>¿Es posición crítica?</strong> se configura manualmente en el catálogo, no se importa</li>
         </ul>
       </div>
 
@@ -168,11 +181,18 @@ export default function ImportadorCatalogoPuestos() {
       {preview && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3">
-            <StatCard label="Nuevos" value={nuevosCount} color="green" />
-            <StatCard label="Actualizaciones" value={updateCount} color="blue" />
-            {errorCount > 0 && <StatCard label="Errores" value={errorCount} color="red" />}
-            <StatCard label="Total" value={preview.length} color="gray" />
+            <StatCard label="Nuevos" value={preview.nuevos} color="green" />
+            <StatCard label="Con cambios" value={preview.con_cambios} color="blue" />
+            <StatCard label="Sin cambios" value={preview.sin_cambios} color="gray" />
+            {preview.errores > 0 && <StatCard label="Errores" value={preview.errores} color="red" />}
+            <StatCard label="Total" value={preview.total} color="gray" />
           </div>
+
+          {preview.sin_cambios > 0 && (
+            <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2">
+              {preview.sin_cambios} puestos sin cambios no se escribirán en la base de datos.
+            </p>
+          )}
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -183,10 +203,10 @@ export default function ImportadorCatalogoPuestos() {
                 </button>
                 <button
                   onClick={handleImport}
-                  disabled={loading || validCount === 0}
+                  disabled={loading || writeCount === 0}
                   className="text-xs bg-green-600 text-white px-4 py-1.5 rounded-lg hover:bg-green-700 disabled:opacity-50 font-semibold transition-colors"
                 >
-                  {loading ? "Importando..." : `Importar ${validCount} puestos`}
+                  {loading ? "Importando..." : `Importar ${writeCount} puestos`}
                 </button>
               </div>
             </div>
@@ -194,42 +214,57 @@ export default function ImportadorCatalogoPuestos() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-gray-400 border-b border-gray-100">
-                    <th className="px-3 py-2.5">Fila</th>
                     <th className="px-3 py-2.5">Clave</th>
                     <th className="px-3 py-2.5">Nombre</th>
-                    <th className="px-3 py-2.5">UEN / Org.</th>
+                    <th className="px-3 py-2.5">Organización</th>
                     <th className="px-3 py-2.5">Segmento</th>
-                    <th className="px-3 py-2.5">Tipo</th>
-                    <th className="px-3 py-2.5">Área</th>
+                    <th className="px-3 py-2.5">Tipo Trabajador</th>
+                    <th className="px-3 py-2.5">Horario</th>
                     <th className="px-3 py-2.5 text-center">Estado</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {preview.map((row) => (
-                    <tr key={row.fila} className={row.error ? "bg-red-50/50" : row.esNuevo ? "bg-green-50/30" : ""}>
-                      <td className="px-3 py-2 text-gray-400">{row.fila}</td>
-                      <td className="px-3 py-2 font-mono text-gray-600 whitespace-nowrap">{row.clave || "—"}</td>
-                      <td className="px-3 py-2 font-medium text-gray-800 max-w-[200px] truncate">{row.nombre || "—"}</td>
-                      <td className="px-3 py-2 text-gray-500 max-w-[140px] truncate">{row.organización || "—"}</td>
-                      <td className="px-3 py-2 text-gray-500 max-w-[120px] truncate">{row.segmento_organizacional || "—"}</td>
-                      <td className="px-3 py-2">
-                        {row.tipo_vacante
-                          ? <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${TIPO_COLORS[row.tipo_vacante] ?? "bg-gray-100 text-gray-700"}`}>
-                              {row.tipo_vacante}
-                            </span>
-                          : <span className="text-gray-400">—</span>
-                        }
-                      </td>
-                      <td className="px-3 py-2 text-gray-400 max-w-[140px] truncate">{row.area || "—"}</td>
-                      <td className="px-3 py-2 text-center">
-                        {row.error
-                          ? <span className="text-red-500 text-xs">{row.error}</span>
-                          : row.esNuevo
-                            ? <span className="text-green-600 font-semibold text-xs">Nuevo</span>
-                            : <span className="text-blue-500 text-xs">Actualizar</span>
-                        }
-                      </td>
-                    </tr>
+                  {preview.rows.map((row) => (
+                    <>
+                      <tr
+                        key={row.fila}
+                        className={`${
+                          row.error       ? "bg-red-50/50" :
+                          row.esNuevo     ? "bg-green-50/30" :
+                          row.hayCambios  ? "bg-blue-50/30" :
+                          "opacity-50"
+                        } ${row.hayCambios ? "cursor-pointer hover:bg-blue-50/50" : ""}`}
+                        onClick={() => row.hayCambios ? setExpandedRow(expandedRow === row.clave ? null : row.clave) : undefined}
+                      >
+                        <td className="px-3 py-2 font-mono text-gray-600 whitespace-nowrap">{row.clave || "—"}</td>
+                        <td className="px-3 py-2 font-medium text-gray-800 max-w-[220px] truncate">{row.nombre || "—"}</td>
+                        <td className="px-3 py-2 text-gray-500 max-w-[140px] truncate">{row.organización || "—"}</td>
+                        <td className="px-3 py-2 text-gray-500 max-w-[140px] truncate">{row.segmento_organizacional || "—"}</td>
+                        <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{row.tipo_trabajador || "—"}</td>
+                        <td className="px-3 py-2 text-gray-500">{row.horario || "—"}</td>
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                          {row.error
+                            ? <span className="text-red-500">{row.error}</span>
+                            : row.esNuevo
+                              ? <span className="text-green-600 font-semibold">Nuevo</span>
+                              : row.hayCambios
+                                ? <span className="text-blue-600 font-semibold">
+                                    {row.cambios.length} cambio{row.cambios.length !== 1 ? "s" : ""} ▾
+                                  </span>
+                                : <span className="text-gray-400">Sin cambios</span>
+                          }
+                        </td>
+                      </tr>
+                      {row.hayCambios && expandedRow === row.clave && (
+                        <tr key={`${row.fila}-detail`} className="bg-blue-50/60">
+                          <td colSpan={7} className="px-6 py-2">
+                            <ul className="text-xs text-blue-800 space-y-0.5 list-disc list-inside">
+                              {row.cambios.map((c, i) => <li key={i}>{c}</li>)}
+                            </ul>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   ))}
                 </tbody>
               </table>
@@ -244,14 +279,14 @@ export default function ImportadorCatalogoPuestos() {
           <p className={`text-lg font-bold ${result.errors.length ? "text-orange-800" : "text-green-800"}`}>
             {result.errors.length ? "Importación con advertencias" : "Catálogo actualizado"}
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard label="Total filas" value={result.total} color="gray" />
             <StatCard label="Insertados / actualizados" value={result.upserted} color="green" />
+            <StatCard label="Sin cambios (omitidos)" value={result.sin_cambios} color="gray" />
             <StatCard label="Errores" value={result.errores} color={result.errores > 0 ? "red" : "gray"} />
           </div>
           <p className="text-sm text-green-700">
             Los puestos importados ya están disponibles para vincular a colaboradores y planes de sucesión.
-            Para marcar puestos como <strong>críticos</strong>, ve a <a href="/configuracion/catalogo-puestos" className="underline">Configuración → Catálogo de Puestos</a>.
           </p>
           {result.errors.length > 0 && (
             <div className="bg-white rounded-lg p-3 space-y-1">
