@@ -302,8 +302,12 @@ export async function POST(req: NextRequest) {
     const picdRecord    = picdMap.get(colab.id);
     const entregoPicd   = picdRecord?.entrego_picd === true;
     const cumplimiento  = picdRecord?.porcentaje_cumplimiento != null ? Number(picdRecord.porcentaje_cumplimiento) : null;
-    const evPicd        = entregoPicd && cumplimiento != null
-      ? Math.round((80 + (cumplimiento / 100) * 40) * 100) / 100
+    // Piecewise: 75% cumplimiento = score 100 (mínimo aceptable)
+    // [0–75%] → 80–100  |  [75–100%] → 100–120
+    const evPicd = entregoPicd && cumplimiento != null
+      ? cumplimiento <= 75
+        ? Math.round((80 + (cumplimiento / 75) * 20) * 100) / 100
+        : Math.round((100 + ((cumplimiento - 75) / 25) * 20) * 100) / 100
       : 80;
 
     // calif_ponderada
