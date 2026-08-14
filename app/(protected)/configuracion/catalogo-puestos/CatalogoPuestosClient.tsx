@@ -1032,35 +1032,28 @@ function InferenciaModal({
   const nuevos  = rows.filter((r) => r.tipo === "nuevo");
   const cambios = rows.filter((r) => r.tipo === "cambio");
   const allIds  = rows.map((r) => r.id);
-  const allSelected = allIds.every((id) => selected.has(id));
+  const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const someSelected = allIds.some((id) => selected.has(id));
-
-  function Field({ label, current, inferred }: { label: string; current: string | null; inferred: string | null }) {
-    if (!inferred) return null;
-    const differs = inferred !== current;
-    return (
-      <div className="flex items-start gap-1 text-[10px]">
-        <span className="text-gray-400 w-16 flex-shrink-0">{label}:</span>
-        {current && differs && <span className="text-gray-400 line-through">{current}</span>}
-        {current && differs && <span className="text-gray-400 mx-1">→</span>}
-        <span className={differs ? "text-amber-700 font-medium" : "text-gray-600"}>{inferred}</span>
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[85vh]">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[88vh]">
 
         {/* Header */}
         <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-gray-900">Inferir departamentos desde colaboradores</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Se detectaron <strong>{nuevos.length}</strong> puestos sin departamento y <strong>{cambios.length}</strong> con valor diferente al inferido.
-                {sin_colaboradores > 0 && ` ${sin_colaboradores} puestos sin colaboradores vinculados no aparecen.`}
+              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                {nuevos.length > 0 && (
+                  <><span className="inline-flex items-center gap-1 bg-green-100 text-green-700 font-semibold px-1.5 py-0.5 rounded mr-1">{nuevos.length} nuevos</span> puestos sin departamento que se pueden completar.</>
+                )}
+                {nuevos.length > 0 && cambios.length > 0 && " "}
+                {cambios.length > 0 && (
+                  <><span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 font-semibold px-1.5 py-0.5 rounded mr-1">{cambios.length} cambios</span> puestos con valor distinto al inferido.</>
+                )}
+                {sin_colaboradores > 0 && <span className="block mt-0.5 text-gray-400">{sin_colaboradores} puestos sin colaboradores vinculados no aparecen aquí.</span>}
               </p>
             </div>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors mt-0.5 flex-shrink-0">
@@ -1069,74 +1062,112 @@ function InferenciaModal({
               </svg>
             </button>
           </div>
+          {/* Select-all bar */}
+          {rows.length > 0 && (
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                onChange={(e) => onToggleAll(allIds, e.target.checked)}
+                className="rounded border-gray-300 text-[#1a3a5c] focus:ring-[#1a3a5c]"
+              />
+              <span className="text-xs text-gray-500">
+                {allSelected ? "Deseleccionar todos" : "Seleccionar todos"}
+                <span className="ml-2 text-gray-400">({selected.size} de {rows.length} seleccionados)</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {rows.length === 0 ? (
-            <div className="px-6 py-10 text-center text-sm text-gray-400">
+            <div className="py-10 text-center text-sm text-gray-400">
               Todos los puestos activos ya tienen departamento consistente con sus colaboradores.
             </div>
           ) : (
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-gray-50 border-b border-gray-100 z-10">
-                <tr className="text-left text-gray-400">
-                  <th className="px-4 py-2.5 w-8">
+            rows.map((r) => {
+              const isSelected = selected.has(r.id);
+              const isNuevo = r.tipo === "nuevo";
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => onToggle(r.id)}
+                  className={`flex gap-3 rounded-xl border-l-4 px-4 py-3 cursor-pointer transition-colors ${
+                    isNuevo
+                      ? isSelected
+                        ? "border-l-green-500 bg-green-50 border border-green-200"
+                        : "border-l-green-300 bg-white border border-gray-100 opacity-60 hover:opacity-100"
+                      : isSelected
+                        ? "border-l-blue-400 bg-blue-50 border border-blue-200"
+                        : "border-l-blue-200 bg-white border border-gray-100 opacity-60 hover:opacity-100"
+                  }`}
+                >
+                  {/* Checkbox */}
+                  <div className="pt-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
-                      checked={allSelected}
-                      ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
-                      onChange={(e) => onToggleAll(allIds, e.target.checked)}
+                      checked={isSelected}
+                      onChange={() => onToggle(r.id)}
                       className="rounded border-gray-300 text-[#1a3a5c] focus:ring-[#1a3a5c]"
                     />
-                  </th>
-                  <th className="px-3 py-2.5 font-medium">Puesto</th>
-                  <th className="px-3 py-2.5 font-medium">Inferencia</th>
-                  <th className="px-3 py-2.5 font-medium text-center w-16">Tipo</th>
-                  <th className="px-3 py-2.5 font-medium text-center w-12">Titulares</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {rows.map((r) => (
-                  <tr
-                    key={r.id}
-                    onClick={() => onToggle(r.id)}
-                    className={`cursor-pointer transition-colors ${selected.has(r.id) ? "bg-amber-50/60 hover:bg-amber-50" : "hover:bg-gray-50"}`}
-                  >
-                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(r.id)}
-                        onChange={() => onToggle(r.id)}
-                        className="rounded border-gray-300 text-[#1a3a5c] focus:ring-[#1a3a5c]"
-                      />
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <p className="font-medium text-gray-800 leading-snug">{r.nombre}</p>
-                      {r.clave && <p className="font-mono text-gray-400 text-[10px]">{r.clave}</p>}
-                    </td>
-                    <td className="px-3 py-2.5 space-y-0.5">
-                      <Field label="Depto" current={r.departamento_actual} inferred={r.departamento_inferido} />
-                      <Field label="Área"  current={r.area_actual}         inferred={r.area_inferida} />
-                      <Field label="UEN"   current={r.organización_actual} inferred={r.organización_inferida} />
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                        r.tipo === "nuevo" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0 space-y-2">
+                    {/* Puesto identity */}
+                    <div className="flex items-start gap-2 flex-wrap">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                        isNuevo ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
                       }`}>
-                        {r.tipo === "nuevo" ? "Nuevo" : "Cambio"}
+                        {isNuevo ? "Sin depto." : "Diferente"}
                       </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-center text-gray-500">{r.n_colaboradores}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <p className="text-sm font-semibold text-gray-900 leading-snug">{r.nombre}</p>
+                      {r.clave && <span className="font-mono text-[10px] text-gray-400 flex-shrink-0 mt-0.5">{r.clave}</span>}
+                    </div>
+
+                    {/* Inference fields */}
+                    <div className="grid grid-cols-1 gap-1">
+                      {r.departamento_inferido && (
+                        <InferField
+                          label="Departamento"
+                          current={r.departamento_actual}
+                          inferred={r.departamento_inferido}
+                          isNuevo={isNuevo}
+                        />
+                      )}
+                      {r.area_inferida && (
+                        <InferField
+                          label="Área"
+                          current={r.area_actual}
+                          inferred={r.area_inferida}
+                          isNuevo={isNuevo}
+                        />
+                      )}
+                      {r.organización_inferida && (
+                        <InferField
+                          label="UEN"
+                          current={r.organización_actual}
+                          inferred={r.organización_inferida}
+                          isNuevo={isNuevo}
+                        />
+                      )}
+                    </div>
+
+                    {/* Collaborator count */}
+                    <p className="text-[10px] text-gray-400">
+                      Inferido de <strong>{r.n_colaboradores}</strong> colaborador{r.n_colaboradores !== 1 ? "es" : ""} vinculado{r.n_colaboradores !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 bg-gray-50 flex-shrink-0">
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 bg-gray-50 flex-shrink-0 rounded-b-2xl">
           <p className="text-xs text-gray-400">
             {selected.size} de {rows.length} seleccionados
           </p>
@@ -1151,13 +1182,43 @@ function InferenciaModal({
             <button
               onClick={onApply}
               disabled={applying || selected.size === 0}
-              className="text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 transition-colors px-5 py-2 rounded-lg"
+              className="text-sm font-medium text-white bg-[#1a3a5c] hover:bg-[#152e4d] disabled:opacity-50 transition-colors px-5 py-2 rounded-lg"
             >
               {applying ? "Aplicando…" : `Aplicar ${selected.size} ${selected.size === 1 ? "cambio" : "cambios"}`}
             </button>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function InferField({
+  label,
+  current,
+  inferred,
+  isNuevo,
+}: {
+  label: string;
+  current: string | null;
+  inferred: string;
+  isNuevo: boolean;
+}) {
+  const differs = inferred !== current;
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="text-gray-400 w-24 flex-shrink-0 text-[10px]">{label}</span>
+      {isNuevo || !current ? (
+        <span className="text-green-700 font-medium">{inferred}</span>
+      ) : differs ? (
+        <span className="flex items-center gap-1.5">
+          <span className="text-gray-400 line-through text-[10px]">{current}</span>
+          <span className="text-gray-400 text-[10px]">→</span>
+          <span className="text-blue-700 font-medium">{inferred}</span>
+        </span>
+      ) : (
+        <span className="text-gray-500">{inferred}</span>
+      )}
     </div>
   );
 }
