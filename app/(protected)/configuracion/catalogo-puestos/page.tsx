@@ -70,10 +70,18 @@ export default async function CatalogoPuestosPage() {
     sucesion_count:  sucesionCount.get(p.id) ?? 0,
   }));
 
+  // Distinct departamentos from active colaboradores (for edit modal autocomplete)
+  const { data: deptRaw } = await supabase
+    .from("colaboradores")
+    .select("departamento")
+    .not("departamento", "is", null)
+    .eq("activo", true);
+  const departamentos = [...new Set((deptRaw ?? []).map((r: { departamento: string | null }) => r.departamento).filter(Boolean))].sort() as string[];
+
   // Distinct filter values
-  const uens     = Array.from(new Set(puestos.map((p) => p.organización).filter(Boolean))).sort() as string[];
+  const uens      = Array.from(new Set(puestos.map((p) => p.organización).filter(Boolean))).sort() as string[];
   const segmentos = Array.from(new Set(puestos.map((p) => p.segmento_organizacional).filter(Boolean))).sort() as string[];
-  const tipos    = Array.from(new Set(puestos.map((p) => p.tipo_vacante).filter(Boolean))).sort() as string[];
+  const tipos     = Array.from(new Set(puestos.map((p) => p.tipo_vacante).filter(Boolean))).sort() as string[];
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -92,7 +100,7 @@ export default async function CatalogoPuestosPage() {
         </a>
       </div>
 
-      <CatalogoPuestosClient puestos={puestos} uens={uens} segmentos={segmentos} tipos={tipos} />
+      <CatalogoPuestosClient puestos={puestos} uens={uens} segmentos={segmentos} tipos={tipos} departamentos={departamentos} />
     </div>
   );
 }

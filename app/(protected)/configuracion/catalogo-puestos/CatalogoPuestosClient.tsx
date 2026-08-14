@@ -7,7 +7,10 @@ import {
   togglePuestoActivo,
   editarPuesto,
   aprobarPuesto,
+  inferirDepartamentosPreview,
+  aplicarInferenciaDepartamentos,
   type PuestoEditFields,
+  type InferenciaRow,
 } from "@/app/actions/catalogo-puestos";
 import type { PuestoCatalogo } from "./page";
 
@@ -24,15 +27,24 @@ type Props = {
   uens: string[];
   segmentos: string[];
   tipos: string[];
+  departamentos: string[];
 };
 
-export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos }: Props) {
+export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos, departamentos }: Props) {
   const [search, setSearch] = useState("");
   const [filterUen, setFilterUen] = useState("");
   const [filterSegmento, setFilterSegmento] = useState("");
   const [filterTipo, setFilterTipo] = useState("");
   const [filterCritico, setFilterCritico] = useState<"" | "si" | "no">("");
   const [filterActivo, setFilterActivo] = useState<FilterActivo>("activo");
+  const [filterSinDept, setFilterSinDept] = useState(false);
+
+  // Inference panel state
+  const [inferencia, setInferencia] = useState<{ rows: InferenciaRow[]; sin_colaboradores: number } | null>(null);
+  const [infLoading, setInfLoading] = useState(false);
+  const [infSelected, setInfSelected] = useState<Set<string>>(new Set());
+  const [infApplying, setInfApplying] = useState(false);
+  const [infMsg, setInfMsg] = useState<string | null>(null);
   const [optimistic, setOptimistic] = useState<Map<string, Partial<PuestoCatalogo>>>(new Map());
   const [, startTransition] = useTransition();
   const { sortKey, sortDir, handleSort } = useSortState<"clave" | "nombre" | "organización" | "segmento_organizacional" | "tipo_vacante" | "titulares_count" | "sucesion_count">("nombre");
@@ -40,7 +52,7 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
   // Edit/approve modal state
   const [editingPuesto, setEditingPuesto] = useState<PuestoCatalogo | null>(null);
   const [editFields, setEditFields] = useState<PuestoEditFields>({
-    nombre: "", clave: null, organización: null, area: null,
+    nombre: "", clave: null, organización: null, departamento: null, area: null,
     segmento_organizacional: null, tipo_vacante: null, es_critico: false,
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -52,6 +64,7 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
       nombre: p.nombre,
       clave: p.clave ?? null,
       organización: p.organización ?? null,
+      departamento: p.departamento ?? null,
       area: p.area ?? null,
       segmento_organizacional: p.segmento_organizacional ?? null,
       tipo_vacante: p.tipo_vacante ?? null,
@@ -79,6 +92,7 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
         nombre: editFields.nombre.trim().toUpperCase(),
         clave: editFields.clave?.trim() || null,
         organización: editFields.organización,
+        departamento: editFields.departamento?.trim() || null,
         area: editFields.area?.trim() || null,
         segmento_organizacional: editFields.segmento_organizacional || null,
         tipo_vacante: editFields.tipo_vacante || null,
@@ -103,6 +117,7 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
         nombre: editFields.nombre.trim().toUpperCase(),
         clave: editFields.clave?.trim()?.toUpperCase() || null,
         organización: editFields.organización,
+        departamento: editFields.departamento?.trim() || null,
         area: editFields.area?.trim() || null,
         segmento_organizacional: editFields.segmento_organizacional || null,
         tipo_vacante: editFields.tipo_vacante || null,
@@ -135,6 +150,7 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
       if (filterUen      && p.organización !== filterUen)               return false;
       if (filterSegmento && p.segmento_organizacional !== filterSegmento) return false;
       if (filterTipo     && p.tipo_vacante !== filterTipo)              return false;
+      if (filterSinDept  && p.departamento)                             return false;
       if (q && !p.nombre.toLowerCase().includes(q) && !(p.clave ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
@@ -147,9 +163,53 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puestos, search, filterUen, filterSegmento, filterTipo, filterCritico, filterActivo, optimistic, sortKey, sortDir]);
 
-  const criticosCount  = filtered.filter((p) => getField(p, "es_critico")).length;
-  const sinTitular     = filtered.filter((p) => p.titulares_count === 0).length;
+  const criticosCount   = filtered.filter((p) => getField(p, "es_critico")).length;
+  const sinTitular      = filtered.filter((p) => p.titulares_count === 0).length;
   const propuestosCount = filtered.filter((p) => getField(p, "propuesto")).length;
+  const sinDeptCount    = puestos.filter((p) => !getField(p, "departamento")).length;
+
+  async function handleInferir() {
+    setInfLoading(true);
+    setInfMsg(null);
+    const res = await inferirDepartamentosPreview();
+    setInfLoading(false);
+    if (res.error) { setInfMsg(`Error: ${res.error}`); return; }
+    setInferencia({ rows: res.rows, sin_colaboradores: res.sin_colaboradores });
+    // Pre-select all "nuevo" rows (blank filled), not "cambio" (existing differs)
+    setInfSelected(new Set(res.rows.filter((r) => r.tipo === "nuevo").map((r) => r.id)));
+  }
+
+  async function handleAplicarInferencia() {
+    if (!inferencia) return;
+    setInfApplying(true);
+    const updates = inferencia.rows
+      .filter((r) => infSelected.has(r.id))
+      .map((r) => ({
+        id: r.id,
+        departamento: r.departamento_inferido,
+        area: r.area_inferida,
+        organización: r.organización_inferida,
+      }));
+    const res = await aplicarInferenciaDepartamentos(updates);
+    setInfApplying(false);
+    if (res.error) { setInfMsg(`Error: ${res.error}`); return; }
+    // Apply optimistic updates
+    setOptimistic((prev) => {
+      const next = new Map(prev);
+      for (const u of updates) {
+        const existing = inferencia.rows.find((r) => r.id === u.id)!;
+        next.set(u.id, {
+          ...(next.get(u.id) ?? {}),
+          departamento: existing.departamento_inferido ?? undefined,
+          area: existing.area_inferida ?? undefined,
+          organización: existing.organización_inferida ?? undefined,
+        });
+      }
+      return next;
+    });
+    setInfMsg(`${res.updated} puestos actualizados correctamente.`);
+    setInferencia(null);
+  }
 
   function handleToggleCritico(p: PuestoCatalogo) {
     const newVal = !getField(p, "es_critico");
@@ -200,6 +260,26 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
         {propuestosCount > 0 && (
           <Chip label="Propuestos"     value={propuestosCount}   color="violet" />
         )}
+        {sinDeptCount > 0 && (
+          <button
+            onClick={() => setFilterSinDept((v) => !v)}
+            className={`border rounded-lg px-4 py-2.5 text-center transition-colors ${
+              filterSinDept
+                ? "bg-amber-100 border-amber-400 text-amber-800"
+                : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+            }`}
+          >
+            <p className="text-xl font-bold">{sinDeptCount}</p>
+            <p className="text-[10px] opacity-70 mt-0.5">Sin depto. {filterSinDept ? "▲" : "▼"}</p>
+          </button>
+        )}
+        {infMsg && (
+          <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-xs rounded-lg px-4 py-2.5">
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+            {infMsg}
+            <button onClick={() => setInfMsg(null)} className="ml-1 text-green-500 hover:text-green-700">×</button>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -240,14 +320,33 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
             <option value="">Todos</option>
           </select>
         </div>
-        {(search || filterUen || filterSegmento || filterTipo || filterCritico || filterActivo !== "activo") && (
+        <div className="flex items-center justify-between pt-1">
+          {(search || filterUen || filterSegmento || filterTipo || filterCritico || filterActivo !== "activo" || filterSinDept) ? (
+            <button
+              onClick={() => { setSearch(""); setFilterUen(""); setFilterSegmento(""); setFilterTipo(""); setFilterCritico(""); setFilterActivo("activo"); setFilterSinDept(false); }}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Limpiar filtros
+            </button>
+          ) : <span />}
           <button
-            onClick={() => { setSearch(""); setFilterUen(""); setFilterSegmento(""); setFilterTipo(""); setFilterCritico(""); setFilterActivo("activo"); }}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            onClick={handleInferir}
+            disabled={infLoading}
+            className="text-xs font-medium text-amber-700 border border-amber-300 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 transition-colors px-3 py-1.5 rounded-lg flex items-center gap-1.5"
           >
-            Limpiar filtros
+            {infLoading ? (
+              <>
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                Calculando…
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 4h16v16H4z"/></svg>
+                Inferir departamentos
+              </>
+            )}
           </button>
-        )}
+        </div>
       </div>
 
       {/* ── Mobile cards (< md) ─────────────────────────────────────────── */}
@@ -465,11 +564,34 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos 
           uens={uens}
           segmentos={segmentos}
           tipos={tipos}
+          departamentos={departamentos}
           isSaving={isSaving}
           error={modalError}
           onClose={closeModal}
           onGuardar={handleGuardar}
           onAprobar={editingPuesto.propuesto ? handleAprobar : undefined}
+        />
+      )}
+
+      {/* ── Inferencia Modal ─────────────────────────────────────────────── */}
+      {inferencia && (
+        <InferenciaModal
+          rows={inferencia.rows}
+          sin_colaboradores={inferencia.sin_colaboradores}
+          selected={infSelected}
+          onToggle={(id) => setInfSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+          })}
+          onToggleAll={(ids, value) => setInfSelected((prev) => {
+            const next = new Set(prev);
+            for (const id of ids) { if (value) next.add(id); else next.delete(id); }
+            return next;
+          })}
+          applying={infApplying}
+          onApply={handleAplicarInferencia}
+          onClose={() => setInferencia(null)}
         />
       )}
     </div>
@@ -485,6 +607,7 @@ function EditModal({
   uens,
   segmentos,
   tipos,
+  departamentos,
   isSaving,
   error,
   onClose,
@@ -497,6 +620,7 @@ function EditModal({
   uens: string[];
   segmentos: string[];
   tipos: string[];
+  departamentos: string[];
   isSaving: boolean;
   error: string | null;
   onClose: () => void;
@@ -572,6 +696,23 @@ function EditModal({
               <option value="">— Sin UEN —</option>
               {uens.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
+          </div>
+
+          {/* Departamento */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Departamento</label>
+            <input
+              type="text"
+              list="dept-options"
+              value={fields.departamento ?? ""}
+              onChange={(e) => set("departamento", e.target.value || null)}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]"
+              placeholder="Departamento"
+              autoComplete="off"
+            />
+            <datalist id="dept-options">
+              {departamentos.map((d) => <option key={d} value={d} />)}
+            </datalist>
           </div>
 
           {/* Área */}
@@ -863,6 +1004,160 @@ function Chip({ label, value, color }: { label: string; value: number; color: "g
     <div className={`border rounded-lg px-4 py-2.5 text-center ${cls}`}>
       <p className="text-xl font-bold">{value}</p>
       <p className="text-[10px] opacity-70 mt-0.5">{label}</p>
+    </div>
+  );
+}
+
+// ── Inferencia Modal ────────────────────────────────────────────────────────
+
+function InferenciaModal({
+  rows,
+  sin_colaboradores,
+  selected,
+  onToggle,
+  onToggleAll,
+  applying,
+  onApply,
+  onClose,
+}: {
+  rows: InferenciaRow[];
+  sin_colaboradores: number;
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  onToggleAll: (ids: string[], value: boolean) => void;
+  applying: boolean;
+  onApply: () => void;
+  onClose: () => void;
+}) {
+  const nuevos  = rows.filter((r) => r.tipo === "nuevo");
+  const cambios = rows.filter((r) => r.tipo === "cambio");
+  const allIds  = rows.map((r) => r.id);
+  const allSelected = allIds.every((id) => selected.has(id));
+  const someSelected = allIds.some((id) => selected.has(id));
+
+  function Field({ label, current, inferred }: { label: string; current: string | null; inferred: string | null }) {
+    if (!inferred) return null;
+    const differs = inferred !== current;
+    return (
+      <div className="flex items-start gap-1 text-[10px]">
+        <span className="text-gray-400 w-16 flex-shrink-0">{label}:</span>
+        {current && differs && <span className="text-gray-400 line-through">{current}</span>}
+        {current && differs && <span className="text-gray-400 mx-1">→</span>}
+        <span className={differs ? "text-amber-700 font-medium" : "text-gray-600"}>{inferred}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[85vh]">
+
+        {/* Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Inferir departamentos desde colaboradores</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Se detectaron <strong>{nuevos.length}</strong> puestos sin departamento y <strong>{cambios.length}</strong> con valor diferente al inferido.
+                {sin_colaboradores > 0 && ` ${sin_colaboradores} puestos sin colaboradores vinculados no aparecen.`}
+              </p>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors mt-0.5 flex-shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto">
+          {rows.length === 0 ? (
+            <div className="px-6 py-10 text-center text-sm text-gray-400">
+              Todos los puestos activos ya tienen departamento consistente con sus colaboradores.
+            </div>
+          ) : (
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-gray-50 border-b border-gray-100 z-10">
+                <tr className="text-left text-gray-400">
+                  <th className="px-4 py-2.5 w-8">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                      onChange={(e) => onToggleAll(allIds, e.target.checked)}
+                      className="rounded border-gray-300 text-[#1a3a5c] focus:ring-[#1a3a5c]"
+                    />
+                  </th>
+                  <th className="px-3 py-2.5 font-medium">Puesto</th>
+                  <th className="px-3 py-2.5 font-medium">Inferencia</th>
+                  <th className="px-3 py-2.5 font-medium text-center w-16">Tipo</th>
+                  <th className="px-3 py-2.5 font-medium text-center w-12">Titulares</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {rows.map((r) => (
+                  <tr
+                    key={r.id}
+                    onClick={() => onToggle(r.id)}
+                    className={`cursor-pointer transition-colors ${selected.has(r.id) ? "bg-amber-50/60 hover:bg-amber-50" : "hover:bg-gray-50"}`}
+                  >
+                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(r.id)}
+                        onChange={() => onToggle(r.id)}
+                        className="rounded border-gray-300 text-[#1a3a5c] focus:ring-[#1a3a5c]"
+                      />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <p className="font-medium text-gray-800 leading-snug">{r.nombre}</p>
+                      {r.clave && <p className="font-mono text-gray-400 text-[10px]">{r.clave}</p>}
+                    </td>
+                    <td className="px-3 py-2.5 space-y-0.5">
+                      <Field label="Depto" current={r.departamento_actual} inferred={r.departamento_inferido} />
+                      <Field label="Área"  current={r.area_actual}         inferred={r.area_inferida} />
+                      <Field label="UEN"   current={r.organización_actual} inferred={r.organización_inferida} />
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                        r.tipo === "nuevo" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                      }`}>
+                        {r.tipo === "nuevo" ? "Nuevo" : "Cambio"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-gray-500">{r.n_colaboradores}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 bg-gray-50 flex-shrink-0">
+          <p className="text-xs text-gray-400">
+            {selected.size} de {rows.length} seleccionados
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              disabled={applying}
+              className="text-sm text-gray-500 hover:text-gray-700 transition-colors px-4 py-2"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={onApply}
+              disabled={applying || selected.size === 0}
+              className="text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 transition-colors px-5 py-2 rounded-lg"
+            >
+              {applying ? "Aplicando…" : `Aplicar ${selected.size} ${selected.size === 1 ? "cambio" : "cambios"}`}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
