@@ -237,11 +237,11 @@ export default function ImportadorCatalogoPuestos() {
                         onClick={() => row.hayCambios ? setExpandedRow(expandedRow === row.clave ? null : row.clave) : undefined}
                       >
                         <td className="px-3 py-2 font-mono text-gray-600 whitespace-nowrap">{row.clave || "—"}</td>
-                        <td className="px-3 py-2 font-medium text-gray-800 max-w-[220px] truncate">{row.nombre || "—"}</td>
-                        <td className="px-3 py-2 text-gray-500 max-w-[140px] truncate">{row.organización || "—"}</td>
-                        <td className="px-3 py-2 text-gray-500 max-w-[140px] truncate">{row.segmento_organizacional || "—"}</td>
+                        <td className="px-3 py-2 font-medium text-gray-800 min-w-[260px]">{row.nombre || "—"}</td>
+                        <td className="px-3 py-2 text-gray-500 min-w-[160px] whitespace-nowrap">{row.organización || "—"}</td>
+                        <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{row.segmento_organizacional || "—"}</td>
                         <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{row.tipo_trabajador || "—"}</td>
-                        <td className="px-3 py-2 text-gray-500">{row.horario || "—"}</td>
+                        <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{row.horario || "—"}</td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           {row.error
                             ? <span className="text-red-500">{row.error}</span>
