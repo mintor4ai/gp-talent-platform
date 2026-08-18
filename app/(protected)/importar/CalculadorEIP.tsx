@@ -30,6 +30,116 @@ const ZONA_COLOR: Record<string, string> = {
   "Sobresaliente": "bg-green-100 text-green-700",
 };
 
+function fmt(v: number | null | undefined, decimals = 1): string {
+  if (v == null) return "—";
+  return v.toFixed(decimals);
+}
+
+function DetailRow({ label, value, highlight }: { label: string; value: React.ReactNode; highlight?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between py-2 border-b border-gray-100 last:border-0 ${highlight ? "font-semibold" : ""}`}>
+      <span className="text-xs text-gray-500">{label}</span>
+      <span className={`text-xs font-mono ${highlight ? "text-[#1a3a5c] text-sm" : "text-gray-800"}`}>{value}</span>
+    </div>
+  );
+}
+
+function ColabModal({ row, cicloAño, onClose }: { row: EipPreviewRow; cicloAño: number; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between p-5 border-b border-gray-100">
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">EIP Ciclo {cicloAño}</p>
+            <h2 className="text-base font-bold text-gray-900 leading-tight">{row.nombre ?? "—"}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{row.segmento ?? "—"} · Nivel {row.nivel_num ?? "—"}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-4 flex-shrink-0"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {row.error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+              {row.error}
+            </div>
+          )}
+
+          {/* Experiencia */}
+          <div>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Experiencia</p>
+            <div className="bg-gray-50 rounded-xl px-4 py-1">
+              <DetailRow label="Años de experiencia total" value={fmt(row.años_experiencia, 2)} />
+              <DetailRow label="Años promedio por puesto (movilidad)" value={fmt(row.años_en_puesto, 2)} />
+              <DetailRow label="ev_años (tabla experiencia)" value={fmt(row.ev_años, 0)} />
+              <DetailRow label="ev_mov (tabla movilidad)" value={fmt(row.ev_mov, 0)} />
+              <DetailRow label="ev_exp = ev_años × ev_mov / 100" value={
+                <span className="text-blue-700 font-semibold">{fmt(row.ev_exp, 1)}</span>
+              } />
+            </div>
+          </div>
+
+          {/* Componentes */}
+          <div>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Componentes EIP</p>
+            <div className="bg-gray-50 rounded-xl px-4 py-1">
+              <DetailRow label="ev_form_acad (formación académica)" value={fmt(row.ev_form_acad, 0)} />
+              <DetailRow label="ev_comp (competencias 360)" value={
+                row.ev_comp != null
+                  ? <span className="text-teal-700">{fmt(row.ev_comp, 1)}</span>
+                  : <span className="text-orange-500 font-normal">Sin datos</span>
+              } />
+              <DetailRow label="ev_eal (liderazgo)" value={
+                row.tuvo_eal
+                  ? fmt(row.ev_eal, 1)
+                  : <span className="text-gray-300 font-normal">No aplica</span>
+              } />
+              <DetailRow label="ev_picd (cumplimiento PICD)" value={
+                row.entrego_picd
+                  ? fmt(row.ev_picd, 1)
+                  : <span className="text-gray-300 font-normal">No entregó</span>
+              } />
+            </div>
+          </div>
+
+          {/* Resultado */}
+          <div>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Resultado</p>
+            <div className="bg-gray-50 rounded-xl px-4 py-1">
+              <DetailRow label="Clase de ponderación" value={
+                row.calif_ponderada != null
+                  ? <span className="bg-gray-200 rounded px-2 py-0.5">{row.calif_ponderada}</span>
+                  : "—"
+              } />
+              <DetailRow
+                label="Total EIP"
+                value={fmt(row.evaluacion_potencial_total, 2)}
+                highlight
+              />
+              <DetailRow label="Zona" value={
+                row.zona
+                  ? <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${ZONA_COLOR[row.zona] ?? "bg-gray-100 text-gray-600"}`}>{row.zona}</span>
+                  : "—"
+              } />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CalculadorEIP({ ciclos }: { ciclos?: number[] }) {
   const availableCiclos = ciclos?.length ? ciclos : [2024, 2025, 2026, 2027];
   const [cicloAño, setCicloAño] = useState<number>(availableCiclos[0] ?? new Date().getFullYear());
@@ -38,6 +148,8 @@ export default function CalculadorEIP({ ciclos }: { ciclos?: number[] }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmedOverwrite, setConfirmedOverwrite] = useState(false);
+  const [search, setSearch] = useState("");
+  const [selectedRow, setSelectedRow] = useState<EipPreviewRow | null>(null);
 
   const call = async (modo: "preview" | "calcular") => {
     setLoading(true); setError(null);
@@ -58,7 +170,14 @@ export default function CalculadorEIP({ ciclos }: { ciclos?: number[] }) {
     }
   };
 
-  const reset = () => { setPreview(null); setResult(null); setError(null); setConfirmedOverwrite(false); };
+  const reset = () => {
+    setPreview(null); setResult(null); setError(null);
+    setConfirmedOverwrite(false); setSearch(""); setSelectedRow(null);
+  };
+
+  const filteredRows = preview?.rows.filter((r) =>
+    !search.trim() || (r.nombre ?? "").toLowerCase().includes(search.trim().toLowerCase())
+  ) ?? [];
 
   return (
     <div className="space-y-5">
@@ -178,8 +297,22 @@ export default function CalculadorEIP({ ciclos }: { ciclos?: number[] }) {
 
           {/* Table */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100">
-              <p className="text-sm font-semibold text-gray-700">Vista previa — EIP Ciclo {cicloAño}</p>
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                Vista previa — EIP Ciclo {cicloAño}
+              </p>
+              <div className="relative max-w-xs w-full">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 111 11a6 6 0 0116 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full text-xs border border-gray-200 rounded-lg pl-8 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white"
+                />
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -202,10 +335,23 @@ export default function CalculadorEIP({ ciclos }: { ciclos?: number[] }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {preview.rows.map((row) => (
-                    <tr key={row.id_empleado} className={row.error ? "bg-red-50/40 opacity-60" : ""}>
-                      <td className="px-3 py-2 font-medium text-gray-800 whitespace-nowrap max-w-[200px] truncate">
-                        {row.nombre ?? "—"}
+                  {filteredRows.length === 0 && (
+                    <tr>
+                      <td colSpan={14} className="px-5 py-8 text-center text-sm text-gray-400">
+                        No se encontraron resultados para &ldquo;{search}&rdquo;
+                      </td>
+                    </tr>
+                  )}
+                  {filteredRows.map((row) => (
+                    <tr key={row.id_empleado} className={`${row.error ? "bg-red-50/40 opacity-60" : "hover:bg-blue-50/30"} transition-colors`}>
+                      <td className="px-3 py-2 whitespace-nowrap max-w-[200px]">
+                        <button
+                          onClick={() => setSelectedRow(row)}
+                          className="font-medium text-[#1a3a5c] hover:underline underline-offset-2 text-left truncate max-w-full block"
+                          title={row.nombre ?? undefined}
+                        >
+                          {row.nombre ?? "—"}
+                        </button>
                         {row.error && <span className="ml-1 text-red-500 text-[10px]">({row.error})</span>}
                       </td>
                       <td className="px-3 py-2 text-gray-500 whitespace-nowrap text-[11px]">{row.segmento ?? "—"}</td>
@@ -244,6 +390,11 @@ export default function CalculadorEIP({ ciclos }: { ciclos?: number[] }) {
                 </tbody>
               </table>
             </div>
+            {search && filteredRows.length > 0 && (
+              <div className="px-5 py-2 border-t border-gray-100 text-xs text-gray-400">
+                {filteredRows.length} de {preview.rows.length} colaboradores
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -278,6 +429,15 @@ export default function CalculadorEIP({ ciclos }: { ciclos?: number[] }) {
             Nuevo cálculo
           </button>
         </div>
+      )}
+
+      {/* Detail modal */}
+      {selectedRow && (
+        <ColabModal
+          row={selectedRow}
+          cicloAño={cicloAño}
+          onClose={() => setSelectedRow(null)}
+        />
       )}
     </div>
   );
