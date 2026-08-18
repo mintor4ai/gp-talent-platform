@@ -8,6 +8,7 @@ type ColabRaw = Record<string, unknown>;
 
 interface OrgNode {
   id: string;
+  id_empleado: string | null;
   nombre: string;
   puesto: string;
   area: string;
@@ -47,6 +48,7 @@ function buildTree(
   for (const c of filtered) {
     nodeMap.set(c["id"] as string, {
       id: c["id"] as string,
+      id_empleado: (c["id_empleado"] as string | null) ?? null,
       nombre: (c["nombre_completo"] as string) ?? "",
       puesto: (c["puesto"] as string) ?? "",
       area: (c["area"] as string) ?? "",
@@ -88,6 +90,24 @@ function computeCollapsed(roots: OrgNode[], maxDepth: number): Set<string> {
   }
   for (const root of roots) walk(root, 0);
   return set;
+}
+
+/** Returns the list of node IDs from the root down to targetId (inclusive), or null if not found. */
+function findPathToNode(roots: OrgNode[], targetId: string): string[] | null {
+  function walk(node: OrgNode, path: string[]): string[] | null {
+    const current = [...path, node.id];
+    if (node.id === targetId) return current;
+    for (const child of node.children) {
+      const found = walk(child, current);
+      if (found) return found;
+    }
+    return null;
+  }
+  for (const root of roots) {
+    const found = walk(root, []);
+    if (found) return found;
+  }
+  return null;
 }
 
 // ─── Avatar ──────────────────────────────────────────────────────────────────
@@ -152,16 +172,21 @@ function OrgCard({
   hasChildren,
   isCollapsed,
   onToggle,
+  isHighlighted,
 }: {
   node: OrgNode;
   hasChildren: boolean;
   isCollapsed: boolean;
   onToggle: () => void;
+  isHighlighted?: boolean;
 }) {
   const antig = calcAntiguedad(node.fechaAntiguedad);
 
   return (
-    <div className="org-card">
+    <div
+      className={`org-card${isHighlighted ? " org-card-highlighted" : ""}`}
+      data-node-id={node.id}
+    >
       <a
         href={`/carpeta/${node.id}`}
         className="org-avatar-link"
@@ -198,11 +223,13 @@ function OrgTreeNode({
   node,
   collapsed,
   onToggle,
+  highlightedId,
   isRoot,
 }: {
   node: OrgNode;
   collapsed: Set<string>;
   onToggle: (id: string) => void;
+  highlightedId?: string | null;
   isRoot?: boolean;
 }) {
   const isCollapsed = collapsed.has(node.id);
@@ -217,6 +244,7 @@ function OrgTreeNode({
           hasChildren={hasChildren}
           isCollapsed={isCollapsed}
           onToggle={() => onToggle(node.id)}
+          isHighlighted={highlightedId === node.id}
         />
       </div>
       {showChildren && (
@@ -227,6 +255,7 @@ function OrgTreeNode({
               node={child}
               collapsed={collapsed}
               onToggle={onToggle}
+              highlightedId={highlightedId}
             />
           ))}
         </ul>
@@ -432,6 +461,14 @@ const ORG_CHART_CSS = `
   color: #1a3a5c;
 }
 
+/* Highlighted card — search result */
+.org-card-highlighted {
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.3), 0 4px 18px rgba(26,58,92,0.14) !important;
+  background: #fffbeb !important;
+}
+.org-card-highlighted .org-name { color: #92400e; }
+
 /* ── Drag cursor ──────────────────────────────────────────────── */
 
 .org-chart-scroll {
@@ -507,6 +544,12 @@ export default function OrganigramaClient({
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Global search state
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [globalOpen, setGlobalOpen] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+
   // Refs for fullscreen and drag
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -517,6 +560,71 @@ export default function OrganigramaClient({
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
+
+  // Close global search dropdown on outside click
+  useEffect(() => {
+    function onClickOut(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setGlobalOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOut);
+    return () => document.removeEventListener("mousedown", onClickOut);
+  }, []);
+
+  // Scroll highlighted card into view after tree re-renders
+  useEffect(() => {
+    if (!highlightedId) return;
+    const timer = setTimeout(() => {
+      const el = chartRef.current?.querySelector(`[data-node-id="${highlightedId}"]`) as HTMLElement | null;
+      el?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [highlightedId, collapsed]);
+
+  // Global search suggestions — name OR employee number, all colaboradores
+  const globalSuggestions = useMemo(() => {
+    const q = globalSearch.trim().toLowerCase();
+    if (q.length < 1) return [];
+    return colaboradores
+      .filter((c) => {
+        const nombre = ((c["nombre_completo"] as string) ?? "").toLowerCase();
+        const empId  = String(c["id_empleado"] ?? "").toLowerCase();
+        return nombre.includes(q) || empId.includes(q);
+      })
+      .slice(0, 8);
+  }, [globalSearch, colaboradores]);
+
+  function handleNavigateTo(colab: ColabRaw) {
+    const targetId  = colab["id"] as string;
+    const targetOrg = (colab["organización"] as string) ?? "";
+    const targetEmpId = colab["id_empleado"] ? String(colab["id_empleado"]) : "";
+    const label = targetEmpId
+      ? `${colab["nombre_completo"]} (${targetEmpId})`
+      : (colab["nombre_completo"] as string);
+
+    // Switch to UEN mode for the person's UEN
+    setModo("uen");
+    setSelectedUen(targetOrg);
+    setGlobalSearch(label);
+    setGlobalOpen(false);
+    setHighlightedId(targetId);
+
+    // Build the UEN tree and find the path to the person
+    const { roots: uenTree } = buildTree(
+      colaboradores,
+      (c) => (c["organización"] as string) === targetOrg
+    );
+    const path = findPathToNode(uenTree, targetId);
+
+    // Start from collapsed-at-maxDepth, then open every ancestor
+    const newCollapsed = computeCollapsed(uenTree, maxDepth);
+    if (path) {
+      // Remove all nodes on the path from collapsed so they're visible
+      for (const id of path) newCollapsed.delete(id);
+    }
+    setCollapsed(newCollapsed);
+  }
 
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
@@ -661,6 +769,65 @@ export default function OrganigramaClient({
 
         {/* Controls */}
         <div className="no-print flex flex-wrap items-center gap-3 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+
+          {/* ── Global search ── */}
+          <div ref={searchRef} className="relative w-full sm:w-72">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+              </svg>
+            </span>
+            <input
+              value={globalSearch}
+              onChange={(e) => {
+                setGlobalSearch(e.target.value);
+                setGlobalOpen(true);
+                setHighlightedId(null);
+              }}
+              onFocus={() => { if (globalSuggestions.length > 0) setGlobalOpen(true); }}
+              placeholder="Buscar por nombre o No. empleado…"
+              autoComplete="off"
+              className="w-full border border-gray-200 rounded-lg pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
+            />
+            {globalSearch && (
+              <button
+                onClick={() => { setGlobalSearch(""); setHighlightedId(null); setGlobalOpen(false); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
+                tabIndex={-1}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+            {globalOpen && globalSuggestions.length > 0 && (
+              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-30 w-80 overflow-hidden">
+                {globalSuggestions.map((c) => {
+                  const empId = c["id_empleado"] ? String(c["id_empleado"]) : null;
+                  return (
+                    <button
+                      key={c["id"] as string}
+                      onMouseDown={(e) => { e.preventDefault(); handleNavigateTo(c); }}
+                      className="w-full text-left px-4 py-2.5 hover:bg-[#1a3a5c] hover:text-white transition-colors border-b border-gray-50 last:border-0 group"
+                    >
+                      <p className="font-semibold text-sm text-gray-900 group-hover:text-white leading-snug">
+                        {c["nombre_completo"] as string}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {empId && (
+                          <span className="font-mono text-[10px] text-gray-400 group-hover:text-blue-200">{empId}</span>
+                        )}
+                        <span className="text-xs text-gray-400 group-hover:text-blue-100 truncate">
+                          {c["puesto"] as string}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Mode toggle */}
           <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm font-medium">
             <button
@@ -812,6 +979,7 @@ export default function OrganigramaClient({
                     node={node}
                     collapsed={collapsed}
                     onToggle={toggleCollapse}
+                    highlightedId={highlightedId}
                     isRoot
                   />
                 ))}
