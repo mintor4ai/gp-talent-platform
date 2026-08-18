@@ -1904,6 +1904,91 @@ type EalRespuesta = {
   id_evaluador_empleado: string;
 };
 
+type QSummaryPublic = { categoria: string; pregunta: string; avg: number | null; count: number };
+
+function EalDetailPanel({
+  byCategoria,
+  globalAvg,
+  expandedPreguntas,
+  onTogglePreguntas,
+}: {
+  byCategoria: Map<string, QSummaryPublic[]>;
+  globalAvg: number | null;
+  expandedPreguntas: boolean;
+  onTogglePreguntas: () => void;
+}) {
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set());
+
+  function toggleCat(cat: string) {
+    setOpenCats((prev) => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Level-1 toggle: show/hide all categories */}
+      <button
+        onClick={onTogglePreguntas}
+        className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition-colors"
+      >
+        <div>
+          <p className="text-sm font-semibold text-gray-700">Resultados por pregunta</p>
+          {globalAvg != null && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              Promedio general <span className="font-semibold text-[#7c3aed]">{globalAvg.toFixed(2)}</span> · N/A excluidos del cálculo
+            </p>
+          )}
+        </div>
+        <span className="text-gray-400 text-lg flex-shrink-0">{expandedPreguntas ? "▲" : "▼"}</span>
+      </button>
+
+      {/* Level-2: per-category rows, each collapsible */}
+      {expandedPreguntas && (
+        <div className="border-t border-gray-100 divide-y divide-gray-100">
+          {Array.from(byCategoria.entries()).map(([cat, qs]) => {
+            const catAvgs = qs.map((q) => q.avg).filter((v): v is number => v != null);
+            const catAvg = catAvgs.length > 0 ? catAvgs.reduce((a, b) => a + b, 0) / catAvgs.length : null;
+            const isOpen = openCats.has(cat);
+            return (
+              <div key={cat}>
+                <button
+                  onClick={() => toggleCat(cat)}
+                  className="w-full flex items-center justify-between px-5 py-2.5 text-left hover:bg-[#f5f7fa] transition-colors"
+                >
+                  <span className="text-xs font-bold text-[#1a3a5c] uppercase tracking-wider leading-snug pr-4">
+                    {cat}
+                  </span>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    {catAvg != null && (
+                      <span className="text-sm font-bold text-[#7c3aed]">{catAvg.toFixed(2)}</span>
+                    )}
+                    <span className="text-gray-400 text-xs">{isOpen ? "▲" : "▼"}</span>
+                  </div>
+                </button>
+                {isOpen && (
+                  <div className="border-t border-gray-50">
+                    {qs.map((q, qIdx) => (
+                      <div key={qIdx} className="flex items-start justify-between px-6 py-2 border-t border-gray-50 hover:bg-gray-50/40 gap-4">
+                        <p className="text-xs text-gray-600 leading-snug flex-1">{q.pregunta}</p>
+                        <span className="flex-shrink-0 text-sm font-bold text-[#7c3aed] min-w-[36px] text-right">
+                          {q.avg != null ? q.avg.toFixed(2) : <span className="text-gray-300 text-xs font-normal">ND</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EalSection({
   eal,
   respuestas,
@@ -2013,60 +2098,16 @@ function EalSection({
         )}
       </div>
 
-      {/* Per-category/question detail table — collapsible */}
+      {/* Per-category/question detail — two-level collapsible */}
       {hasDetail && (() => {
-        // Use the stored DB value to avoid rounding drift from averaging already-rounded per-question values
         const globalAvg = eal?.promedio_eal != null ? Number(eal.promedio_eal) : null;
         return (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <button
-              onClick={() => setExpandedPreguntas((v) => !v)}
-              className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition-colors"
-            >
-              <div>
-                <p className="text-sm font-semibold text-gray-700">Resultados por pregunta</p>
-                {globalAvg != null && (
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Promedio general <span className="font-semibold text-[#7c3aed]">{globalAvg.toFixed(2)}</span> · N/A excluidos del cálculo
-                  </p>
-                )}
-              </div>
-              <span className="text-gray-400 text-lg flex-shrink-0">{expandedPreguntas ? "▲" : "▼"}</span>
-            </button>
-            {expandedPreguntas && (
-              <div className="overflow-x-auto border-t border-gray-100">
-                <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
-                  <colgroup>
-                    <col style={{ width: "160px" }} />
-                    <col />
-                    <col style={{ width: "56px" }} />
-                  </colgroup>
-                  <tbody>
-                    {Array.from(byCategoria.entries()).map(([cat, qs], catIdx) => (
-                      <>
-                        <tr key={`cat-${catIdx}`} className="bg-[#f5f7fa] border-t border-gray-100">
-                          <td colSpan={3} className="px-5 py-2 text-[11px] font-bold text-[#1a3a5c] uppercase tracking-wider">
-                            {cat}
-                          </td>
-                        </tr>
-                        {qs.map((q, qIdx) => (
-                          <tr key={`q-${catIdx}-${qIdx}`} className="border-t border-gray-50 hover:bg-gray-50/40">
-                            <td className="px-5 py-0" />
-                            <td className="px-4 py-2.5 text-gray-600 text-xs leading-snug">{q.pregunta}</td>
-                            <td className="px-4 py-2.5 text-right">
-                              {q.avg != null
-                                ? <span className="text-[15px] font-bold text-[#7c3aed]">{q.avg.toFixed(2)}</span>
-                                : <span className="text-gray-300 text-xs">ND</span>}
-                            </td>
-                          </tr>
-                        ))}
-                      </>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <EalDetailPanel
+            byCategoria={byCategoria}
+            globalAvg={globalAvg}
+            expandedPreguntas={expandedPreguntas}
+            onTogglePreguntas={() => setExpandedPreguntas((v) => !v)}
+          />
         );
       })()}
 
