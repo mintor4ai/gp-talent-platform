@@ -257,11 +257,12 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     ciclosEstadoMap[row.ciclo_año] = row;
   }
 
-  // Gather all available cycles from EIP, desempeño, and competencias data
+  // Gather all available cycles from EIP, desempeño, competencias, and plan_sucesion data
   const ciclosSet = new Set<number>();
   for (const e of eips ?? []) ciclosSet.add(e.ciclo_año);
   for (const d of desempenos ?? []) ciclosSet.add(d.ciclo_año);
   for (const p of competenciasPercentilesRaw ?? []) ciclosSet.add((p as any).ciclo_año);
+  for (const s of sucesionRaw ?? []) ciclosSet.add((s as any).ciclo_año);
   const ciclos = Array.from(ciclosSet).sort((a, b) => b - a);
 
   const antiguedad = colab.fecha_antiguedad
