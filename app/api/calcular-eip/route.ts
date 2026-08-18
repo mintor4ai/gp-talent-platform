@@ -249,6 +249,33 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Load external experience (for enriched años + movilidad) ─────────────
+  const { data: expExternaRaw } = await supabase
+    .from("experiencia_externa")
+    .select("colaborador_id, fecha_inicio, fecha_fin");
+
+  // Map: colaborador_id → { totalMeses, numEmpleos }
+  const expExternaMap = new Map<string, { totalMeses: number; numEmpleos: number }>();
+  for (const r of (expExternaRaw ?? []) as Array<{ colaborador_id: string; fecha_inicio: string | null; fecha_fin: string | null }>) {
+    if (!r.fecha_inicio || !colabIdSet.has(r.colaborador_id)) continue;
+    const inicio = new Date(r.fecha_inicio);
+    const fin    = r.fecha_fin ? new Date(r.fecha_fin) : refDate;
+    const meses  = Math.max(0, (fin.getFullYear() - inicio.getFullYear()) * 12 + (fin.getMonth() - inicio.getMonth()));
+    const prev   = expExternaMap.get(r.colaborador_id) ?? { totalMeses: 0, numEmpleos: 0 };
+    expExternaMap.set(r.colaborador_id, { totalMeses: prev.totalMeses + meses, numEmpleos: prev.numEmpleos + 1 });
+  }
+
+  // Load historial_carrera counts per colaborador (internal past positions)
+  const { data: historialRaw } = await supabase
+    .from("historial_carrera")
+    .select("id_empleado")
+    .eq("tipo", "interno");
+  const historialCountMap = new Map<string, number>();
+  for (const r of (historialRaw ?? []) as Array<{ id_empleado: string }>) {
+    if (colabIdSet.has(r.id_empleado))
+      historialCountMap.set(r.id_empleado, (historialCountMap.get(r.id_empleado) ?? 0) + 1);
+  }
+
   // ── Calculate EIP per collaborator ────────────────────────────────────────
   const previewRows: EipPreviewRow[] = [];
 
@@ -268,9 +295,19 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    // Years of seniority
-    const añosExp = yearsUntil(colab.fecha_antiguedad, refDate);
-    const añosPuesto = yearsUntil(colab.fecha_ingreso_posicion ?? colab.fecha_antiguedad, refDate);
+    // Years of experience: internal seniority + accumulated external experience
+    const añosExpInterno = yearsUntil(colab.fecha_antiguedad, refDate);
+    const extData = expExternaMap.get(colab.id) ?? { totalMeses: 0, numEmpleos: 0 };
+    const añosExpExterno = extData.totalMeses / 12;
+    const añosExp = añosExpInterno != null ? añosExpInterno + añosExpExterno : null;
+
+    // Movilidad: average years per position (internal historial + 1 current + external positions)
+    const puestosInternos = (historialCountMap.get(colab.id) ?? 0) + 1;
+    const puestosExternos = extData.numEmpleos;
+    const totalPuestos = puestosInternos + puestosExternos;
+    const añosPuesto = añosExp != null && totalPuestos > 0
+      ? añosExp / totalPuestos
+      : yearsUntil(colab.fecha_ingreso_posicion ?? colab.fecha_antiguedad, refDate);
 
     // Lookup exp table (clamp max at 34 / 20)
     const evAños = añosExp != null ? lookupMatrix(tablaExp, añosExp, nivelNum, 34) : null;
