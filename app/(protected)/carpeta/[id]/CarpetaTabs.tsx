@@ -742,6 +742,7 @@ export default function CarpetaTabs({
           {/* Editor — titular and admin can edit/add; jefe reads */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <SucesionEditor
+              key={cicloActual}
               colaboradorId={colaboradorId}
               cicloAño={cicloActual}
               itemsIniciales={sucesionItems}
