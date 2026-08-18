@@ -2149,9 +2149,6 @@ function EalSection({
                   {libreRows.map((r, i) => (
                     <div key={i} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                       <p className="text-sm text-gray-700 leading-relaxed">{r.respuesta_texto}</p>
-                      {isSuperadmin && (
-                        <p className="text-[10px] text-gray-400 mt-1">Evaluador: {r.id_evaluador_empleado}</p>
-                      )}
                     </div>
                   ))}
                 </div>
