@@ -62,6 +62,7 @@ export default async function MapaTalentoPage() {
   type ScatterPoint = {
     id: string; id_empleado: string; nombre: string; puesto: string;
     area: string | null; uen: string | null; jefe: string | null;
+    segmento: string | null;
     desempeno: number; potencial: number; zona: string | null;
   };
 
@@ -71,6 +72,7 @@ export default async function MapaTalentoPage() {
     const colab = ev.colaboradores as {
       nombre_completo: string; puesto: string; area: string | null;
       organización: string | null; jefe_inmediato_nombre: string | null;
+      segmento_organizacional: string | null;
     } | null;
     return {
       id: ev.id,
@@ -80,6 +82,7 @@ export default async function MapaTalentoPage() {
       area: colab?.area ?? null,
       uen: colab?.organización ?? null,
       jefe: colab?.jefe_inmediato_nombre ?? null,
+      segmento: colab?.segmento_organizacional ?? null,
       desempeno: Number(ev.desempeno_logra),
       potencial: Number(ev.evaluacion_potencial_total),
       zona: ev.zona_evaluacion,
@@ -97,11 +100,12 @@ export default async function MapaTalentoPage() {
   // For current cycle zone counts and config
   const scatterPoints = allCyclePoints.find((c) => c.ciclo === cicloActual)?.points ?? [];
 
-  // UENs/areas/jefes from all cycles combined
+  // UENs/areas/jefes/segmentos from all cycles combined
   const allPoints = allCyclePoints.flatMap((c) => c.points);
-  const uens  = Array.from(new Set(allPoints.map((p) => p.uen).filter(Boolean)  as string[])).sort();
-  const areas = Array.from(new Set(allPoints.map((p) => p.area).filter(Boolean) as string[])).sort();
-  const jefes = Array.from(new Set(allPoints.map((p) => p.jefe).filter(Boolean) as string[])).sort();
+  const uens      = Array.from(new Set(allPoints.map((p) => p.uen).filter(Boolean)      as string[])).sort();
+  const areas     = Array.from(new Set(allPoints.map((p) => p.area).filter(Boolean)     as string[])).sort();
+  const jefes     = Array.from(new Set(allPoints.map((p) => p.jefe).filter(Boolean)     as string[])).sort();
+  const segmentos = Array.from(new Set(allPoints.map((p) => p.segmento).filter(Boolean) as string[])).sort();
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -143,6 +147,7 @@ export default async function MapaTalentoPage() {
           uens={uens}
           areas={areas}
           jefes={jefes}
+          segmentos={segmentos}
           zonaBands={zonaBands}
         />
       )}

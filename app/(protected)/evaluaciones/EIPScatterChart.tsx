@@ -13,6 +13,7 @@ type EIPPoint = {
   area: string | null;
   uen: string | null;
   jefe: string | null;
+  segmento: string | null;
   desempeno: number;
   potencial: number;
   zona: string | null;
@@ -353,22 +354,25 @@ export default function EIPScatterChart({
   uens,
   areas,
   jefes,
+  segmentos,
   zonaBands,
 }: {
   allCyclePoints: { ciclo: number; points: EIPPoint[] }[];
   uens: string[];
   areas: string[];
   jefes: string[];
+  segmentos: string[];
   zonaBands: ZonaBand[];
 }) {
   const ciclos = Array.from(new Set(allCyclePoints.map((c) => c.ciclo))).sort((a, b) => b - a);
   const mostRecentCiclo = ciclos[0] ?? 0;
 
   const [selectedCycles, setSelectedCycles] = useState<number[]>([mostRecentCiclo]);
-  const [filterUen,  setFilterUen]  = useState("Todos");
-  const [filterArea, setFilterArea] = useState("Todos");
-  const [filterJefe, setFilterJefe] = useState("Todos");
-  const [nameFilter, setNameFilter] = useState("");
+  const [filterUen,      setFilterUen]      = useState("Todos");
+  const [filterArea,     setFilterArea]     = useState("Todos");
+  const [filterJefe,     setFilterJefe]     = useState("Todos");
+  const [filterSegmento, setFilterSegmento] = useState("Todos");
+  const [nameFilter,     setNameFilter]     = useState("");
   const [showGrid,   setShowGrid]   = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fsSize, setFsSize]             = useState({ w: CW, h: CH });
@@ -428,15 +432,16 @@ export default function EIPScatterChart({
 
   const hasActiveFilter =
     filterUen !== "Todos" || filterArea !== "Todos" ||
-    filterJefe !== "Todos" || nameFilter.trim() !== "";
+    filterJefe !== "Todos" || filterSegmento !== "Todos" || nameFilter.trim() !== "";
 
   const matchingIds: Set<string> | null = hasActiveFilter
     ? new Set(
         allVisiblePoints
           .filter((p) => {
-            if (filterUen  !== "Todos" && p.uen  !== filterUen)  return false;
-            if (filterArea !== "Todos" && p.area !== filterArea) return false;
-            if (filterJefe !== "Todos" && p.jefe !== filterJefe) return false;
+            if (filterUen      !== "Todos" && p.uen      !== filterUen)      return false;
+            if (filterArea     !== "Todos" && p.area     !== filterArea)     return false;
+            if (filterJefe     !== "Todos" && p.jefe     !== filterJefe)     return false;
+            if (filterSegmento !== "Todos" && p.segmento !== filterSegmento) return false;
             if (nameFilter.trim() && !p.nombre.toLowerCase().includes(nameFilter.toLowerCase())) return false;
             return true;
           })
@@ -464,6 +469,7 @@ export default function EIPScatterChart({
     setFilterUen("Todos");
     setFilterArea("Todos");
     setFilterJefe("Todos");
+    setFilterSegmento("Todos");
     setNameFilter("");
   }
 
@@ -516,6 +522,13 @@ export default function EIPScatterChart({
           className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]">
           <option value="Todos">Todos los jefes</option>
           {availableJefes.map((j) => <option key={j} value={j}>{j}</option>)}
+        </select>
+      )}
+      {segmentos.length > 0 && (
+        <select value={filterSegmento} onChange={(e) => setFilterSegmento(e.target.value)}
+          className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]">
+          <option value="Todos">Todos los segmentos</option>
+          {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       )}
       {hasActiveFilter && (
