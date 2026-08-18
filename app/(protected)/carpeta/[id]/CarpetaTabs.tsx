@@ -1156,13 +1156,25 @@ function PerfilTab({
 
 function ExperienciaExternaSection({ items }: { items: ExperienciaExterna[] }) {
   const [open, setOpen] = useState(true);
-  const totalAños = items.reduce((sum, e) => {
+  const totalMeses = items.reduce((sum, e) => {
     if (!e.fecha_inicio) return sum;
     const inicio = new Date(e.fecha_inicio);
-    const fin = e.fecha_fin ? new Date(e.fecha_fin) : new Date();
-    const años = (fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-    return sum + Math.max(0, años);
+    const fin    = e.fecha_fin ? new Date(e.fecha_fin) : new Date();
+    let años  = fin.getFullYear()  - inicio.getFullYear();
+    let meses = fin.getMonth()     - inicio.getMonth();
+    if (fin.getDate() < inicio.getDate()) meses--;
+    if (meses < 0) { años--; meses += 12; }
+    return sum + Math.max(0, años * 12 + meses);
   }, 0);
+  const totalAñosNum  = Math.floor(totalMeses / 12);
+  const totalMesesNum = totalMeses % 12;
+  const totalLabel = (() => {
+    if (totalMeses === 0) return "";
+    const partes: string[] = [];
+    if (totalAñosNum  > 0) partes.push(`${totalAñosNum} año${totalAñosNum !== 1 ? "s" : ""}`);
+    if (totalMesesNum > 0) partes.push(`${totalMesesNum} mes${totalMesesNum !== 1 ? "es" : ""}`);
+    return " · " + partes.join(", ");
+  })();
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1174,8 +1186,7 @@ function ExperienciaExternaSection({ items }: { items: ExperienciaExterna[] }) {
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
           Experiencia Externa
           <span className="ml-2 text-gray-400 font-normal normal-case tracking-normal">
-            ({items.length} empresa{items.length !== 1 ? "s" : ""}
-            {totalAños >= 1 ? ` · ${Math.round(totalAños)} año${Math.round(totalAños) !== 1 ? "s" : ""}` : ""})
+            ({items.length} empresa{items.length !== 1 ? "s" : ""}{totalLabel})
           </span>
         </p>
         <span className="text-gray-400 text-xs">{open ? "▲" : "▼"}</span>
@@ -1188,9 +1199,21 @@ function ExperienciaExternaSection({ items }: { items: ExperienciaExterna[] }) {
               {items.map((e) => {
                 const inicioDate = e.fecha_inicio ? new Date(e.fecha_inicio) : null;
                 const finDate    = e.fecha_fin    ? new Date(e.fecha_fin)    : null;
-                const años = inicioDate
-                  ? Math.floor(((finDate ?? new Date()).getTime() - inicioDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25))
-                  : null;
+                const duracion = (() => {
+                  if (!inicioDate) return null;
+                  const ref = finDate ?? new Date();
+                  let años  = ref.getFullYear()  - inicioDate.getFullYear();
+                  let meses = ref.getMonth()      - inicioDate.getMonth();
+                  if (ref.getDate() < inicioDate.getDate()) meses--;
+                  if (meses < 0) { años--; meses += 12; }
+                  años = Math.max(0, años);
+                  meses = Math.max(0, meses);
+                  if (años === 0 && meses === 0) return "< 1 mes";
+                  const partes: string[] = [];
+                  if (años > 0)  partes.push(`${años} año${años !== 1 ? "s" : ""}`);
+                  if (meses > 0) partes.push(`${meses} mes${meses !== 1 ? "es" : ""}`);
+                  return partes.join(", ");
+                })();
                 return (
                   <div key={e.id} className="flex gap-4 relative">
                     <div className="w-6 h-6 rounded-full bg-white border-2 border-gray-200 flex-shrink-0 relative z-10 mt-0.5" />
@@ -1216,8 +1239,8 @@ function ExperienciaExternaSection({ items }: { items: ExperienciaExterna[] }) {
                           {e.fecha_inicio ? e.fecha_inicio.slice(0, 7) : ""}
                           {e.fecha_inicio && " → "}
                           {e.fecha_fin ? e.fecha_fin.slice(0, 7) : "en curso"}
-                          {años != null && años >= 0 && (
-                            <span className="ml-1.5 text-gray-400">({años} año{años !== 1 ? "s" : ""})</span>
+                          {duracion && (
+                            <span className="ml-1.5 text-gray-400">({duracion})</span>
                           )}
                         </p>
                       )}
