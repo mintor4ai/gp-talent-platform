@@ -181,6 +181,20 @@ type CursoFormacion = {
   estado_completitud: string | null;
 };
 
+type ExperienciaExterna = {
+  id: string;
+  nombre_empresa: string | null;
+  area: string | null;
+  departamento: string | null;
+  giro: string | null;
+  pais: string | null;
+  ciudad: string | null;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  num_empleados_supervisados: number | null;
+  responsabilidades: string | null;
+};
+
 type Comentario = {
   id: string;
   id_entrevista: string;
@@ -218,6 +232,7 @@ export default function CarpetaTabs({
   historialCarrera = [],
   formacionAcademica = [],
   cursosFormacion = [],
+  experienciaExterna = [],
   competenciasPercentiles = [],
   ealRespuestas = [],
   rol,
@@ -254,6 +269,7 @@ export default function CarpetaTabs({
   historialCarrera?: Array<{ id: string; puesto: string | null; empresa: string | null; tipo: string | null; años: number | null; fecha_inicio: string | null; fecha_fin: string | null }>;
   formacionAcademica?: FormacionAcademica[];
   cursosFormacion?: CursoFormacion[];
+  experienciaExterna?: ExperienciaExterna[];
   ealRespuestas?: Array<{
     ciclo_año: number;
     categoria: string;
@@ -439,6 +455,7 @@ export default function CarpetaTabs({
           historialCarrera={historialCarrera}
           formacionAcademica={formacionAcademica}
           cursosFormacion={cursosFormacion}
+          experienciaExterna={experienciaExterna}
         />
       )}
 
@@ -833,6 +850,7 @@ function PerfilTab({
   historialCarrera = [],
   formacionAcademica = [],
   cursosFormacion = [],
+  experienciaExterna = [],
 }: {
   perfil: ColaboradorPerfil;
   eips: EIP[];
@@ -842,6 +860,7 @@ function PerfilTab({
   historialCarrera?: Array<{ id: string; puesto: string | null; empresa: string | null; tipo: string | null; años: number | null; fecha_inicio: string | null; fecha_fin: string | null }>;
   formacionAcademica?: FormacionAcademica[];
   cursosFormacion?: CursoFormacion[];
+  experienciaExterna?: ExperienciaExterna[];
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1050,6 +1069,17 @@ function PerfilTab({
         />
       )}
 
+      {/* Experiencia Externa */}
+      {experienciaExterna.length > 0 && (
+        <ExperienciaExternaSection
+          items={[...experienciaExterna].sort((a, b) => {
+            const fa = a.fecha_fin ?? a.fecha_inicio ?? "";
+            const fb = b.fecha_fin ?? b.fecha_inicio ?? "";
+            return fb.localeCompare(fa);
+          })}
+        />
+      )}
+
       {/* Cursos y Capacitación */}
       {cursosFormacion.length > 0 && (
         <CursosSection
@@ -1117,6 +1147,93 @@ function PerfilTab({
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExperienciaExternaSection({ items }: { items: ExperienciaExterna[] }) {
+  const [open, setOpen] = useState(true);
+  const totalAños = items.reduce((sum, e) => {
+    if (!e.fecha_inicio) return sum;
+    const inicio = new Date(e.fecha_inicio);
+    const fin = e.fecha_fin ? new Date(e.fecha_fin) : new Date();
+    const años = (fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+    return sum + Math.max(0, años);
+  }, 0);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+      >
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          Experiencia Externa
+          <span className="ml-2 text-gray-400 font-normal normal-case tracking-normal">
+            ({items.length} empresa{items.length !== 1 ? "s" : ""}
+            {totalAños >= 1 ? ` · ${Math.round(totalAños)} año${Math.round(totalAños) !== 1 ? "s" : ""}` : ""})
+          </span>
+        </p>
+        <span className="text-gray-400 text-xs">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-gray-100">
+          <div className="relative px-5 py-4">
+            <div className="absolute left-8 top-4 bottom-4 w-px bg-gray-100" />
+            <div className="space-y-5">
+              {items.map((e) => {
+                const inicioDate = e.fecha_inicio ? new Date(e.fecha_inicio) : null;
+                const finDate    = e.fecha_fin    ? new Date(e.fecha_fin)    : null;
+                const años = inicioDate
+                  ? Math.floor(((finDate ?? new Date()).getTime() - inicioDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+                  : null;
+                return (
+                  <div key={e.id} className="flex gap-4 relative">
+                    <div className="w-6 h-6 rounded-full bg-white border-2 border-gray-200 flex-shrink-0 relative z-10 mt-0.5" />
+                    <div className="flex-1 pb-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                        <p className="text-sm font-medium text-gray-900">{e.nombre_empresa ?? "—"}</p>
+                        {e.giro && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{e.giro}</span>
+                        )}
+                      </div>
+                      {(e.area || e.departamento) && (
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          {[e.area, e.departamento].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                      {(e.pais || e.ciudad) && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {[e.ciudad, e.pais].filter(Boolean).join(", ")}
+                        </p>
+                      )}
+                      {(e.fecha_inicio || e.fecha_fin) && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {e.fecha_inicio ? e.fecha_inicio.slice(0, 7) : ""}
+                          {e.fecha_inicio && " → "}
+                          {e.fecha_fin ? e.fecha_fin.slice(0, 7) : "en curso"}
+                          {años != null && años >= 0 && (
+                            <span className="ml-1.5 text-gray-400">({años} año{años !== 1 ? "s" : ""})</span>
+                          )}
+                        </p>
+                      )}
+                      {e.num_empleados_supervisados != null && e.num_empleados_supervisados > 0 && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {e.num_empleados_supervisados} colaborador{e.num_empleados_supervisados !== 1 ? "es" : ""} supervisado{e.num_empleados_supervisados !== 1 ? "s" : ""}
+                        </p>
+                      )}
+                      {e.responsabilidades && (
+                        <p className="text-xs text-gray-500 mt-1 leading-relaxed">{e.responsabilidades}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

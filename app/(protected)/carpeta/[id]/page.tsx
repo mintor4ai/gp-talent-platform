@@ -76,6 +76,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: cursosFormacionRaw },
     { data: competenciasPercentilesRaw },
     { data: ealRespuestasRaw },
+    { data: experienciaExternaRaw },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -182,6 +183,11 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .select("ciclo_año, categoria, pregunta, respuesta_numerica, respuesta_texto, id_evaluador_empleado")
       .eq("id_lider_evaluado", colaboradorId)
       .order("ciclo_año", { ascending: false }),
+    supabase
+      .from("experiencia_externa")
+      .select("id, nombre_empresa, area, departamento, giro, pais, ciudad, fecha_inicio, fecha_fin, num_empleados_supervisados, responsabilidades")
+      .eq("colaborador_id", colaboradorId)
+      .order("fecha_fin", { ascending: false }),
   ]);
 
   const canEdit = isOwn || isAdmin;
@@ -229,6 +235,21 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
   };
   const formacionAcademica = (formacionAcademicaRaw ?? []) as unknown as FormacionAcademicaItem[];
   const cursosFormacion   = (cursosFormacionRaw   ?? []) as unknown as CursoFormacionItem[];
+
+  type ExperienciaExternaItem = {
+    id: string;
+    nombre_empresa: string | null;
+    area: string | null;
+    departamento: string | null;
+    giro: string | null;
+    pais: string | null;
+    ciudad: string | null;
+    fecha_inicio: string | null;
+    fecha_fin: string | null;
+    num_empleados_supervisados: number | null;
+    responsabilidades: string | null;
+  };
+  const experienciaExterna = (experienciaExternaRaw ?? []) as unknown as ExperienciaExternaItem[];
 
   type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
   const colaboradoresLista = (colaboradoresAll ?? []) as unknown as ColabOption[];
@@ -346,6 +367,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         historialCarrera={historialCarrera}
         formacionAcademica={formacionAcademica}
         cursosFormacion={cursosFormacion}
+        experienciaExterna={experienciaExterna}
         competenciasPercentiles={(competenciasPercentilesRaw ?? []) as any[]}
         ealRespuestas={(ealRespuestasRaw ?? []) as any[]}
         rol={rol}
