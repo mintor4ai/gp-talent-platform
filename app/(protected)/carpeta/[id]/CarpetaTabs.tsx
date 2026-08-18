@@ -73,6 +73,8 @@ type EIP = {
   movilidad: number | null;
   num_puestos: number | null;
   escolaridad_texto: string | null;
+  años_experiencia: number | null;
+  años_en_puesto: number | null;
 };
 
 type PonderacionRow = {
@@ -144,6 +146,7 @@ type PicdRecord = {
   puesto_futuro_id2?: string | null;
   areas_oportunidad: string | null;
   compromisos: string | null;
+  porcentaje_cumplimiento: number | null;
 };
 
 type Entrevista = {
@@ -524,6 +527,8 @@ export default function CarpetaTabs({
               zonaColors={zonaColors}
               cicloActual={cicloActual}
               isAdmin={isAdmin}
+              picdRecords={picdRecords}
+              cursosFormacion={cursosFormacion}
             />
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
@@ -1630,6 +1635,8 @@ function EIPCard({
   zonaColors,
   cicloActual,
   isAdmin,
+  picdRecords = [],
+  cursosFormacion = [],
 }: {
   eip: EIP | null;
   desemp: Desempeno | null;
@@ -1639,6 +1646,8 @@ function EIPCard({
   zonaColors: { bg: string; text: string } | null;
   cicloActual: number;
   isAdmin: boolean;
+  picdRecords?: PicdRecord[];
+  cursosFormacion?: CursoFormacion[];
 }) {
   const [expandedDesemp, setExpandedDesemp] = useState(false);
   const [expandedPotencial, setExpandedPotencial] = useState(false);
@@ -1668,13 +1677,21 @@ function EIPCard({
     ? Math.round(Number(percentilComp.percentil_empresa)) : null;
 
   // Experiencia sub-detail
-  const añosTotal = eip?.años_exp_total ?? null;
-  const numPuestos = eip?.num_puestos ?? null;
-  const añosProm = añosTotal != null && numPuestos != null && numPuestos > 0
-    ? (añosTotal / numPuestos).toFixed(1) : null;
-  const expSubDetail = añosTotal != null
-    ? `${añosTotal.toFixed(0)} año${Number(añosTotal) !== 1 ? "s" : ""} totales${añosProm ? ` · ${añosProm} años promedio por puesto` : ""}`
+  const añosExp = eip?.años_experiencia ?? null;
+  const añosPuesto = eip?.años_en_puesto ?? null;
+  const expSubDetail = añosExp != null
+    ? `${añosExp.toFixed(1)} años de experiencia${añosPuesto != null ? ` · ${añosPuesto.toFixed(1)} años/puesto` : ""}`
     : null;
+
+  // Cursos sub-detail
+  const totalHoras = cursosFormacion.reduce((s, c) => s + (c.horas_efectivas ?? 0), 0);
+  const cursosSubDetail = cursosFormacion.length > 0
+    ? `${cursosFormacion.length} curso${cursosFormacion.length !== 1 ? "s" : ""}${totalHoras > 0 ? ` · ${totalHoras} hrs` : ""}`
+    : null;
+
+  // PICD sub-detail: % cumplimiento del ciclo actual
+  const picdRecord = picdRecords.find((p) => p.ciclo_año === cicloActual) ?? null;
+  const picdPct = picdRecord?.porcentaje_cumplimiento != null ? Number(picdRecord.porcentaje_cumplimiento) : null;
 
   // EAL sub-detail
   const ealPuntaje = eal?.promedio_eal ?? null;
@@ -1715,6 +1732,7 @@ function EIPCard({
       hexColor: "#2563eb",
       weight: pond?.w_cursos ?? null,
       show: (pond?.w_cursos ?? 0) > 0 || (eip?.ev_cursos ?? null) != null,
+      subLabel: cursosSubDetail,
     },
     {
       label: "Competencias 360°",
@@ -1724,7 +1742,7 @@ function EIPCard({
       weight: pond?.w_comp ?? null,
       show: true,
       subLabel: rawComp != null
-        ? `Calificación general: ${Number(rawComp).toFixed(2)} / 10`
+        ? `Calif. general: ${Number(rawComp).toFixed(2)} / 10`
         : evComp == null ? "Pendiente de calcular" : null,
       percentilTag: percentilCompEmpresa != null ? `Percentil ${percentilCompEmpresa} · Empresa` : null,
     },
@@ -1744,7 +1762,9 @@ function EIPCard({
       hexColor: "#1a3a5c",
       weight: eip?.entrego_picd === true ? (pond?.w_picd ?? null) : 0,
       show: true,
-      subLabel: eip?.entrego_picd !== true ? "Sin datos para este ciclo" : null,
+      subLabel: eip?.entrego_picd !== true
+        ? "Sin datos para este ciclo"
+        : picdPct != null ? `${picdPct.toFixed(0)}% cumplimiento` : null,
       pendingBadge: eip?.entrego_picd !== true,
     },
   ];
