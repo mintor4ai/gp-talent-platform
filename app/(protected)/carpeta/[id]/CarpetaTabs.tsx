@@ -1913,8 +1913,8 @@ function EalSection({
   respuestas: EalRespuesta[];
   isSuperadmin: boolean;
 }) {
-  const [expandedLibre, setExpandedLibre] = useState(false);
   const [expandedPreguntas, setExpandedPreguntas] = useState(false);
+  const [libreModalOpen, setLibreModalOpen] = useState(false);
 
   // Gauge helper (80–120 → 0–100%)
   const gaugePercent = (v: number) => Math.max(0, Math.min(100, ((v - 80) / 40) * 100));
@@ -2015,8 +2015,8 @@ function EalSection({
 
       {/* Per-category/question detail table — collapsible */}
       {hasDetail && (() => {
-        const allAvgs = Array.from(byCategoria.values()).flat().map((q) => q.avg).filter((v): v is number => v != null);
-        const globalAvg = allAvgs.length > 0 ? allAvgs.reduce((a, b) => a + b, 0) / allAvgs.length : null;
+        // Use the stored DB value to avoid rounding drift from averaging already-rounded per-question values
+        const globalAvg = eal?.promedio_eal != null ? Number(eal.promedio_eal) : null;
         return (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <button
@@ -2070,32 +2070,63 @@ function EalSection({
         );
       })()}
 
-      {/* Libre comments */}
+      {/* Libre comments — modal trigger */}
       {libreRows.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <>
           <button
-            onClick={() => setExpandedLibre((v) => !v)}
-            className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition-colors"
+            onClick={() => setLibreModalOpen(true)}
+            className="w-full text-sm text-[#7c3aed] hover:text-[#6d28d9] border border-[#c4b5fd] hover:border-[#7c3aed] rounded-lg py-2 transition-colors font-medium bg-white"
           >
-            <div>
-              <p className="text-sm font-semibold text-gray-700">Comentarios libres</p>
-              <p className="text-xs text-gray-400 mt-0.5">{libreRows.length} comentario{libreRows.length !== 1 ? "s" : ""} recibido{libreRows.length !== 1 ? "s" : ""} · anónimos</p>
-            </div>
-            <span className="text-gray-400 text-lg">{expandedLibre ? "▲" : "▼"}</span>
+            Ver comentarios libres ({libreRows.length})
           </button>
-          {expandedLibre && (
-            <div className="divide-y divide-gray-50 border-t border-gray-100">
-              {libreRows.map((r, i) => (
-                <div key={i} className="px-5 py-3">
-                  <p className="text-sm text-gray-700 leading-relaxed">{r.respuesta_texto}</p>
-                  {isSuperadmin && (
-                    <p className="text-[10px] text-gray-400 mt-1">Evaluador: {r.id_evaluador_empleado}</p>
-                  )}
+
+          {libreModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                onClick={() => setLibreModalOpen(false)}
+              />
+              <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4 flex-shrink-0">
+                  <div>
+                    <h2 className="text-base font-bold text-gray-900">Comentarios libres — EAL</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {libreRows.length} comentario{libreRows.length !== 1 ? "s" : ""} recibido{libreRows.length !== 1 ? "s" : ""} · anónimos
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setLibreModalOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 mt-0.5"
+                    aria-label="Cerrar"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-              ))}
+                <div className="overflow-y-auto flex-1 px-6 py-5 space-y-3">
+                  {libreRows.map((r, i) => (
+                    <div key={i} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                      <p className="text-sm text-gray-700 leading-relaxed">{r.respuesta_texto}</p>
+                      {isSuperadmin && (
+                        <p className="text-[10px] text-gray-400 mt-1">Evaluador: {r.id_evaluador_empleado}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="px-6 py-3 border-t border-gray-100 flex-shrink-0">
+                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Los comentarios son confidenciales. No se revela la identidad de los evaluadores.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );
