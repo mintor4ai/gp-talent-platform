@@ -53,7 +53,7 @@ function lookupMatrix(
   nivel: number,
   maxFila: number
 ): number | null {
-  const row = clampFila(fila, maxFila);
+  const row = Math.floor(clampFila(fila, maxFila));
   return table.get(row)?.get(nivel) ?? null;
 }
 
@@ -379,8 +379,8 @@ export async function POST(req: NextRequest) {
       nombre: colab.nombre_completo,
       segmento: colab.segmento_organizacional,
       nivel_num: nivelNum,
-      años_experiencia: añosExp,
-      años_en_puesto: añosPuesto,
+      años_experiencia: añosExp != null ? Math.round(añosExp * 100) / 100 : null,
+      años_en_puesto: añosPuesto != null ? Math.round(añosPuesto * 100) / 100 : null,
       ev_años: evAños,
       ev_mov: evMov,
       ev_exp: evExp,
