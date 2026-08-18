@@ -1499,7 +1499,7 @@ function EIPCard({
   cicloActual: number;
   isAdmin: boolean;
 }) {
-  const [expandedDesemp, setExpandedDesemp] = useState(true);
+  const [expandedDesemp, setExpandedDesemp] = useState(false);
   const [expandedPotencial, setExpandedPotencial] = useState(false);
 
   const cp = eip?.calif_ponderada;
