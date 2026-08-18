@@ -1914,6 +1914,7 @@ function EalSection({
   isSuperadmin: boolean;
 }) {
   const [expandedLibre, setExpandedLibre] = useState(false);
+  const [expandedPreguntas, setExpandedPreguntas] = useState(false);
 
   // Gauge helper (80–120 → 0–100%)
   const gaugePercent = (v: number) => Math.max(0, Math.min(100, ((v - 80) / 40) * 100));
@@ -2012,46 +2013,62 @@ function EalSection({
         )}
       </div>
 
-      {/* Per-category/question detail table */}
-      {hasDetail && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100">
-            <p className="text-sm font-semibold text-gray-700">Resultados por pregunta</p>
-            <p className="text-xs text-gray-400 mt-0.5">Promedio de las respuestas recibidas · N/A excluidos del cálculo</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "160px" }} />
-                <col />
-                <col style={{ width: "56px" }} />
-              </colgroup>
-              <tbody>
-                {Array.from(byCategoria.entries()).map(([cat, qs], catIdx) => (
-                  <>
-                    <tr key={`cat-${catIdx}`} className="bg-[#f5f7fa] border-t border-gray-100">
-                      <td colSpan={3} className="px-5 py-2 text-[11px] font-bold text-[#1a3a5c] uppercase tracking-wider">
-                        {cat}
-                      </td>
-                    </tr>
-                    {qs.map((q, qIdx) => (
-                      <tr key={`q-${catIdx}-${qIdx}`} className="border-t border-gray-50 hover:bg-gray-50/40">
-                        <td className="px-5 py-0" />
-                        <td className="px-4 py-2.5 text-gray-600 text-xs leading-snug">{q.pregunta}</td>
-                        <td className="px-4 py-2.5 text-right">
-                          {q.avg != null
-                            ? <span className="text-[15px] font-bold text-[#7c3aed]">{q.avg.toFixed(2)}</span>
-                            : <span className="text-gray-300 text-xs">ND</span>}
-                        </td>
-                      </tr>
+      {/* Per-category/question detail table — collapsible */}
+      {hasDetail && (() => {
+        const allAvgs = Array.from(byCategoria.values()).flat().map((q) => q.avg).filter((v): v is number => v != null);
+        const globalAvg = allAvgs.length > 0 ? allAvgs.reduce((a, b) => a + b, 0) / allAvgs.length : null;
+        return (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <button
+              onClick={() => setExpandedPreguntas((v) => !v)}
+              className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition-colors"
+            >
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Resultados por pregunta</p>
+                {globalAvg != null && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Promedio general <span className="font-semibold text-[#7c3aed]">{globalAvg.toFixed(2)}</span> · N/A excluidos del cálculo
+                  </p>
+                )}
+              </div>
+              <span className="text-gray-400 text-lg flex-shrink-0">{expandedPreguntas ? "▲" : "▼"}</span>
+            </button>
+            {expandedPreguntas && (
+              <div className="overflow-x-auto border-t border-gray-100">
+                <table className="w-full text-sm" style={{ tableLayout: "fixed" }}>
+                  <colgroup>
+                    <col style={{ width: "160px" }} />
+                    <col />
+                    <col style={{ width: "56px" }} />
+                  </colgroup>
+                  <tbody>
+                    {Array.from(byCategoria.entries()).map(([cat, qs], catIdx) => (
+                      <>
+                        <tr key={`cat-${catIdx}`} className="bg-[#f5f7fa] border-t border-gray-100">
+                          <td colSpan={3} className="px-5 py-2 text-[11px] font-bold text-[#1a3a5c] uppercase tracking-wider">
+                            {cat}
+                          </td>
+                        </tr>
+                        {qs.map((q, qIdx) => (
+                          <tr key={`q-${catIdx}-${qIdx}`} className="border-t border-gray-50 hover:bg-gray-50/40">
+                            <td className="px-5 py-0" />
+                            <td className="px-4 py-2.5 text-gray-600 text-xs leading-snug">{q.pregunta}</td>
+                            <td className="px-4 py-2.5 text-right">
+                              {q.avg != null
+                                ? <span className="text-[15px] font-bold text-[#7c3aed]">{q.avg.toFixed(2)}</span>
+                                : <span className="text-gray-300 text-xs">ND</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </>
                     ))}
-                  </>
-                ))}
-              </tbody>
-            </table>
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Libre comments */}
       {libreRows.length > 0 && (
