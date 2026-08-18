@@ -1775,7 +1775,7 @@ function EIPCard({
     PENDIENTE: "bg-amber-100 text-amber-700 border-amber-200",
   };
 
-  const visiblePotencial = potencialItems.filter((item) => item.show);
+  const visiblePotencial = potencialItems.filter((item) => item.show && (item.weight === null || item.weight > 0));
   const totalPeso = visiblePotencial.reduce((s, r) => s + (r.weight ?? 0), 0);
 
   return (
