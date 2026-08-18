@@ -320,6 +320,28 @@ export default function CarpetaTabs({
 
   return (
     <div className="space-y-4">
+      {/* Global cycle selector */}
+      {ciclos.length > 1 && (
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500">Ciclo:</span>
+          <div className="flex gap-1.5 flex-wrap">
+            {ciclos.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCicloActual(c)}
+                className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                  c === cicloActual
+                    ? "bg-[#1a3a5c] text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Main tabs */}
       <div className="flex gap-1 border-b border-gray-200 overflow-x-auto">
         <button
@@ -422,28 +444,6 @@ export default function CarpetaTabs({
 
       {mainTab === "evaluacion" && (
         <div className="space-y-5">
-          {/* Cycle selector */}
-          {ciclos.length > 0 && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500">Ciclo:</span>
-              <div className="flex gap-1.5 flex-wrap">
-                {ciclos.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setCicloActual(c)}
-                    className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                      c === cicloActual
-                        ? "bg-[#1a3a5c] text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Zone history timeline — shown when 2+ EIP records with zone */}
           {(() => {
             const withZone = [...eips]
@@ -739,23 +739,6 @@ export default function CarpetaTabs({
             </div>
           )}
 
-          {/* Cycle selector */}
-          {ciclos.length > 0 && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500">Ciclo:</span>
-              <div className="flex gap-1.5 flex-wrap">
-                {ciclos.map((c) => (
-                  <button key={c} onClick={() => setCicloActual(c)}
-                    className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                      c === cicloActual ? "bg-[#1a3a5c] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}>
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Editor — titular and admin can edit/add; jefe reads */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <SucesionEditor
@@ -771,27 +754,6 @@ export default function CarpetaTabs({
 
       {mainTab === "picd" && (isOwn || isJefe || isAdmin) && (
         <div className="space-y-5">
-          {/* PICD cycle selector — uses picd records as source of truth */}
-          {picdRecords.length > 1 && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500">Ciclo:</span>
-              <div className="flex gap-1.5 flex-wrap">
-                {[...picdRecords].sort((a, b) => b.ciclo_año - a.ciclo_año).map((p) => (
-                  <button
-                    key={p.ciclo_año}
-                    onClick={() => setCicloActual(p.ciclo_año)}
-                    className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                      p.ciclo_año === cicloActual
-                        ? "bg-[#1a3a5c] text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    {p.ciclo_año}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Banner de aprobación — visible solo para jefe/admin cuando hay ciclo enviado_revision */}
           {(isJefe || isAdmin) && cicloEstado?.estado === "enviado_revision" && (
