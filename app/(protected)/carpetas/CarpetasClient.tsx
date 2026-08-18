@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { ZONA_COLORS } from "@/lib/types";
 import { SortableTh, useSortState } from "@/components/ui/SortableTh";
@@ -35,11 +35,31 @@ export default function CarpetasClient({ eips }: { eips: CarpetaRow[] }) {
   const sp       = useSearchParams();
 
   // Read filters from URL
-  const nombre   = sp.get("nombre")   ?? "";
-  const uen      = sp.get("uen")      ?? "Todos";
+  const nombreUrl = sp.get("nombre") ?? "";
+  const uen       = sp.get("uen")    ?? "Todos";
   const area     = sp.get("area")     ?? "Todos";
   const segmento = sp.get("segmento") ?? "Todos";
   const jefe     = sp.get("jefe")     ?? "Todos";
+
+  // Local state for the name input — decoupled from URL so typing is instant
+  const [nombreLocal, setNombreLocal] = useState(nombreUrl);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync URL → local when URL changes externally (e.g. clearFilters)
+  useEffect(() => { setNombreLocal(nombreUrl); }, [nombreUrl]);
+
+  function handleNombreChange(value: string) {
+    setNombreLocal(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const params = new URLSearchParams(sp.toString());
+      if (value) { params.set("nombre", value); } else { params.delete("nombre"); }
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }, 300);
+  }
+
+  // Use local state for filtering (instant) — URL lags 300ms behind for bookmarkability
+  const nombre = nombreLocal;
 
   function setParam(key: string, value: string) {
     const params = new URLSearchParams(sp.toString());
@@ -120,8 +140,8 @@ export default function CarpetasClient({ eips }: { eips: CarpetaRow[] }) {
         <input
           type="text"
           placeholder="Buscar persona…"
-          value={nombre}
-          onChange={(e) => setParam("nombre", e.target.value)}
+          value={nombreLocal}
+          onChange={(e) => handleNombreChange(e.target.value)}
           className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c] w-40"
         />
         {uens.length > 0 && (
