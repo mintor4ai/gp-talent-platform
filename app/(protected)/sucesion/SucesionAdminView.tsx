@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { SucesionItem } from "../carpeta/[id]/SucesionEditor";
 import { readinessBadge, ESTADO_CONFIG } from "../carpeta/[id]/SucesionEditor";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import AgregarSucesorModal from "./AgregarSucesorModal";
 
 type ColabRow = {
   id: string;
@@ -13,6 +14,8 @@ type ColabRow = {
   area: string | null;
   organización: string | null;
 };
+
+type SucesionItemExt = SucesionItem & { fuente?: string | null };
 
 const ESTADO_FILTER_OPTIONS = [
   { value: "",            label: "Todos los estados" },
@@ -34,17 +37,22 @@ export default function SucesionAdminView({
   planes,
   colabs,
   ciclos,
+  allCiclos,
 }: {
   planes: SucesionItem[];
   colabs: ColabRow[];
   ciclos: number[];
+  allCiclos: number[];
 }) {
   const [cicloActual, setCicloActual] = useState<number>(ciclos[0] ?? new Date().getFullYear());
-  const [estadoFilter, setEstadoFilter]     = useState("");
+  const [estadoFilter, setEstadoFilter]       = useState("");
   const [readinessFilter, setReadinessFilter] = useState("");
-  const [searchFilter, setSearchFilter]     = useState("");
+  const [searchFilter, setSearchFilter]       = useState("");
+  const [showModal, setShowModal]             = useState(false);
 
-  const plansCiclo = planes.filter((p) => p.ciclo_año === cicloActual);
+  const planesExt = planes as SucesionItemExt[];
+
+  const plansCiclo = planesExt.filter((p) => p.ciclo_año === cicloActual);
 
   const filtered = plansCiclo.filter((p) => {
     if (estadoFilter   && p.estado !== estadoFilter)                    return false;
@@ -62,7 +70,7 @@ export default function SucesionAdminView({
   });
 
   // Group filtered by titular
-  const porTitular: Record<string, SucesionItem[]> = {};
+  const porTitular: Record<string, SucesionItemExt[]> = {};
   for (const p of filtered) {
     const key = p.id_empleado;
     if (!porTitular[key]) porTitular[key] = [];
@@ -78,24 +86,39 @@ export default function SucesionAdminView({
 
   return (
     <div className="space-y-6 max-w-6xl">
+      {showModal && (
+        <AgregarSucesorModal
+          colabs={colabs}
+          ciclos={allCiclos.length > 0 ? allCiclos : [cicloActual]}
+          cicloDefault={cicloActual}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Plan de Sucesión</h1>
           <p className="text-sm text-gray-500 mt-1">Gestión y validación de planes de sucesión organizacional</p>
         </div>
-        {ciclos.length > 1 && (
-          <div className="flex gap-1.5 flex-wrap">
-            {ciclos.map((c) => (
-              <button key={c} onClick={() => setCicloActual(c)}
-                className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                  c === cicloActual ? "bg-[#1a3a5c] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}>
-                {c}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {ciclos.length > 1 && (
+            <div className="flex gap-1.5 flex-wrap">
+              {ciclos.map((c) => (
+                <button key={c} onClick={() => setCicloActual(c)}
+                  className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                    c === cicloActual ? "bg-[#1a3a5c] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+          <button onClick={() => setShowModal(true)}
+            className="flex items-center gap-1.5 text-sm bg-[#1a3a5c] text-white px-4 py-2 rounded-xl hover:bg-[#14304f] transition-colors font-medium">
+            <span>+</span> Agregar sucesor
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -162,7 +185,7 @@ function TitularCard({
   colabs,
 }: {
   titular: ColabRow | null;
-  sucesores: SucesionItem[];
+  sucesores: SucesionItemExt[];
   colabs: ColabRow[];
 }) {
   return (
@@ -194,11 +217,13 @@ function TitularCard({
       <div className="space-y-2 pl-1">
         <SectionHeader label={`Sucesores (${sucesores.length})`} />
         {sucesores.map((s) => {
-          const readiness = readinessBadge(s.readiness);
-          const estado    = ESTADO_CONFIG[s.estado] ?? ESTADO_CONFIG.borrador;
+          const readiness    = readinessBadge(s.readiness);
+          const estado       = ESTADO_CONFIG[s.estado] ?? ESTADO_CONFIG.borrador;
           const sucesorColab = s.sucesor_id ? colabs.find((c) => c.id === s.sucesor_id) : null;
+          const esCH         = s.fuente === "capital_humano";
           return (
-            <div key={s.id} className="bg-gray-50 rounded-lg px-3 py-2.5 space-y-1.5">
+            <div key={s.id}
+              className={`rounded-lg px-3 py-2.5 space-y-1.5 ${esCH ? "bg-blue-50 border border-blue-100" : "bg-gray-50"}`}>
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{s.sucesor_nombre}</p>
@@ -207,6 +232,11 @@ function TitularCard({
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+                  {esCH && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+                      CH
+                    </span>
+                  )}
                   <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${readiness.color}`}>
                     {readiness.label}
                   </span>

@@ -78,7 +78,7 @@ export default function SucesionTabs({
       </div>
 
       {tab === "planes" && (
-        <SucesionAdminView planes={planes} colabs={colabs} ciclos={ciclos} />
+        <SucesionAdminView planes={planes} colabs={colabs} ciclos={ciclos} allCiclos={matchCiclos} />
       )}
       {tab === "cobertura" && (
         <CoberturaView
