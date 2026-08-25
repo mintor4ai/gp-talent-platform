@@ -44,7 +44,7 @@ export default async function SucesionPage() {
     ),
     fetchAllRows((from, to) =>
       supabase.from("colaboradores")
-        .select("id, nombre_completo, puesto, nivel, area, organización, puesto_catalogo_id")
+        .select("id, nombre_completo, puesto, nivel, area, organización, puesto_catalogo_id, segmento_organizacional")
         .eq("activo", true)
         .order("nombre_completo")
         .range(from, to)
@@ -63,7 +63,7 @@ export default async function SucesionPage() {
   const catalogoRaw = catalogoResult.data;
 
   const planes = (planesRaw ?? []) as unknown as SucesionItem[];
-  type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; nivel: string | null; area: string | null; organización: string | null; puesto_catalogo_id: string | null };
+  type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; nivel: string | null; area: string | null; organización: string | null; puesto_catalogo_id: string | null; segmento_organizacional: string | null };
   const colabs = (colabsRaw ?? []) as unknown as ColabRow[];
 
   const ciclos = Array.from(new Set(planes.map((p) => p.ciclo_año))).sort((a, b) => b - a);
@@ -174,6 +174,7 @@ export default async function SucesionPage() {
   }
 
   const uens = Array.from(new Set(coberturaAllCiclos.map((p) => p.organización).filter(Boolean))).sort() as string[];
+  const segmentos = Array.from(new Set(coberturaAllCiclos.map((p) => p.segmento_organizacional).filter(Boolean))).sort() as string[];
 
   // Enrich matches with names from in-memory lookups
   type CatalogRow = { id: string; nombre: string; organización?: string | null; segmento_organizacional?: string | null };
@@ -234,6 +235,7 @@ export default async function SucesionPage() {
       puestosByCiclo={puestosByCiclo}
       coberturaAllCiclos={coberturaAllCiclos}
       uens={uens}
+      segmentos={segmentos}
       matches={matches}
       matchCiclos={allCiclos}
     />

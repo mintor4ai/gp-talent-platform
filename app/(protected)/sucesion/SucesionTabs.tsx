@@ -15,6 +15,7 @@ type ColabRow = {
   nivel: string | null;
   area: string | null;
   organización: string | null;
+  segmento_organizacional: string | null;
 };
 
 export default function SucesionTabs({
@@ -24,6 +25,7 @@ export default function SucesionTabs({
   puestosByCiclo,
   coberturaAllCiclos,
   uens,
+  segmentos,
   matches,
   matchCiclos,
 }: {
@@ -33,6 +35,7 @@ export default function SucesionTabs({
   puestosByCiclo: Record<number, PuestoCoberturaItem[]>;
   coberturaAllCiclos: PuestoCoberturaItem[];
   uens: string[];
+  segmentos: string[];
   matches: MatchRow[];
   matchCiclos: number[];
 }) {
@@ -78,12 +81,13 @@ export default function SucesionTabs({
       </div>
 
       {tab === "planes" && (
-        <SucesionAdminView planes={planes} colabs={colabs} ciclos={ciclos} allCiclos={matchCiclos} />
+        <SucesionAdminView planes={planes} colabs={colabs} ciclos={ciclos} allCiclos={matchCiclos} segmentos={segmentos} />
       )}
       {tab === "cobertura" && (
         <CoberturaView
           puestos={puestosCobertura}
           uens={uens}
+          segmentos={segmentos}
           cicloActual={cicloCobertura}
           ciclosDisponibles={ciclos}
           onCicloChange={setCicloCobertura}
@@ -94,6 +98,7 @@ export default function SucesionTabs({
           matches={matches}
           ciclosDisponibles={matchCiclos}
           uens={uens}
+          segmentos={segmentos}
         />
       )}
     </div>

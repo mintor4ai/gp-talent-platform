@@ -309,20 +309,23 @@ function EmptyMsg({ children }: { children: React.ReactNode }) {
 export default function CoberturaView({
   puestos,
   uens,
+  segmentos,
   cicloActual,
   ciclosDisponibles,
   onCicloChange,
 }: {
   puestos: PuestoCoberturaItem[];
   uens: string[];
+  segmentos: string[];
   cicloActual: number | "todos";
   ciclosDisponibles: number[];
   onCicloChange: (c: number | "todos") => void;
 }) {
-  const [filterCritico, setFilterCritico] = useState<"" | "si" | "no">("si");
-  const [filterRiesgo, setFilterRiesgo]   = useState<"" | RiesgoLevel>("");
-  const [filterUen, setFilterUen]         = useState("");
-  const [search, setSearch]               = useState("");
+  const [filterCritico, setFilterCritico]     = useState<"" | "si" | "no">("si");
+  const [filterRiesgo, setFilterRiesgo]       = useState<"" | RiesgoLevel>("");
+  const [filterUen, setFilterUen]             = useState("");
+  const [filterSegmento, setFilterSegmento]   = useState("");
+  const [search, setSearch]                   = useState("");
   const [selected, setSelected]           = useState<PuestoCoberturaItem | null>(null);
   const { sortKey, sortDir, handleSort } = useSortState<"nombre" | "organización" | "tipo_vacante" | "sucesores" | "aspirantes" | "riesgo">("riesgo");
 
@@ -332,6 +335,7 @@ export default function CoberturaView({
       if (filterCritico === "si" && !p.es_critico) return false;
       if (filterCritico === "no" && p.es_critico)  return false;
       if (filterUen && p.organización !== filterUen) return false;
+      if (filterSegmento && (p.segmento_organizacional ?? "") !== filterSegmento) return false;
       if (filterRiesgo && getRiesgo(p) !== filterRiesgo) return false;
       if (q && !p.nombre.toLowerCase().includes(q) && !p.clave.toLowerCase().includes(q)) return false;
       return true;
@@ -350,7 +354,7 @@ export default function CoberturaView({
           return dir * (RIESGO_CONFIG[getRiesgo(a)].order - RIESGO_CONFIG[getRiesgo(b)].order);
       }
     });
-  }, [puestos, filterCritico, filterRiesgo, filterUen, search, sortKey, sortDir]);
+  }, [puestos, filterCritico, filterRiesgo, filterUen, filterSegmento, search, sortKey, sortDir]);
 
   const conSucesor   = filtered.filter((p) => p.sucesores.length > 0).length;
   const sinSucesor   = filtered.filter((p) => p.sucesores.length === 0 && p.titulares.length > 0).length;
@@ -424,9 +428,16 @@ export default function CoberturaView({
             <option value="listo">Con sucesor 🟢</option>
             <option value="vacante">Vacante ⚪</option>
           </select>
+          {segmentos.length > 0 && (
+            <select value={filterSegmento} onChange={(e) => setFilterSegmento(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
+              <option value="">Todos los segmentos</option>
+              {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
         </div>
-        {(search || filterCritico !== "si" || filterUen || filterRiesgo) && (
-          <button onClick={() => { setSearch(""); setFilterCritico("si"); setFilterUen(""); setFilterRiesgo(""); }}
+        {(search || filterCritico !== "si" || filterUen || filterRiesgo || filterSegmento) && (
+          <button onClick={() => { setSearch(""); setFilterCritico("si"); setFilterUen(""); setFilterRiesgo(""); setFilterSegmento(""); }}
             className="mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors">
             Limpiar filtros
           </button>

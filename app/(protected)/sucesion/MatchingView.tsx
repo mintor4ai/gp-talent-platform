@@ -782,10 +782,12 @@ export default function MatchingView({
   matches: initialMatches,
   ciclosDisponibles,
   uens,
+  segmentos,
 }: {
   matches: MatchRow[];
   ciclosDisponibles: number[];
   uens: string[];
+  segmentos: string[];
 }) {
   const [matches, setMatches] = useState<MatchRow[]>(initialMatches);
   const [isPending, startTransition] = useTransition();
@@ -794,6 +796,7 @@ export default function MatchingView({
   const [selectedCiclo, setSelectedCiclo] = useState<number | "all">(ciclosDisponibles[0] ?? "all");
   const [selectedTipo, setSelectedTipo] = useState<string>("all");
   const [selectedUen, setSelectedUen] = useState<string>("all");
+  const [selectedSegmento, setSelectedSegmento] = useState<string>("all");
   const [selectedArea, setSelectedArea] = useState<string>("all");
   const [selectedPuesto, setSelectedPuesto] = useState<string>("all");
   const [selectedEstado, setSelectedEstado] = useState<"all" | "pendiente" | "validado" | "descartado">("all");
@@ -876,6 +879,7 @@ export default function MatchingView({
     if (selectedCiclo !== "all" && m.ciclo_año !== selectedCiclo) return false;
     if (includeTipo && selectedTipo !== "all" && m.tipo_match !== selectedTipo) return false;
     if (selectedUen !== "all" && m.puesto_org !== selectedUen) return false;
+    if (selectedSegmento !== "all" && (m.puesto_area ?? "") !== selectedSegmento) return false;
     if (selectedArea !== "all" && m.colaborador_area !== selectedArea) return false;
     if (selectedPuesto !== "all" && m.puesto_nombre !== selectedPuesto) return false;
     if (soloCriticos && !m.es_puesto_critico) return false;
@@ -893,7 +897,7 @@ export default function MatchingView({
   const countBase = useMemo(
     () => matches.filter((m) => !m.descartado && passesBase(m, false)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [matches, selectedCiclo, selectedUen, selectedArea, selectedPuesto, soloCriticos, search]
+    [matches, selectedCiclo, selectedUen, selectedSegmento, selectedArea, selectedPuesto, soloCriticos, search]
   );
 
   const typeCounts = useMemo(() => ({
@@ -907,14 +911,14 @@ export default function MatchingView({
   const activeFiltered = useMemo(
     () => matches.filter((m) => !m.descartado && passesBase(m, true)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [matches, selectedCiclo, selectedTipo, selectedUen, selectedArea, selectedPuesto, soloCriticos, search]
+    [matches, selectedCiclo, selectedTipo, selectedUen, selectedSegmento, selectedArea, selectedPuesto, soloCriticos, search]
   );
 
   // Discarded after all base filters (excluding estado)
   const discardedFiltered = useMemo(
     () => matches.filter((m) => m.descartado && passesBase(m, true)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [matches, selectedCiclo, selectedTipo, selectedUen, selectedArea, selectedPuesto, soloCriticos, search]
+    [matches, selectedCiclo, selectedTipo, selectedUen, selectedSegmento, selectedArea, selectedPuesto, soloCriticos, search]
   );
 
   // What goes in the main grid depends on selectedEstado
@@ -980,6 +984,19 @@ export default function MatchingView({
               <option value="all">Todas las UEN</option>
               {uens.map((u) => (
                 <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
+          )}
+
+          {segmentos.length > 0 && (
+            <select
+              value={selectedSegmento}
+              onChange={(e) => setSelectedSegmento(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
+            >
+              <option value="all">Todos los segmentos</option>
+              {segmentos.map((s) => (
+                <option key={s} value={s}>{s}</option>
               ))}
             </select>
           )}

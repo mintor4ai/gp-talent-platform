@@ -13,6 +13,7 @@ type ColabRow = {
   nivel: string | null;
   area: string | null;
   organización: string | null;
+  segmento_organizacional: string | null;
 };
 
 type SucesionItemExt = SucesionItem & { fuente?: string | null };
@@ -38,16 +39,19 @@ export default function SucesionAdminView({
   colabs,
   ciclos,
   allCiclos,
+  segmentos,
 }: {
   planes: SucesionItem[];
   colabs: ColabRow[];
   ciclos: number[];
   allCiclos: number[];
+  segmentos: string[];
 }) {
   const [cicloActual, setCicloActual] = useState<number>(ciclos[0] ?? new Date().getFullYear());
-  const [estadoFilter, setEstadoFilter]       = useState("");
-  const [readinessFilter, setReadinessFilter] = useState("");
-  const [searchFilter, setSearchFilter]       = useState("");
+  const [estadoFilter, setEstadoFilter]         = useState("");
+  const [readinessFilter, setReadinessFilter]   = useState("");
+  const [searchFilter, setSearchFilter]         = useState("");
+  const [segmentoFilter, setSegmentoFilter]     = useState("");
   const [showModal, setShowModal]             = useState(false);
   const [editTarget, setEditTarget]           = useState<SucesionItemExt | null>(null);
 
@@ -58,6 +62,10 @@ export default function SucesionAdminView({
   const filtered = plansCiclo.filter((p) => {
     if (estadoFilter   && p.estado !== estadoFilter)                    return false;
     if (readinessFilter && (p.readiness ?? p.tiempo_estimado) !== readinessFilter) return false;
+    if (segmentoFilter) {
+      const titular = colabs.find((c) => c.id === p.id_empleado);
+      if ((titular?.segmento_organizacional ?? "") !== segmentoFilter) return false;
+    }
     if (searchFilter) {
       const q = searchFilter.toLowerCase();
       const titular = colabs.find((c) => c.id === p.id_empleado);
@@ -157,8 +165,15 @@ export default function SucesionAdminView({
           className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
           {READINESS_FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        {(estadoFilter || readinessFilter || searchFilter) && (
-          <button onClick={() => { setEstadoFilter(""); setReadinessFilter(""); setSearchFilter(""); }}
+        {segmentos.length > 0 && (
+          <select value={segmentoFilter} onChange={(e) => setSegmentoFilter(e.target.value)}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
+            <option value="">Todos los segmentos</option>
+            {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        {(estadoFilter || readinessFilter || searchFilter || segmentoFilter) && (
+          <button onClick={() => { setEstadoFilter(""); setReadinessFilter(""); setSearchFilter(""); setSegmentoFilter(""); }}
             className="text-xs text-gray-400 hover:text-gray-600">
             Limpiar filtros
           </button>
