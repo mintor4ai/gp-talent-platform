@@ -97,23 +97,41 @@ function ColabSearch({
   );
 }
 
+type InitialData = {
+  planId: string;
+  cicloAño: number;
+  titularId: string;
+  sucesId: string;
+  readiness: string;
+  tiempoEstimado: string;
+  notas: string | null;
+};
+
 export default function AgregarSucesorModal({
   colabs,
   ciclos,
   cicloDefault,
+  initialData,
   onClose,
 }: {
   colabs: ColabOption[];
   ciclos: number[];
   cicloDefault: number;
+  initialData?: InitialData;
   onClose: () => void;
 }) {
-  const [ciclo, setCiclo]         = useState(cicloDefault);
-  const [titular, setTitular]     = useState<ColabOption | null>(null);
-  const [sucesor, setSucesor]     = useState<ColabOption | null>(null);
-  const [readiness, setReadiness] = useState("tres_mas_anios");
-  const [tiempo, setTiempo]       = useState("mediano");
-  const [notas, setNotas]         = useState("");
+  const isEdit = !!initialData;
+
+  const [ciclo, setCiclo]         = useState(initialData?.cicloAño ?? cicloDefault);
+  const [titular, setTitular]     = useState<ColabOption | null>(
+    initialData ? (colabs.find((c) => c.id === initialData.titularId) ?? null) : null
+  );
+  const [sucesor, setSucesor]     = useState<ColabOption | null>(
+    initialData ? (colabs.find((c) => c.id === initialData.sucesId) ?? null) : null
+  );
+  const [readiness, setReadiness] = useState(initialData?.readiness ?? "tres_mas_anios");
+  const [tiempo, setTiempo]       = useState(initialData?.tiempoEstimado ?? "mediano");
+  const [notas, setNotas]         = useState(initialData?.notas ?? "");
   const [error, setError]         = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -131,6 +149,7 @@ export default function AgregarSucesorModal({
         tiempoEstimado:        tiempo,
         notas:                 notas || null,
         validarInmediatamente: validar,
+        planId:                initialData?.planId,
       });
       if (!res.ok) { setError(res.error ?? "Error al guardar."); return; }
       onClose();
@@ -145,7 +164,9 @@ export default function AgregarSucesorModal({
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Agregar sucesor</h2>
+            <h2 className="text-base font-bold text-gray-900">
+              {isEdit ? "Editar sucesor" : "Agregar sucesor"}
+            </h2>
             <p className="text-xs text-gray-400 mt-0.5">Captura directa · Capital Humano</p>
           </div>
           <button onClick={onClose}
@@ -155,15 +176,29 @@ export default function AgregarSucesorModal({
         {/* Ciclo */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Ciclo</label>
-          <select value={ciclo} onChange={(e) => setCiclo(Number(e.target.value))}
-            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]">
-            {ciclos.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          {isEdit ? (
+            <p className="text-sm font-medium text-gray-700 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">{ciclo}</p>
+          ) : (
+            <select value={ciclo} onChange={(e) => setCiclo(Number(e.target.value))}
+              className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]">
+              {ciclos.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
         </div>
 
-        {/* Titular */}
-        <ColabSearch label="Titular (posición a suceder)"
-          colabs={colabs} value={titular} onChange={setTitular} exclude={sucesor?.id} />
+        {/* Titular — locked in edit mode */}
+        {isEdit ? (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Titular (posición a suceder)</label>
+            <div className="border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+              <p className="text-sm font-medium text-gray-700">{titular?.nombre_completo ?? "—"}</p>
+              <p className="text-xs text-gray-500">{titular?.puesto}</p>
+            </div>
+          </div>
+        ) : (
+          <ColabSearch label="Titular (posición a suceder)"
+            colabs={colabs} value={titular} onChange={setTitular} exclude={sucesor?.id} />
+        )}
 
         {/* Sucesor */}
         <ColabSearch label="Sucesor propuesto"

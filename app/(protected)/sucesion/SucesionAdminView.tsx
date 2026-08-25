@@ -49,6 +49,7 @@ export default function SucesionAdminView({
   const [readinessFilter, setReadinessFilter] = useState("");
   const [searchFilter, setSearchFilter]       = useState("");
   const [showModal, setShowModal]             = useState(false);
+  const [editTarget, setEditTarget]           = useState<SucesionItemExt | null>(null);
 
   const planesExt = planes as SucesionItemExt[];
 
@@ -86,12 +87,21 @@ export default function SucesionAdminView({
 
   return (
     <div className="space-y-6 max-w-6xl">
-      {showModal && (
+      {(showModal || editTarget) && (
         <AgregarSucesorModal
           colabs={colabs}
           ciclos={allCiclos.length > 0 ? allCiclos : [cicloActual]}
           cicloDefault={cicloActual}
-          onClose={() => setShowModal(false)}
+          initialData={editTarget ? {
+            planId:         editTarget.id,
+            cicloAño:       editTarget.ciclo_año,
+            titularId:      editTarget.id_empleado,
+            sucesId:        editTarget.sucesor_id ?? "",
+            readiness:      editTarget.readiness ?? "tres_mas_anios",
+            tiempoEstimado: editTarget.tiempo_estimado ?? "mediano",
+            notas:          editTarget.notas ?? null,
+          } : undefined}
+          onClose={() => { setShowModal(false); setEditTarget(null); }}
         />
       )}
 
@@ -170,7 +180,8 @@ export default function SucesionAdminView({
           {Object.entries(porTitular).map(([titularId, sucesores]) => {
             const titular = colabs.find((c) => c.id === titularId);
             return (
-              <TitularCard key={titularId} titular={titular ?? null} sucesores={sucesores} colabs={colabs} />
+              <TitularCard key={titularId} titular={titular ?? null} sucesores={sucesores} colabs={colabs}
+                onEdit={(s) => setEditTarget(s)} />
             );
           })}
         </div>
@@ -183,10 +194,12 @@ function TitularCard({
   titular,
   sucesores,
   colabs,
+  onEdit,
 }: {
   titular: ColabRow | null;
   sucesores: SucesionItemExt[];
   colabs: ColabRow[];
+  onEdit: (s: SucesionItemExt) => void;
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
@@ -233,9 +246,16 @@ function TitularCard({
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
                   {esCH && (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 border border-blue-200">
-                      CH
-                    </span>
+                    <>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+                        CH
+                      </span>
+                      <button onClick={() => onEdit(s)}
+                        title="Editar"
+                        className="text-blue-400 hover:text-blue-700 transition-colors text-xs leading-none">
+                        ✏️
+                      </button>
+                    </>
                   )}
                   <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${readiness.color}`}>
                     {readiness.label}

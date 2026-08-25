@@ -23,6 +23,7 @@ export async function upsertPlanSucesionManual(params: {
   tiempoEstimado: string;
   notas: string | null;
   validarInmediatamente: boolean;
+  planId?: string; // when provided → direct edit by ID (no duplicate check)
 }): Promise<{ ok: boolean; created: boolean; error?: string }> {
   try {
     const { supabase, userId } = await getAdminUser();
@@ -34,15 +35,6 @@ export async function upsertPlanSucesionManual(params: {
       .eq("id", params.titularId)
       .single();
     const puestoCatalogoId = (titularColab as any)?.puesto_catalogo_id as string | null ?? null;
-
-    // Anti-duplicate check
-    const { data: existing } = await supabase
-      .from("plan_sucesion")
-      .select("id")
-      .eq("id_empleado", params.titularId)
-      .eq("sucesor_id", params.sucesId)
-      .eq("ciclo_año", params.cicloAño)
-      .maybeSingle();
 
     const now = new Date().toISOString();
     const payload = {
@@ -62,16 +54,33 @@ export async function upsertPlanSucesionManual(params: {
 
     let created: boolean;
 
-    if (existing) {
+    if (params.planId) {
+      // Direct edit by ID — skip duplicate check
       const { error } = await supabase
-        .from("plan_sucesion").update(payload).eq("id", (existing as any).id);
+        .from("plan_sucesion").update(payload).eq("id", params.planId);
       if (error) throw error;
       created = false;
     } else {
-      const { error } = await supabase
-        .from("plan_sucesion").insert(payload);
-      if (error) throw error;
-      created = true;
+      // Create or upsert: anti-duplicate by titular+sucesor+ciclo
+      const { data: existing } = await supabase
+        .from("plan_sucesion")
+        .select("id")
+        .eq("id_empleado", params.titularId)
+        .eq("sucesor_id", params.sucesId)
+        .eq("ciclo_año", params.cicloAño)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from("plan_sucesion").update(payload).eq("id", (existing as any).id);
+        if (error) throw error;
+        created = false;
+      } else {
+        const { error } = await supabase
+          .from("plan_sucesion").insert(payload);
+        if (error) throw error;
+        created = true;
+      }
     }
 
     // Upsert sucesion_match when CH validates immediately
