@@ -689,15 +689,6 @@ export default function OrganigramaClient({
     return [];
   }, [modo, uenRoots, selectedPersonId, fullNodeMap]);
 
-  // Split roots: those with children (real hierarchy) vs. leaf orphans (no jefe assigned)
-  const { treeRoots, orphanRoots } = useMemo(() => {
-    if (modo !== "uen") return { treeRoots: displayRoots, orphanRoots: [] };
-    return {
-      treeRoots:   displayRoots.filter((n) => n.children.length > 0),
-      orphanRoots: displayRoots.filter((n) => n.children.length === 0),
-    };
-  }, [displayRoots, modo]);
-
   // Person search suggestions
   const searchSuggestions = useMemo(() => {
     if (!personSearch || personSearch.length < 2) return [];
@@ -742,8 +733,8 @@ export default function OrganigramaClient({
         0
       );
     }
-    return count(treeRoots) + orphanRoots.length;
-  }, [treeRoots, orphanRoots, collapsed]);
+    return count(displayRoots);
+  }, [displayRoots, collapsed]);
 
   return (
     <>
@@ -963,70 +954,37 @@ export default function OrganigramaClient({
           </div>
         </div>
 
-        {/* Chart + orphan panel wrapper */}
-        <div className="relative">
-          {/* Orphan panel — top right, only in UEN mode when there are orphans */}
-          {modo === "uen" && orphanRoots.length > 0 && (
-            <div className="no-print absolute top-3 right-3 z-10 bg-amber-50 border border-amber-200 rounded-xl shadow-md p-3 max-w-[220px]">
-              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide mb-2 flex items-center gap-1">
-                <span>⚠</span> Sin jefe asignado ({orphanRoots.length})
-              </p>
-              <div className="space-y-1.5">
-                {orphanRoots.map((n) => (
-                  <a
-                    key={n.id}
-                    href={`/carpeta/${n.id}`}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white border border-amber-100 hover:border-amber-300 transition-colors group"
-                  >
-                    <Avatar id={n.id} nombre={n.nombre} size={28} />
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold text-gray-800 truncate leading-snug group-hover:text-[#1a3a5c]">
-                        {n.nombre}
-                      </p>
-                      <p className="text-[9px] text-gray-400 truncate">{n.puesto}</p>
-                    </div>
-                  </a>
-                ))}
+        {/* Chart */}
+        <div
+          ref={chartRef}
+          className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-auto print-chart org-chart-scroll"
+          style={{ maxHeight: isFullscreen ? "100%" : "calc(100vh - 260px)", minHeight: 240 }}
+          onMouseDown={onDragStart}
+          onMouseMove={onDragMove}
+          onMouseUp={onDragEnd}
+          onMouseLeave={() => { drag.current.active = false; drag.current.moved = false; chartRef.current?.classList.remove("is-dragging"); }}
+        >
+          <div className="org-tree">
+            {displayRoots.length === 0 ? (
+              <div className="py-16 text-center text-gray-400">
+                {modo === "persona"
+                  ? "Busca un colaborador para ver su organigrama"
+                  : "No hay colaboradores en esta UEN"}
               </div>
-            </div>
-          )}
-
-          {/* Chart */}
-          <div
-            ref={chartRef}
-            className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-auto print-chart org-chart-scroll"
-            style={{ maxHeight: isFullscreen ? "100%" : "calc(100vh - 260px)", minHeight: 240 }}
-            onMouseDown={onDragStart}
-            onMouseMove={onDragMove}
-            onMouseUp={onDragEnd}
-            onMouseLeave={() => { drag.current.active = false; drag.current.moved = false; chartRef.current?.classList.remove("is-dragging"); }}
-          >
-            <div className="org-tree">
-              {treeRoots.length === 0 && orphanRoots.length === 0 ? (
-                <div className="py-16 text-center text-gray-400">
-                  {modo === "persona"
-                    ? "Busca un colaborador para ver su organigrama"
-                    : "No hay colaboradores en esta UEN"}
-                </div>
-              ) : treeRoots.length === 0 ? (
-                <div className="py-16 text-center text-gray-400 text-sm">
-                  Todos los colaboradores de esta UEN están sin jefe asignado
-                </div>
-              ) : (
-                <ul className="org-root-list">
-                  {treeRoots.map((node) => (
-                    <OrgTreeNode
-                      key={node.id}
-                      node={node}
-                      collapsed={collapsed}
-                      onToggle={toggleCollapse}
-                      highlightedId={highlightedId}
-                      isRoot
-                    />
-                  ))}
-                </ul>
-              )}
-            </div>
+            ) : (
+              <ul className="org-root-list">
+                {displayRoots.map((node) => (
+                  <OrgTreeNode
+                    key={node.id}
+                    node={node}
+                    collapsed={collapsed}
+                    onToggle={toggleCollapse}
+                    highlightedId={highlightedId}
+                    isRoot
+                  />
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </div>
