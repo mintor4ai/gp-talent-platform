@@ -19,16 +19,19 @@ function str(v: unknown): string | null {
 function calcEvaluacionEal(
   promedio: number,
   minActual: number,
-  mediana: number
+  mediana: number,
+  maxActual: number
 ): number {
   if (promedio <= minActual) return 80;
-  if (promedio >= 5) return 120;
+  if (promedio >= maxActual) return 120;
   if (promedio <= mediana) {
+    if (mediana === minActual) return 100;
     // linear: minActual → 80, mediana → 100
     return 80 + ((promedio - minActual) / (mediana - minActual)) * 20;
   }
-  // linear: mediana → 100, 5 → 120
-  return 100 + ((promedio - mediana) / (5 - mediana)) * 20;
+  if (maxActual === mediana) return 100;
+  // linear: mediana → 100, maxActual → 120
+  return 100 + ((promedio - mediana) / (maxActual - mediana)) * 20;
 }
 
 function calcPercentil(valor: number, uniquesSortedDesc: number[]): number {
@@ -263,22 +266,21 @@ export async function POST(req: NextRequest) {
   // Piecewise linear normalization
   const promedioValues = activePromedios.map((e) => e.promedio);
   const minActual = Math.min(...promedioValues);
+  const maxActual = Math.max(...promedioValues);
   const sorted = [...promedioValues].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   const mediana = sorted.length % 2 === 0
     ? (sorted[mid - 1] + sorted[mid]) / 2
     : sorted[mid];
 
-  // evaluacion_eal per person
+  // evaluacion_eal per person — upper anchor = actual max of cycle (not theoretical 5)
   for (const entry of activePromedios) {
-    const ev = calcEvaluacionEal(entry.promedio, minActual, mediana);
+    const ev = calcEvaluacionEal(entry.promedio, minActual, mediana, maxActual);
     (entry as typeof entry & { evaluacion_eal: number }).evaluacion_eal = Math.round(ev * 100) / 100;
   }
 
-  // percentil_eal: based on evaluacion_eal values
-  const evalEalValues = (activePromedios as (typeof activePromedios[0] & { evaluacion_eal: number })[])
-    .map((e) => e.evaluacion_eal);
-  const uniquesDesc = Array.from(new Set(evalEalValues)).sort((a, b) => b - a);
+  // percentil_eal: based on promedio_eal values (consistent with Competencias 360 percentil_empresa)
+  const uniquesPromedioDesc = Array.from(new Set(promedioValues)).sort((a, b) => b - a);
 
   const errors: string[] = [];
   let upserted = 0;
@@ -286,7 +288,7 @@ export async function POST(req: NextRequest) {
 
   for (const entry of activePromedios as (typeof activePromedios[0] & { evaluacion_eal: number })[]) {
     const uuid = entry.uuid;
-    const percentil = calcPercentil(entry.evaluacion_eal, uniquesDesc);
+    const percentil = calcPercentil(entry.promedio, uniquesPromedioDesc);
 
     // Count unique evaluadores
     const eData = byEvaluado.get(entry.id_num);
@@ -340,6 +342,7 @@ export async function POST(req: NextRequest) {
     detail_rows: detailRows,
     mediana,
     min_actual:  minActual,
+    max_actual:  maxActual,
     errors:      errors.slice(0, 20),
   });
 }
