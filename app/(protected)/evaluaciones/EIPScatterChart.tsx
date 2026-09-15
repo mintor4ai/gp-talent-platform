@@ -372,8 +372,8 @@ export default function EIPScatterChart({
   const [filterArea,     setFilterArea]     = useState("Todos");
   const [filterJefe,     setFilterJefe]     = useState("Todos");
   const [filterSegmento, setFilterSegmento] = useState("Todos");
+  const [filterZona,     setFilterZona]     = useState("Todos");
   const [nameFilter,     setNameFilter]     = useState("");
-  const [showGrid,   setShowGrid]   = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fsSize, setFsSize]             = useState({ w: CW, h: CH });
   const [tooltip, setTooltip]           = useState<{ x: number; y: number; point: EIPPoint } | null>(null);
@@ -432,7 +432,8 @@ export default function EIPScatterChart({
 
   const hasActiveFilter =
     filterUen !== "Todos" || filterArea !== "Todos" ||
-    filterJefe !== "Todos" || filterSegmento !== "Todos" || nameFilter.trim() !== "";
+    filterJefe !== "Todos" || filterSegmento !== "Todos" ||
+    filterZona !== "Todos" || nameFilter.trim() !== "";
 
   const matchingIds: Set<string> | null = hasActiveFilter
     ? new Set(
@@ -442,6 +443,7 @@ export default function EIPScatterChart({
             if (filterArea     !== "Todos" && p.area     !== filterArea)     return false;
             if (filterJefe     !== "Todos" && p.jefe     !== filterJefe)     return false;
             if (filterSegmento !== "Todos" && p.segmento !== filterSegmento) return false;
+            if (filterZona     !== "Todos" && p.zona     !== filterZona)     return false;
             if (nameFilter.trim() && !p.nombre.toLowerCase().includes(nameFilter.toLowerCase())) return false;
             return true;
           })
@@ -470,6 +472,7 @@ export default function EIPScatterChart({
     setFilterArea("Todos");
     setFilterJefe("Todos");
     setFilterSegmento("Todos");
+    setFilterZona("Todos");
     setNameFilter("");
   }
 
@@ -531,20 +534,18 @@ export default function EIPScatterChart({
           {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       )}
+      <select value={filterZona} onChange={(e) => setFilterZona(e.target.value)}
+        className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#1a3a5c]">
+        <option value="Todos">Todas las zonas</option>
+        {(["Sobresaliente", "Desarrollo", "Estabilidad", "Revisión", "Inicio"] as const).map((z) => (
+          <option key={z} value={z}>{z}</option>
+        ))}
+      </select>
       {hasActiveFilter && (
         <button onClick={clearFilters} className="text-xs text-gray-400 hover:text-gray-700 underline">
           Limpiar
         </button>
       )}
-      <label className="flex items-center gap-1.5 cursor-pointer select-none ml-1">
-        <input
-          type="checkbox"
-          checked={showGrid}
-          onChange={(e) => setShowGrid(e.target.checked)}
-          className="w-3.5 h-3.5 rounded accent-[#1a3a5c]"
-        />
-        <span className="text-xs text-gray-500">Cuadrícula 9-box</span>
-      </label>
     </div>
   );
 
@@ -575,7 +576,7 @@ export default function EIPScatterChart({
         points={!isMultiCycle ? (visibleCycleData[0]?.points ?? []) : []}
         multiCyclePoints={isMultiCycle ? visibleCycleData : undefined}
         dimmedIds={dimmedIds.size > 0 ? dimmedIds : undefined}
-        showQuadrantLines={showGrid}
+        showQuadrantLines={false}
         width={w}
         height={h}
         showTitle={showTit}
