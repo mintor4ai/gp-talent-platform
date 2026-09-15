@@ -131,7 +131,6 @@ export function TalentMatrixSVG({
   multiCyclePoints,
   dimmedIds,
   showQuadrantLines = false,
-  showLabels = false,
   width = CW,
   height = CH,
   showTitle = true,
@@ -147,7 +146,6 @@ export function TalentMatrixSVG({
   /** Point IDs to render dimmed (gray, low opacity) behind active points. */
   dimmedIds?: Set<string>;
   showQuadrantLines?: boolean;
-  showLabels?: boolean;
   width?: number | string;
   height?: number | string;
   showTitle?: boolean;
@@ -339,14 +337,10 @@ export function TalentMatrixSVG({
         const labelW = label.length * 5.5 + 6;
         return (
           <g key={p.id} {...hoverHandlers(p)}>
-            {showLabels && (
-              <>
-                <rect x={labelX - 1} y={labelY - 9} width={labelW} height={12} rx={1.5}
-                  fill="white" stroke={color} strokeWidth={0.8} opacity={0.92} />
-                <text x={labelX + 2} y={labelY} fontSize={8} fill="#374151" fontWeight="500">{label}</text>
-              </>
-            )}
-            <circle cx={cx} cy={cy} r={showLabels ? 4.5 : 5.5} fill={color} stroke="white" strokeWidth={1.2} />
+            <rect x={labelX - 1} y={labelY - 9} width={labelW} height={12} rx={1.5}
+              fill="white" stroke={color} strokeWidth={0.8} opacity={0.92} />
+            <text x={labelX + 2} y={labelY} fontSize={8} fill="#374151" fontWeight="500">{label}</text>
+            <circle cx={cx} cy={cy} r={4.5} fill={color} stroke="white" strokeWidth={1.2} />
           </g>
         );
       })}
@@ -380,7 +374,6 @@ export default function EIPScatterChart({
   const [filterSegmento, setFilterSegmento] = useState("Todos");
   const [filterZona,     setFilterZona]     = useState("Todos");
   const [nameFilter,     setNameFilter]     = useState("");
-  const [showLabels,     setShowLabels]     = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fsSize, setFsSize]             = useState({ w: CW, h: CH });
   const [tooltip, setTooltip]           = useState<{ x: number; y: number; point: EIPPoint } | null>(null);
@@ -584,7 +577,6 @@ export default function EIPScatterChart({
         multiCyclePoints={isMultiCycle ? visibleCycleData : undefined}
         dimmedIds={dimmedIds.size > 0 ? dimmedIds : undefined}
         showQuadrantLines={false}
-        showLabels={showLabels}
         width={w}
         height={h}
         showTitle={showTit}
@@ -593,30 +585,6 @@ export default function EIPScatterChart({
         onPointHover={(p, x, y) => setTooltip(p ? { x, y, point: p } : null)}
       />
     );
-  }
-
-  function exportToExcel() {
-    const XLSX = require("xlsx");
-    const activePoints = matchingIds
-      ? allVisiblePoints.filter((p) => matchingIds.has(p.id))
-      : allVisiblePoints;
-    const rows = activePoints.map((p) => ({
-      "Nombre":     p.nombre,
-      "Puesto":     p.puesto,
-      "Área":       p.area ?? "",
-      "UEN":        p.uen ?? "",
-      "Jefe":       p.jefe ?? "",
-      "Segmento":   p.segmento ?? "",
-      "Desempeño":  p.desempeno,
-      "Potencial":  p.potencial,
-      "Zona":       p.zona ?? "",
-      "Ciclo":      selectedCycles.length === 1 ? selectedCycles[0] : "Multi-ciclo",
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = [32,38,28,32,38,22,12,12,16,10].map((w) => ({ wch: w }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Mapa de Talento");
-    XLSX.writeFile(wb, `EIP_MapaTalento_${selectedCycles.join("-")}.xlsx`);
   }
 
   const tooltipEl = tooltip && (
@@ -657,20 +625,6 @@ export default function EIPScatterChart({
             </div>
             <span className="text-xs text-gray-400 whitespace-nowrap">{activeCount} colaboradores</span>
             <button
-              onClick={() => setShowLabels((v) => !v)}
-              className={`text-xs px-2.5 py-1.5 rounded-lg border whitespace-nowrap transition-colors ${
-                showLabels ? "bg-[#1a3a5c] text-white border-[#1a3a5c]" : "border-gray-200 text-gray-500 hover:bg-gray-50"
-              }`}
-            >
-              🏷 {showLabels ? "Ocultar nombres" : "Mostrar nombres"}
-            </button>
-            <button
-              onClick={exportToExcel}
-              className="text-xs border border-gray-200 text-gray-500 px-2.5 py-1.5 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
-            >
-              ⬇ Exportar Excel
-            </button>
-            <button
               onClick={() => setIsFullscreen(false)}
               className="text-xs font-medium text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-1.5 whitespace-nowrap"
             >
@@ -699,24 +653,6 @@ export default function EIPScatterChart({
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {cycleToggles}
-            <button
-              onClick={() => setShowLabels((v) => !v)}
-              className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
-                showLabels
-                  ? "bg-[#1a3a5c] text-white border-[#1a3a5c]"
-                  : "border-gray-200 text-gray-500 hover:bg-gray-50"
-              }`}
-              title="Mostrar u ocultar nombres en el gráfico"
-            >
-              {showLabels ? "🏷 Nombres visibles" : "🏷 Mostrar nombres"}
-            </button>
-            <button
-              onClick={exportToExcel}
-              className="text-xs border border-gray-200 text-gray-500 px-2.5 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
-              title="Exportar datos actuales a Excel"
-            >
-              ⬇ Exportar Excel
-            </button>
             <button
               onClick={() => setIsFullscreen(true)}
               className="text-xs border border-gray-200 text-gray-500 px-2.5 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
