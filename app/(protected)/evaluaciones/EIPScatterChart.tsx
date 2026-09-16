@@ -138,6 +138,7 @@ export function TalentMatrixSVG({
   onPointHover,
   contentTransform,
   showLabels = true,
+  prevCyclePoints,
 }: {
   zonaBands: ZonaBand[];
   points?: EIPPoint[];
@@ -153,6 +154,7 @@ export function TalentMatrixSVG({
   onPointHover?: (p: EIPPoint | null, x: number, y: number) => void;
   contentTransform?: string;
   showLabels?: boolean;
+  prevCyclePoints?: EIPPoint[];
 }) {
   const rawId = useId();
   const clipId = `eip-clip-${rawId.replace(/:/g, "")}`;
@@ -275,6 +277,12 @@ export function TalentMatrixSVG({
           );
         })}
 
+        {/* Ghost dots for previous-cycle overlay */}
+        {prevCyclePoints?.map((p) => (
+          <circle key={`ghost-${p.id}`} cx={toX(p.desempeno)} cy={toY(p.potencial)} r={3}
+            fill="#94a3b8" opacity={0.28} />
+        ))}
+
         {/* Dimmed points */}
         {dimmedItems.map(({ point: p }) => {
           const cx = toX(p.desempeno);
@@ -327,9 +335,10 @@ export function TalentMatrixSVG({
             );
           }
 
-          const labelX = cx + 8;
-          const labelY = cy + 3.5;
-          const labelW = label.length * 5.5 + 6;
+          const labelW  = label.length * 5.5 + 6;
+          const toRight = cx + 8 + labelW < PAD.left + W - 2;
+          const labelX  = toRight ? cx + 8 : cx - labelW - 4;
+          const labelY  = cy + 3.5;
           return (
             <g key={p.id} {...hoverHandlers(p)}>
               <rect x={labelX - 1} y={labelY - 9} width={labelW} height={12} rx={1.5}
@@ -341,11 +350,10 @@ export function TalentMatrixSVG({
         })}
       </g>
 
-      {/* White gutters — mask dots/labels that overflow the plot area */}
-      <rect x={0}              y={0}         width={PAD.left}  height={CH}       fill="white" />
-      <rect x={PAD.left + W}   y={0}         width={CW - PAD.left - W} height={CH} fill="white" />
-      <rect x={0}              y={0}         width={CW}        height={PAD.top}  fill="white" />
-      <rect x={0}              y={PAD.top+H} width={CW}        height={CH - PAD.top - H} fill="white" />
+      {/* White gutters — mask dots that overflow the plot area (right side left open so labels can extend) */}
+      <rect x={0} y={0}         width={PAD.left} height={CH}            fill="white" />
+      <rect x={0} y={0}         width={CW}       height={PAD.top}       fill="white" />
+      <rect x={0} y={PAD.top+H} width={CW}       height={CH-PAD.top-H} fill="white" />
 
       {/* Static chart frame — rendered on top of zoomable content */}
       <rect x={PAD.left} y={PAD.top} width={W} height={H}
@@ -383,6 +391,7 @@ function ZoomableChartView({
   showTitle,
   onPointClick,
   onExport,
+  prevCyclePoints,
 }: {
   zonaBands: ZonaBand[];
   points?: EIPPoint[];
@@ -394,6 +403,7 @@ function ZoomableChartView({
   showTitle: boolean;
   onPointClick?: (p: EIPPoint) => void;
   onExport?: () => void;
+  prevCyclePoints?: EIPPoint[];
 }) {
   const [vt, setVt]             = useState({ k: 1, tx: 0, ty: 0 });
   const vtRef                   = useRef({ k: 1, tx: 0, ty: 0 });
@@ -523,6 +533,7 @@ function ZoomableChartView({
         onPointHover={(p, x, y) => setTooltip(p ? { x, y, point: p } : null)}
         contentTransform={contentTransform}
         showLabels={showLabels}
+        prevCyclePoints={prevCyclePoints}
       />
       {tooltipEl}
 
@@ -577,7 +588,8 @@ export default function EIPScatterChart({
   const ciclos = Array.from(new Set(allCyclePoints.map((c) => c.ciclo))).sort((a, b) => b - a);
   const mostRecentCiclo = ciclos[0] ?? 0;
 
-  const [selectedCycles, setSelectedCycles] = useState<number[]>([mostRecentCiclo]);
+  const [selectedCycles,     setSelectedCycles]     = useState<number[]>([mostRecentCiclo]);
+  const [selectedPrevCycles, setSelectedPrevCycles] = useState<number[]>([]);
   const [filterUen,      setFilterUen]      = useState("Todos");
   const [filterArea,     setFilterArea]     = useState("Todos");
   const [filterJefe,     setFilterJefe]     = useState("Todos");
@@ -623,6 +635,19 @@ export default function EIPScatterChart({
     .map((c) => ({ ...c, color: cycleColorMap[c.ciclo] }));
 
   const allVisiblePoints = visibleCycleData.flatMap((c) => c.points);
+
+  const prevCyclePoints = useMemo(() =>
+    allCyclePoints
+      .filter((c) => selectedPrevCycles.includes(c.ciclo))
+      .flatMap((c) => c.points),
+    [allCyclePoints, selectedPrevCycles]
+  );
+
+  function togglePrevCycle(c: number) {
+    setSelectedPrevCycles((prev) =>
+      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+    );
+  }
 
   const pointCycleMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -784,6 +809,22 @@ export default function EIPScatterChart({
           Limpiar
         </button>
       )}
+      {ciclos.length > 1 && (
+        <div className="flex items-center gap-2 flex-wrap ml-1">
+          <span className="text-[10px] text-gray-400 uppercase tracking-wide font-semibold whitespace-nowrap">Historial:</span>
+          {ciclos.slice(1).map((c) => (
+            <label key={c} className="flex items-center gap-1 cursor-pointer select-none group">
+              <input
+                type="checkbox"
+                checked={selectedPrevCycles.includes(c)}
+                onChange={() => togglePrevCycle(c)}
+                className="w-3 h-3 rounded accent-slate-400 cursor-pointer"
+              />
+              <span className="text-xs text-gray-400 group-hover:text-gray-600">{c}</span>
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -814,6 +855,7 @@ export default function EIPScatterChart({
     dimmedIds:        dimmedIds.size > 0 ? dimmedIds : undefined,
     showQuadrantLines: false,
     onPointClick: (p: EIPPoint) => { window.location.href = `/carpeta/${p.id_empleado}`; },
+    prevCyclePoints: prevCyclePoints.length > 0 ? prevCyclePoints : undefined,
   } as const;
 
   return (
