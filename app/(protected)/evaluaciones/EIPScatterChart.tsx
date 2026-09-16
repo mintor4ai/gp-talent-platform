@@ -809,21 +809,30 @@ export default function EIPScatterChart({
           Limpiar
         </button>
       )}
-      {ciclos.length > 1 && (
-        <div className="flex items-center gap-2 flex-wrap ml-1">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wide font-semibold whitespace-nowrap">Historial:</span>
-          {ciclos.slice(1).map((c) => (
-            <label key={c} className="flex items-center gap-1 cursor-pointer select-none group">
-              <input
-                type="checkbox"
-                checked={selectedPrevCycles.includes(c)}
-                onChange={() => togglePrevCycle(c)}
-                className="w-3 h-3 rounded accent-slate-400 cursor-pointer"
-              />
-              <span className="text-xs text-gray-400 group-hover:text-gray-600">{c}</span>
-            </label>
-          ))}
-        </div>
+    </div>
+  );
+
+  const historicalOverlay = ciclos.length > 1 && (
+    <div className="flex items-center gap-3 flex-wrap py-1.5 px-3 bg-gray-50 rounded-lg border border-gray-100">
+      <span className="text-[11px] text-gray-500 font-semibold uppercase tracking-wide whitespace-nowrap">
+        Superponer ciclos:
+      </span>
+      {ciclos.slice(1).map((c) => (
+        <label key={c} className="flex items-center gap-1.5 cursor-pointer select-none group">
+          <input
+            type="checkbox"
+            checked={selectedPrevCycles.includes(c)}
+            onChange={() => togglePrevCycle(c)}
+            className="w-3.5 h-3.5 rounded accent-slate-400 cursor-pointer"
+          />
+          <span className="text-xs text-gray-500 group-hover:text-gray-800 font-medium">{c}</span>
+          <span className="text-[10px] text-gray-300 font-normal">histórico</span>
+        </label>
+      ))}
+      {selectedPrevCycles.length > 0 && (
+        <span className="text-[10px] text-slate-400 ml-1">
+          · puntos grises = {selectedPrevCycles.join(", ")}
+        </span>
       )}
     </div>
   );
@@ -884,6 +893,10 @@ export default function EIPScatterChart({
             </button>
           </div>
 
+          {historicalOverlay && (
+            <div className="px-5 pb-2">{historicalOverlay}</div>
+          )}
+
           <div className="flex-1 flex flex-col items-center justify-center gap-3 p-4 overflow-hidden">
             <ZoomableChartView
               {...svgProps}
@@ -924,6 +937,8 @@ export default function EIPScatterChart({
         </div>
 
         {filters(false)}
+
+        {historicalOverlay}
 
         <ZoomableChartView
           {...svgProps}
