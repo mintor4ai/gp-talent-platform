@@ -321,22 +321,29 @@ export default function CoberturaView({
   ciclosDisponibles: number[];
   onCicloChange: (c: number | "todos") => void;
 }) {
-  const [filterCritico, setFilterCritico]     = useState<"" | "si" | "no">("si");
-  const [filterRiesgo, setFilterRiesgo]       = useState<"" | RiesgoLevel>("");
-  const [filterUen, setFilterUen]             = useState("");
-  const [filterSegmento, setFilterSegmento]   = useState("");
-  const [search, setSearch]                   = useState("");
-  const [selected, setSelected]           = useState<PuestoCoberturaItem | null>(null);
+  const [filterCritico,     setFilterCritico]     = useState<"" | "si" | "no">("si");
+  const [filterRiesgo,      setFilterRiesgo]       = useState<"" | RiesgoLevel>("");
+  const [filterUen,         setFilterUen]           = useState("");
+  const [filterSegmento,    setFilterSegmento]     = useState("");
+  const [filterTipoVacante, setFilterTipoVacante] = useState("");
+  const [search,            setSearch]             = useState("");
+  const [selected, setSelected] = useState<PuestoCoberturaItem | null>(null);
   const { sortKey, sortDir, handleSort } = useSortState<"nombre" | "organización" | "tipo_vacante" | "sucesores" | "aspirantes" | "riesgo">("riesgo");
+
+  const tiposDisponibles = useMemo(
+    () => Array.from(new Set(puestos.map((p) => p.tipo_vacante).filter(Boolean) as string[])).sort(),
+    [puestos]
+  );
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     const base = puestos.filter((p) => {
       if (filterCritico === "si" && !p.es_critico) return false;
       if (filterCritico === "no" && p.es_critico)  return false;
-      if (filterUen && p.organización !== filterUen) return false;
-      if (filterSegmento && (p.segmento_organizacional ?? "") !== filterSegmento) return false;
-      if (filterRiesgo && getRiesgo(p) !== filterRiesgo) return false;
+      if (filterUen         && p.organización          !== filterUen)         return false;
+      if (filterSegmento    && (p.segmento_organizacional ?? "") !== filterSegmento) return false;
+      if (filterTipoVacante && (p.tipo_vacante ?? "")   !== filterTipoVacante) return false;
+      if (filterRiesgo      && getRiesgo(p)              !== filterRiesgo)      return false;
       if (q && !p.nombre.toLowerCase().includes(q) && !p.clave.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -354,7 +361,7 @@ export default function CoberturaView({
           return dir * (RIESGO_CONFIG[getRiesgo(a)].order - RIESGO_CONFIG[getRiesgo(b)].order);
       }
     });
-  }, [puestos, filterCritico, filterRiesgo, filterUen, filterSegmento, search, sortKey, sortDir]);
+  }, [puestos, filterCritico, filterRiesgo, filterUen, filterSegmento, filterTipoVacante, search, sortKey, sortDir]);
 
   const conSucesor   = filtered.filter((p) => p.sucesores.length > 0).length;
   const sinSucesor   = filtered.filter((p) => p.sucesores.length === 0 && p.titulares.length > 0).length;
@@ -404,29 +411,17 @@ export default function CoberturaView({
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+
+        {/* Row 1 — search + dropdowns */}
+        <div className="flex flex-wrap gap-2">
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar puesto o clave..."
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] col-span-full sm:col-span-2 lg:col-span-1" />
-          <select value={filterCritico} onChange={(e) => setFilterCritico(e.target.value as "" | "si" | "no")}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
-            <option value="si">Solo críticos</option>
-            <option value="no">Solo no críticos</option>
-            <option value="">Todos</option>
-          </select>
+            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] min-w-[180px] flex-1" />
           <select value={filterUen} onChange={(e) => setFilterUen(e.target.value)}
             className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
             <option value="">Todas las UEN</option>
             {uens.map((u) => <option key={u} value={u}>{u}</option>)}
-          </select>
-          <select value={filterRiesgo} onChange={(e) => setFilterRiesgo(e.target.value as "" | RiesgoLevel)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
-            <option value="">Todos los riesgos</option>
-            <option value="sin_sucesor">Sin sucesor 🔴</option>
-            <option value="tres_mas">3+ años 🟡</option>
-            <option value="listo">Con sucesor 🟢</option>
-            <option value="vacante">Vacante ⚪</option>
           </select>
           {segmentos.length > 0 && (
             <select value={filterSegmento} onChange={(e) => setFilterSegmento(e.target.value)}
@@ -435,13 +430,70 @@ export default function CoberturaView({
               {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           )}
+          {(search || filterCritico !== "si" || filterUen || filterRiesgo || filterSegmento || filterTipoVacante) && (
+            <button
+              onClick={() => { setSearch(""); setFilterCritico("si"); setFilterUen(""); setFilterRiesgo(""); setFilterSegmento(""); setFilterTipoVacante(""); }}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors underline px-1">
+              Limpiar filtros
+            </button>
+          )}
         </div>
-        {(search || filterCritico !== "si" || filterUen || filterRiesgo || filterSegmento) && (
-          <button onClick={() => { setSearch(""); setFilterCritico("si"); setFilterUen(""); setFilterRiesgo(""); setFilterSegmento(""); }}
-            className="mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            Limpiar filtros
+
+        {/* Row 2 — tipo vacante chips + solo críticos toggle */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide whitespace-nowrap">Tipo:</span>
+          <button
+            onClick={() => setFilterTipoVacante("")}
+            className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
+              filterTipoVacante === ""
+                ? "bg-[#1a3a5c] text-white border-[#1a3a5c]"
+                : "text-gray-500 border-gray-200 hover:border-gray-300 bg-white"
+            }`}>
+            Todos
           </button>
-        )}
+          {tiposDisponibles.map((t) => {
+            const count = puestos.filter((p) => p.tipo_vacante === t).length;
+            return (
+              <button key={t}
+                onClick={() => setFilterTipoVacante(filterTipoVacante === t ? "" : t)}
+                className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
+                  filterTipoVacante === t
+                    ? "bg-[#1a3a5c] text-white border-[#1a3a5c]"
+                    : "text-gray-500 border-gray-200 hover:border-gray-300 bg-white"
+                }`}>
+                {t} <span className="opacity-60 ml-0.5">{count}</span>
+              </button>
+            );
+          })}
+
+          <div className="ml-auto">
+            <button
+              onClick={() => setFilterCritico(filterCritico === "si" ? "" : "si")}
+              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors flex items-center gap-1 ${
+                filterCritico === "si"
+                  ? "bg-red-50 text-red-700 border-red-200"
+                  : "text-gray-400 border-gray-200 bg-white hover:border-gray-300"
+              }`}>
+              <span className="text-red-500">★</span> Solo críticos
+            </button>
+          </div>
+        </div>
+
+        {/* Row 3 — cobertura/riesgo status buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide whitespace-nowrap">Cobertura:</span>
+          {([["", "Todos"], ["sin_sucesor", "Sin sucesor 🔴"], ["tres_mas", "3+ años 🟡"], ["listo", "Con sucesor 🟢"], ["vacante", "Vacante ⚪"]] as [string, string][]).map(([val, label]) => (
+            <button key={val}
+              onClick={() => setFilterRiesgo(val as "" | RiesgoLevel)}
+              className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${
+                filterRiesgo === val
+                  ? "bg-[#1a3a5c] text-white border-[#1a3a5c]"
+                  : "text-gray-500 border-gray-200 hover:border-gray-300 bg-white"
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
