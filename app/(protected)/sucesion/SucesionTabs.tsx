@@ -89,8 +89,6 @@ export default function SucesionTabs({
         <CoberturaView
           puestos={puestosCobertura}
           uens={uens}
-          areas={areas}
-          segmentos={segmentos}
           cicloActual={cicloCobertura}
           ciclosDisponibles={ciclos}
           onCicloChange={setCicloCobertura}

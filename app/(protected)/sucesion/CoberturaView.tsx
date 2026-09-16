@@ -310,16 +310,12 @@ function EmptyMsg({ children }: { children: React.ReactNode }) {
 export default function CoberturaView({
   puestos,
   uens,
-  areas,
-  segmentos,
   cicloActual,
   ciclosDisponibles,
   onCicloChange,
 }: {
   puestos: PuestoCoberturaItem[];
   uens: string[];
-  areas: string[];
-  segmentos: string[];
   cicloActual: number | "todos";
   ciclosDisponibles: number[];
   onCicloChange: (c: number | "todos") => void;
@@ -333,6 +329,28 @@ export default function CoberturaView({
   const [search,            setSearch]             = useState("");
   const [selected, setSelected] = useState<PuestoCoberturaItem | null>(null);
   const { sortKey, sortDir, handleSort } = useSortState<"nombre" | "organización" | "tipo_vacante" | "sucesores" | "aspirantes" | "riesgo">("riesgo");
+
+  // Cascading option lists — each level filtered by the upstream selection
+  const availableAreas = useMemo(
+    () => Array.from(new Set(
+      puestos
+        .filter((p) => !filterUen || p.organización === filterUen)
+        .map((p) => p.area)
+        .filter(Boolean) as string[]
+    )).sort(),
+    [puestos, filterUen]
+  );
+
+  const availableSegmentos = useMemo(
+    () => Array.from(new Set(
+      puestos
+        .filter((p) => !filterUen || p.organización === filterUen)
+        .filter((p) => !filterArea || (p.area ?? "") === filterArea)
+        .map((p) => p.segmento_organizacional)
+        .filter(Boolean) as string[]
+    )).sort(),
+    [puestos, filterUen, filterArea]
+  );
 
   const tiposDisponibles = useMemo(
     () => Array.from(new Set(puestos.map((p) => p.tipo_vacante).filter(Boolean) as string[])).sort(),
@@ -423,23 +441,23 @@ export default function CoberturaView({
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar puesto o clave..."
             className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] min-w-[180px] flex-1" />
-          <select value={filterUen} onChange={(e) => setFilterUen(e.target.value)}
+          <select value={filterUen} onChange={(e) => { setFilterUen(e.target.value); setFilterArea(""); setFilterSegmento(""); }}
             className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
             <option value="">Todas las UEN</option>
             {uens.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
-          {areas.length > 0 && (
-            <select value={filterArea} onChange={(e) => setFilterArea(e.target.value)}
+          {availableAreas.length > 0 && (
+            <select value={filterArea} onChange={(e) => { setFilterArea(e.target.value); setFilterSegmento(""); }}
               className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
               <option value="">Todas las Áreas</option>
-              {areas.map((a) => <option key={a} value={a}>{a}</option>)}
+              {availableAreas.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           )}
-          {segmentos.length > 0 && (
+          {availableSegmentos.length > 0 && (
             <select value={filterSegmento} onChange={(e) => setFilterSegmento(e.target.value)}
               className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
               <option value="">Todos los segmentos</option>
-              {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
+              {availableSegmentos.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           )}
           {(search || filterCritico !== "si" || filterUen || filterArea || filterRiesgo || filterSegmento || filterTipoVacante) && (
