@@ -205,7 +205,8 @@ export function TalentMatrixSVG({
           <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#00000010" />
         </filter>
         <clipPath id={clipId}>
-          <rect x={PAD.left} y={PAD.top} width={W} height={H} />
+          {/* Full-SVG clip: white gutter rects below mask dot overflow in padding zones */}
+          <rect x={0} y={0} width={CW} height={CH} />
         </clipPath>
       </defs>
 
@@ -339,6 +340,12 @@ export function TalentMatrixSVG({
           );
         })}
       </g>
+
+      {/* White gutters — mask dots/labels that overflow the plot area */}
+      <rect x={0}              y={0}         width={PAD.left}  height={CH}       fill="white" />
+      <rect x={PAD.left + W}   y={0}         width={CW - PAD.left - W} height={CH} fill="white" />
+      <rect x={0}              y={0}         width={CW}        height={PAD.top}  fill="white" />
+      <rect x={0}              y={PAD.top+H} width={CW}        height={CH - PAD.top - H} fill="white" />
 
       {/* Static chart frame — rendered on top of zoomable content */}
       <rect x={PAD.left} y={PAD.top} width={W} height={H}
