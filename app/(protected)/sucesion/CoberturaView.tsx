@@ -27,6 +27,7 @@ export type PuestoCoberturaItem = {
   clave: string;
   nombre: string;
   organización: string | null;
+  area: string | null;
   segmento_organizacional: string | null;
   tipo_vacante: string | null;
   es_critico: boolean;
@@ -309,6 +310,7 @@ function EmptyMsg({ children }: { children: React.ReactNode }) {
 export default function CoberturaView({
   puestos,
   uens,
+  areas,
   segmentos,
   cicloActual,
   ciclosDisponibles,
@@ -316,6 +318,7 @@ export default function CoberturaView({
 }: {
   puestos: PuestoCoberturaItem[];
   uens: string[];
+  areas: string[];
   segmentos: string[];
   cicloActual: number | "todos";
   ciclosDisponibles: number[];
@@ -324,6 +327,7 @@ export default function CoberturaView({
   const [filterCritico,     setFilterCritico]     = useState<"" | "si" | "no">("si");
   const [filterRiesgo,      setFilterRiesgo]       = useState<"" | RiesgoLevel>("");
   const [filterUen,         setFilterUen]           = useState("");
+  const [filterArea,        setFilterArea]         = useState("");
   const [filterSegmento,    setFilterSegmento]     = useState("");
   const [filterTipoVacante, setFilterTipoVacante] = useState("");
   const [search,            setSearch]             = useState("");
@@ -341,6 +345,7 @@ export default function CoberturaView({
       if (filterCritico === "si" && !p.es_critico) return false;
       if (filterCritico === "no" && p.es_critico)  return false;
       if (filterUen         && p.organización          !== filterUen)         return false;
+      if (filterArea        && (p.area ?? "")           !== filterArea)        return false;
       if (filterSegmento    && (p.segmento_organizacional ?? "") !== filterSegmento) return false;
       if (filterTipoVacante && (p.tipo_vacante ?? "")   !== filterTipoVacante) return false;
       if (filterRiesgo      && getRiesgo(p)              !== filterRiesgo)      return false;
@@ -361,7 +366,7 @@ export default function CoberturaView({
           return dir * (RIESGO_CONFIG[getRiesgo(a)].order - RIESGO_CONFIG[getRiesgo(b)].order);
       }
     });
-  }, [puestos, filterCritico, filterRiesgo, filterUen, filterSegmento, filterTipoVacante, search, sortKey, sortDir]);
+  }, [puestos, filterCritico, filterRiesgo, filterUen, filterArea, filterSegmento, filterTipoVacante, search, sortKey, sortDir]);
 
   const conSucesor   = filtered.filter((p) => p.sucesores.length > 0).length;
   const sinSucesor   = filtered.filter((p) => p.sucesores.length === 0 && p.titulares.length > 0).length;
@@ -423,6 +428,13 @@ export default function CoberturaView({
             <option value="">Todas las UEN</option>
             {uens.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
+          {areas.length > 0 && (
+            <select value={filterArea} onChange={(e) => setFilterArea(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
+              <option value="">Todas las Áreas</option>
+              {areas.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          )}
           {segmentos.length > 0 && (
             <select value={filterSegmento} onChange={(e) => setFilterSegmento(e.target.value)}
               className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
@@ -430,9 +442,9 @@ export default function CoberturaView({
               {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           )}
-          {(search || filterCritico !== "si" || filterUen || filterRiesgo || filterSegmento || filterTipoVacante) && (
+          {(search || filterCritico !== "si" || filterUen || filterArea || filterRiesgo || filterSegmento || filterTipoVacante) && (
             <button
-              onClick={() => { setSearch(""); setFilterCritico("si"); setFilterUen(""); setFilterRiesgo(""); setFilterSegmento(""); setFilterTipoVacante(""); }}
+              onClick={() => { setSearch(""); setFilterCritico("si"); setFilterUen(""); setFilterArea(""); setFilterRiesgo(""); setFilterSegmento(""); setFilterTipoVacante(""); }}
               className="text-xs text-gray-400 hover:text-gray-600 transition-colors underline px-1">
               Limpiar filtros
             </button>

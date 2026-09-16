@@ -154,6 +154,7 @@ export default async function SucesionPage() {
       clave:                   c.clave,
       nombre:                  c.nombre,
       organización:            (c as unknown as Record<string, unknown>)["organización"] as string | null,
+      area:                    (c as unknown as Record<string, unknown>)["area"] as string | null ?? null,
       segmento_organizacional: c.segmento_organizacional ?? null,
       tipo_vacante:            c.tipo_vacante ?? null,
       es_critico:              c.es_critico,
@@ -174,6 +175,7 @@ export default async function SucesionPage() {
   }
 
   const uens = Array.from(new Set(coberturaAllCiclos.map((p) => p.organización).filter(Boolean))).sort() as string[];
+  const areas = Array.from(new Set(coberturaAllCiclos.map((p) => p.area).filter(Boolean))).sort() as string[];
   const segmentos = Array.from(new Set(coberturaAllCiclos.map((p) => p.segmento_organizacional).filter(Boolean))).sort() as string[];
 
   // Enrich matches with names from in-memory lookups
@@ -235,6 +237,7 @@ export default async function SucesionPage() {
       puestosByCiclo={puestosByCiclo}
       coberturaAllCiclos={coberturaAllCiclos}
       uens={uens}
+      areas={areas}
       segmentos={segmentos}
       matches={matches}
       matchCiclos={allCiclos}

@@ -25,6 +25,7 @@ export default function SucesionTabs({
   puestosByCiclo,
   coberturaAllCiclos,
   uens,
+  areas,
   segmentos,
   matches,
   matchCiclos,
@@ -35,6 +36,7 @@ export default function SucesionTabs({
   puestosByCiclo: Record<number, PuestoCoberturaItem[]>;
   coberturaAllCiclos: PuestoCoberturaItem[];
   uens: string[];
+  areas: string[];
   segmentos: string[];
   matches: MatchRow[];
   matchCiclos: number[];
@@ -87,6 +89,7 @@ export default function SucesionTabs({
         <CoberturaView
           puestos={puestosCobertura}
           uens={uens}
+          areas={areas}
           segmentos={segmentos}
           cicloActual={cicloCobertura}
           ciclosDisponibles={ciclos}
