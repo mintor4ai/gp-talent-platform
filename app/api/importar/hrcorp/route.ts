@@ -172,26 +172,18 @@ export async function POST(req: NextRequest) {
 
   if (!rows.length) return NextResponse.json({ error: "El archivo está vacío" }, { status: 400 });
 
-  // Fetch all existing collaborators with tracked fields for diff comparison
+  // Fetch all existing collaborators with tracked fields for diff comparison.
+  // Use select("*") to safely include the accented column `organización`.
   const { data: existingRaw } = await supabase
     .from("colaboradores")
-    .select("id, id_empleado, nombre_completo, activo, sexo, fecha_nacimiento, edad, fecha_antiguedad, fecha_ingreso_razon_social, fecha_baja, razon_social, posicion, puesto, area, departamento, entidad, centro_trabajo, horario, tipo_plantilla, segmento_organizacional, jefe_inmediato_nombre, correo_jefe, correo");
+    .select("*");
 
-  // Map id_empleado → {uuid, ...fields} for O(1) lookup
+  // Map id_empleado → {_uuid, ...fields} for O(1) lookup
   const existingMap = new Map<string, Record<string, unknown> & { _uuid: string }>();
   for (const r of existingRaw ?? []) {
     const rec = r as unknown as Record<string, unknown>;
     const empId = String(rec["id_empleado"] ?? "").trim();
     if (empId) existingMap.set(empId, { ...rec, _uuid: rec["id"] as string });
-  }
-
-  // Supabase returns organización with accent — alias key for the diff map
-  for (const rec of existingMap.values()) {
-    if (!("organización" in rec)) {
-      // Try to find the accented key and alias it
-      const orgKey = Object.keys(rec).find((k) => k.toLowerCase().replace(/[^a-z]/g, "") === "organizacion");
-      if (orgKey && orgKey !== "organización") rec["organización"] = rec[orgKey];
-    }
   }
 
   const results: HrCorpPreviewRow[] = [];
