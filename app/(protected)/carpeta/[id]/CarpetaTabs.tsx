@@ -1192,9 +1192,10 @@ function HistorialHrcorpSection({ items }: { items: HistorialHrcorpItem[] }) {
     correo_jefe: "Correo Jefe",
   };
 
-  function label(campo: string) { return FIELD_LABELS[campo] ?? campo; }
+  function fieldLabel(dbKey: string) { return FIELD_LABELS[dbKey] ?? dbKey; }
   function fmt(v: unknown) {
     if (v === null || v === undefined || v === "") return <span className="text-gray-400 italic">vacío</span>;
+    if (typeof v === "boolean") return v ? "activo" : "baja";
     return String(v);
   }
 
@@ -1254,7 +1255,7 @@ function HistorialHrcorpSection({ items }: { items: HistorialHrcorpItem[] }) {
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {campos.slice(0, 5).map((c) => (
-                        <span key={c} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{label(c)}</span>
+                        <span key={c} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{fieldLabel(c)}</span>
                       ))}
                       {campos.length > 5 && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">+{campos.length - 5} más</span>
@@ -1283,7 +1284,7 @@ function HistorialHrcorpSection({ items }: { items: HistorialHrcorpItem[] }) {
                       <tbody>
                         {campos.map((c) => (
                           <tr key={c} className="border-t border-amber-100/60">
-                            <td className="py-1.5 pr-6 font-semibold text-gray-600">{label(c)}</td>
+                            <td className="py-1.5 pr-6 font-semibold text-gray-600">{fieldLabel(c)}</td>
                             <td className="py-1.5 pr-4">
                               <span className="inline-block text-red-600 bg-red-50 px-1.5 py-0.5 rounded line-through">
                                 {fmt((item.datos_anteriores as Record<string, unknown>)[c])}

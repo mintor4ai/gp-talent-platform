@@ -107,7 +107,7 @@ function computeDiff(
     const oldVal = normVal(existing[field]);
     const newVal = normVal(incoming[field]);
     if (oldVal !== newVal) {
-      campos.push(label);
+      campos.push(field);
       cambiosDetalle.push({ campo: label, anterior: oldVal, nuevo: newVal });
       anterior[field] = existing[field] ?? null;
       nuevo[field] = incoming[field] ?? null;
