@@ -581,11 +581,11 @@ export default function CoberturaView({
                         ? <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${TIPO_COLORS[p.tipo_vacante] ?? "bg-gray-100 text-gray-700"}`}>{p.tipo_vacante}</span>
                         : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[160px]">
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                       {p.titulares.length === 0
                         ? <span className="text-gray-400 italic">Vacante</span>
                         : p.titulares.map((t) => (
-                            <span key={t.id} className="block truncate">{t.nombre_completo}</span>
+                            <span key={t.id} className="block">{t.nombre_completo}</span>
                           ))}
                     </td>
                     <td className="px-4 py-3 text-center">
