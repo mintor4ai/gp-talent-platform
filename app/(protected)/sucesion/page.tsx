@@ -107,12 +107,13 @@ export default async function SucesionPage() {
   // Raw matches array (typed)
   const rawMatches = (matchesRaw ?? []) as unknown as MatchRow[];
 
-  // Group titulares by puesto_catalogo_id
+  // Group titulares by catalog id — FK first, then name-based fallback (same as colabToCatalog)
   const titularesByCatalog = new Map<string, TitularItem[]>();
   for (const c of colabs) {
-    if (!c.puesto_catalogo_id) continue;
-    if (!titularesByCatalog.has(c.puesto_catalogo_id)) titularesByCatalog.set(c.puesto_catalogo_id, []);
-    titularesByCatalog.get(c.puesto_catalogo_id)!.push({
+    const catalogId = c.puesto_catalogo_id ?? colabToCatalog.get(c.id) ?? null;
+    if (!catalogId) continue;
+    if (!titularesByCatalog.has(catalogId)) titularesByCatalog.set(catalogId, []);
+    titularesByCatalog.get(catalogId)!.push({
       id: c.id,
       nombre_completo: c.nombre_completo ?? "",
     });
