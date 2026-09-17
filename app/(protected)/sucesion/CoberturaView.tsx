@@ -575,7 +575,7 @@ export default function CoberturaView({
                       </div>
                       <span className="font-mono text-gray-400 text-[10px]">{p.clave}</span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 max-w-[130px] truncate">{p.organización ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{p.organización ?? "—"}</td>
                     <td className="px-4 py-3">
                       {p.tipo_vacante
                         ? <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${TIPO_COLORS[p.tipo_vacante] ?? "bg-gray-100 text-gray-700"}`}>{p.tipo_vacante}</span>
