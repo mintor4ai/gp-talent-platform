@@ -131,18 +131,65 @@ export async function descartarMatch(
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const { supabase, userId } = await getAdminUser();
+    const now = new Date().toISOString();
+
+    // Fetch the match before discarding to know its puesto+ciclo
+    const { data: match } = await supabase
+      .from("sucesion_matches")
+      .select("puesto_catalogo_id, ciclo_año, es_puesto_critico")
+      .eq("id", matchId)
+      .single();
 
     const { error } = await supabase
       .from("sucesion_matches")
       .update({
         descartado: true,
         descartado_por: userId,
-        fecha_descarte: new Date().toISOString(),
+        fecha_descarte: now,
         motivo_descarte: motivo || null,
       })
       .eq("id", matchId);
 
     if (error) throw error;
+
+    // If this was a critical puesto, check if any active non-gap matches remain
+    if (match?.es_puesto_critico && match?.puesto_catalogo_id) {
+      const { data: remaining } = await supabase
+        .from("sucesion_matches")
+        .select("id")
+        .eq("ciclo_año", match.ciclo_año)
+        .eq("puesto_catalogo_id", match.puesto_catalogo_id)
+        .eq("descartado", false)
+        .neq("tipo_match", "gap_critico");
+
+      if (!remaining?.length) {
+        // No active successors left — reactivate or create the gap_critico
+        const { data: existingGap } = await supabase
+          .from("sucesion_matches")
+          .select("id")
+          .eq("ciclo_año", match.ciclo_año)
+          .eq("puesto_catalogo_id", match.puesto_catalogo_id)
+          .eq("tipo_match", "gap_critico")
+          .maybeSingle();
+
+        if (existingGap) {
+          await supabase.from("sucesion_matches")
+            .update({ descartado: false, descartado_por: null, fecha_descarte: null })
+            .eq("id", (existingGap as any).id);
+        } else {
+          await supabase.from("sucesion_matches").insert({
+            ciclo_año:          match.ciclo_año,
+            colaborador_id:     null,
+            puesto_catalogo_id: match.puesto_catalogo_id,
+            tipo_match:         "gap_critico",
+            es_puesto_critico:  true,
+            validado_ch:        null,
+            descartado:         false,
+            titular_ids:        [],
+          });
+        }
+      }
+    }
 
     revalidatePath("/sucesion");
     return { ok: true };
