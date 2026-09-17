@@ -136,7 +136,7 @@ export async function descartarMatch(
     // Fetch the match before discarding to know its puesto+ciclo
     const { data: match } = await supabase
       .from("sucesion_matches")
-      .select("puesto_catalogo_id, ciclo_año, es_puesto_critico")
+      .select("colaborador_id, puesto_catalogo_id, ciclo_año, es_puesto_critico")
       .eq("id", matchId)
       .single();
 
@@ -151,6 +151,17 @@ export async function descartarMatch(
       .eq("id", matchId);
 
     if (error) throw error;
+
+    // Also discard the corresponding plan_sucesion record (if any)
+    if (match?.colaborador_id && match?.puesto_catalogo_id) {
+      await supabase
+        .from("plan_sucesion")
+        .update({ estado: "descartado" })
+        .eq("sucesor_id", match.colaborador_id)
+        .eq("puesto_catalogo_id", match.puesto_catalogo_id)
+        .eq("ciclo_año", match.ciclo_año)
+        .neq("estado", "descartado");
+    }
 
     // If this was a critical puesto, check if any active non-gap matches remain
     if (match?.es_puesto_critico && match?.puesto_catalogo_id) {

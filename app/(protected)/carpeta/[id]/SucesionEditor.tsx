@@ -45,6 +45,7 @@ export const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
   pendiente_v2: { label: "Validación Dir.", color: "bg-orange-100 text-orange-700" },
   aprobado:     { label: "Aprobado",        color: "bg-green-100 text-green-700"  },
   rechazado:    { label: "Rechazado",       color: "bg-red-100 text-red-600"      },
+  descartado:   { label: "Descartado",      color: "bg-gray-200 text-gray-500"    },
 };
 
 export function readinessBadge(value: string | null) {

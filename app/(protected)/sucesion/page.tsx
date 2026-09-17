@@ -38,6 +38,7 @@ export default async function SucesionPage() {
   const [planesRaw, colabsRaw, catalogoResult, matchesRaw] = await Promise.all([
     fetchAllRows((from, to) =>
       supabase.from("plan_sucesion").select("*")
+        .neq("estado", "descartado")
         .order("ciclo_año", { ascending: false })
         .order("created_at", { ascending: false })
         .range(from, to)
