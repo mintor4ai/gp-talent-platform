@@ -174,9 +174,11 @@ export async function POST(req: NextRequest) {
 
   // Fetch all existing collaborators with tracked fields for diff comparison.
   // Use select("*") to safely include the accented column `organización`.
+  // Use range(0, 9999) to bypass Supabase's default 1000-row page limit.
   const { data: existingRaw } = await supabase
     .from("colaboradores")
-    .select("*");
+    .select("*")
+    .range(0, 9999);
 
   // Map id_empleado → {_uuid, ...fields} for O(1) lookup
   const existingMap = new Map<string, Record<string, unknown> & { _uuid: string }>();
