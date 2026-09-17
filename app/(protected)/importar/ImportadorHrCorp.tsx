@@ -2,6 +2,8 @@
 
 import { useState, useRef } from "react";
 
+type CampoDetalle = { campo: string; anterior: string | null; nuevo: string | null };
+
 type PreviewRow = {
   fila: number;
   id_empleado: string;
@@ -20,6 +22,7 @@ type PreviewRow = {
   correo: string | null;
   esNuevo: boolean;
   cambios: string[];
+  cambiosDetalle: CampoDetalle[];
   error?: string;
 };
 
@@ -44,12 +47,13 @@ type ImportResult = {
 };
 
 export default function ImportadorHrCorp() {
-  const [file, setFile]       = useState<File | null>(null);
-  const [preview, setPreview] = useState<PreviewSummary | null>(null);
-  const [result, setResult]   = useState<ImportResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
+  const [file, setFile]           = useState<File | null>(null);
+  const [preview, setPreview]     = useState<PreviewSummary | null>(null);
+  const [result, setResult]       = useState<ImportResult | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [showAll, setShowAll]     = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handlePreview() {
@@ -59,6 +63,7 @@ export default function ImportadorHrCorp() {
     setPreview(null);
     setResult(null);
     setShowAll(false);
+    setExpandedId(null);
     try {
       const fd = new FormData();
       fd.set("archivo", file);
@@ -102,12 +107,11 @@ export default function ImportadorHrCorp() {
     setResult(null);
     setError(null);
     setShowAll(false);
+    setExpandedId(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  const validCount = preview?.rows.filter((r) => !r.error).length ?? 0;
-
-  // In preview, show only rows with changes or new rows by default; show all on toggle
+  const validCount  = preview?.rows.filter((r) => !r.error).length ?? 0;
   const visibleRows = preview
     ? (showAll ? preview.rows : preview.rows.filter((r) => r.esNuevo || r.cambios.length > 0 || r.error))
     : [];
@@ -118,30 +122,11 @@ export default function ImportadorHrCorp() {
       {/* Format info */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 text-sm text-blue-800 space-y-2">
         <p className="font-semibold">Formato HrCorp — Exportación semanal</p>
-        <p>Sube el archivo Excel que exportas de HrCorp. Se detectan automáticamente las columnas por nombre. Columnas esperadas:</p>
-        <div className="overflow-x-auto mt-2">
-          <table className="text-xs border-collapse">
-            <thead>
-              <tr className="text-blue-700">
-                {[
-                  "Id","Nombre completo","Estatus","Sexo","Fecha Nacimiento","Edad",
-                  "Fecha Antiguedad","Fecha Ingreso Razon Social","Fecha Baja",
-                  "Razon Social","Unidad Organizacional","Posicion","Puesto",
-                  "Area","Departamento","Entidad","Centro Trabajo",
-                  "Horario","Tipo Nomina","Segmento Organizacional",
-                  "Nombre Jefe","Correo Electronico Jefe","Correo Electronico",
-                ].map((h) => (
-                  <th key={h} className="border border-blue-200 px-2 py-1 bg-blue-100 font-mono whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-          </table>
-        </div>
-        <ul className="text-xs text-blue-600 space-y-0.5 mt-2 list-disc list-inside">
+        <p>Sube el archivo Excel que exportas de HrCorp. Se detectan automáticamente las columnas por nombre.</p>
+        <ul className="text-xs text-blue-600 space-y-0.5 mt-1 list-disc list-inside">
           <li><strong>CURP y RFC nunca se importan</strong> — quedan fuera aunque estén en el archivo</li>
-          <li>Registros existentes (mismo Id/no. empleado) se actualizan y se guarda historial inmutable de lo que cambió</li>
+          <li>Registros existentes se actualizan; se guarda historial inmutable de cada campo que cambió</li>
           <li>Los jefes se vinculan por UUID automáticamente si el nombre coincide</li>
-          <li>Fecha Baja puede estar vacía para colaboradores activos</li>
         </ul>
       </div>
 
@@ -185,16 +170,14 @@ export default function ImportadorHrCorp() {
       {/* Preview */}
       {preview && (
         <div className="space-y-4">
-          {/* Summary chips */}
           <div className="flex flex-wrap gap-3">
-            <StatCard label="Nuevos"          value={preview.nuevos}          color="green" />
-            <StatCard label="Con cambios"      value={preview.conCambios}      color="amber" />
-            <StatCard label="Sin cambios"      value={preview.sinCambios}      color="gray"  />
+            <StatCard label="Nuevos"         value={preview.nuevos}     color="green" />
+            <StatCard label="Con cambios"     value={preview.conCambios} color="amber" />
+            <StatCard label="Sin cambios"     value={preview.sinCambios} color="gray"  />
             {preview.errores > 0 && <StatCard label="Errores" value={preview.errores} color="red" />}
-            <StatCard label="Total" value={preview.total} color="gray" />
+            <StatCard label="Total"           value={preview.total}      color="gray"  />
           </div>
 
-          {/* Callout if everything is unchanged */}
           {preview.conCambios === 0 && preview.nuevos === 0 && (
             <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4 text-sm text-gray-600">
               El archivo no contiene registros nuevos ni cambios respecto a la base de datos actual.
@@ -202,13 +185,14 @@ export default function ImportadorHrCorp() {
           )}
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            {/* Table header */}
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <p className="text-sm font-semibold text-gray-700">Vista previa — HrCorp</p>
                 <p className="text-xs text-gray-400 mt-0.5">
                   {showAll
                     ? `Mostrando todos los ${preview.total} registros`
-                    : `Mostrando solo registros nuevos y con cambios (${visibleRows.length} de ${preview.total})`}
+                    : `Solo registros nuevos y con cambios (${visibleRows.length} de ${preview.total})`}
                   <button
                     onClick={() => setShowAll((v) => !v)}
                     className="ml-2 text-[#1a3a5c] underline hover:no-underline"
@@ -230,66 +214,119 @@ export default function ImportadorHrCorp() {
                 </button>
               </div>
             </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-gray-400 border-b border-gray-100 bg-gray-50">
-                    <th className="px-3 py-2.5">No. Emp.</th>
-                    <th className="px-3 py-2.5">Nombre</th>
-                    <th className="px-3 py-2.5">Estatus</th>
-                    <th className="px-3 py-2.5">Puesto</th>
-                    <th className="px-3 py-2.5">Org. / Dpto.</th>
-                    <th className="px-3 py-2.5">Segmento</th>
-                    <th className="px-3 py-2.5">Jefe</th>
-                    <th className="px-3 py-2.5">Correo</th>
+                    <th className="px-3 py-2.5 w-20">No. Emp.</th>
+                    <th className="px-3 py-2.5 min-w-[200px]">Nombre</th>
+                    <th className="px-3 py-2.5 w-16">Estatus</th>
+                    <th className="px-3 py-2.5 min-w-[160px]">Puesto</th>
+                    <th className="px-3 py-2.5 min-w-[160px]">Organización</th>
+                    <th className="px-3 py-2.5 min-w-[120px]">Segmento</th>
+                    <th className="px-3 py-2.5 min-w-[150px]">Jefe</th>
                     <th className="px-3 py-2.5 min-w-[180px]">Cambios</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {visibleRows.map((row) => (
-                    <tr
-                      key={row.fila}
-                      className={
-                        row.error    ? "bg-red-50/50"   :
-                        row.esNuevo  ? "bg-green-50/40" :
-                        row.cambios.length > 0 ? "bg-amber-50/30" : ""
-                      }
-                    >
-                      <td className="px-3 py-2 font-mono text-gray-600">{row.id_empleado || "—"}</td>
-                      <td className="px-3 py-2 font-medium text-gray-800 max-w-[180px] truncate">{row.nombre_completo || "—"}</td>
-                      <td className="px-3 py-2">
-                        {row.error ? null : (
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${row.activo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                            {row.activo ? "Activo" : "Baja"}
-                          </span>
+                <tbody>
+                  {visibleRows.map((row) => {
+                    const isExpanded = expandedId === row.id_empleado;
+                    const hasDetail  = !row.esNuevo && row.cambiosDetalle.length > 0;
+                    const rowBg =
+                      row.error           ? "bg-red-50/50"   :
+                      row.esNuevo         ? "bg-green-50/40" :
+                      row.cambios.length  ? "bg-amber-50/30" : "";
+
+                    return (
+                      <>
+                        <tr
+                          key={row.fila}
+                          className={`border-t border-gray-50 ${rowBg} ${hasDetail ? "cursor-pointer hover:brightness-95" : ""}`}
+                          onClick={() => hasDetail && setExpandedId(isExpanded ? null : row.id_empleado)}
+                        >
+                          <td className="px-3 py-2.5 font-mono text-gray-500 whitespace-nowrap">{row.id_empleado || "—"}</td>
+                          <td className="px-3 py-2.5 font-medium text-gray-800 whitespace-normal leading-snug">
+                            <div className="flex items-start gap-1.5">
+                              {hasDetail && (
+                                <span className="mt-0.5 text-amber-400 flex-shrink-0 text-[10px]">
+                                  {isExpanded ? "▼" : "▶"}
+                                </span>
+                              )}
+                              <span>{row.nombre_completo || "—"}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 whitespace-nowrap">
+                            {row.error ? null : (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${row.activo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                                {row.activo ? "Activo" : "Baja"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-600 whitespace-normal leading-snug">{row.puesto || "—"}</td>
+                          <td className="px-3 py-2.5 text-gray-500 whitespace-normal leading-snug">
+                            {[row.organización, row.departamento].filter(Boolean).join(" · ") || "—"}
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-500 whitespace-normal leading-snug">{row.segmento_organizacional || "—"}</td>
+                          <td className="px-3 py-2.5 text-gray-500 whitespace-normal leading-snug">{row.jefe_inmediato_nombre || "—"}</td>
+                          <td className="px-3 py-2.5">
+                            {row.error ? (
+                              <span className="text-red-500">{row.error}</span>
+                            ) : row.esNuevo ? (
+                              <span className="inline-flex items-center gap-1 text-green-700 font-semibold">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                                Nuevo
+                              </span>
+                            ) : row.cambios.length === 0 ? (
+                              <span className="text-gray-300">Sin cambios</span>
+                            ) : (
+                              <ChangeBadges cambios={row.cambios} />
+                            )}
+                          </td>
+                        </tr>
+
+                        {/* Expandable detail row */}
+                        {isExpanded && hasDetail && (
+                          <tr key={`${row.fila}-detail`} className="bg-amber-50/60 border-t border-amber-100">
+                            <td colSpan={8} className="px-6 py-4">
+                              <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wide mb-2">
+                                Detalle de cambios — {row.nombre_completo}
+                              </p>
+                              <table className="text-xs w-full max-w-2xl border-collapse">
+                                <thead>
+                                  <tr className="text-gray-400">
+                                    <th className="text-left pb-1.5 pr-6 font-medium w-32">Campo</th>
+                                    <th className="text-left pb-1.5 pr-6 font-medium">Valor anterior</th>
+                                    <th className="text-left pb-1.5 font-medium">Valor nuevo</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-amber-100">
+                                  {row.cambiosDetalle.map((d) => (
+                                    <tr key={d.campo}>
+                                      <td className="py-1.5 pr-6 font-semibold text-gray-600 whitespace-nowrap">{d.campo}</td>
+                                      <td className="py-1.5 pr-6">
+                                        <span className="text-red-600 bg-red-50 px-1.5 py-0.5 rounded line-through decoration-red-300">
+                                          {d.anterior ?? <span className="italic text-gray-400 no-underline" style={{textDecoration:"none"}}>vacío</span>}
+                                        </span>
+                                      </td>
+                                      <td className="py-1.5">
+                                        <span className="text-green-700 bg-green-50 px-1.5 py-0.5 rounded font-medium">
+                                          {d.nuevo ?? <span className="italic text-gray-400 font-normal">vacío</span>}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="px-3 py-2 text-gray-500 max-w-[140px] truncate">{row.puesto || "—"}</td>
-                      <td className="px-3 py-2 text-gray-500 max-w-[140px] truncate">
-                        {[row.organización, row.departamento].filter(Boolean).join(" / ") || "—"}
-                      </td>
-                      <td className="px-3 py-2 text-gray-500 max-w-[110px] truncate">{row.segmento_organizacional || "—"}</td>
-                      <td className="px-3 py-2 text-gray-500 max-w-[130px] truncate">{row.jefe_inmediato_nombre || "—"}</td>
-                      <td className="px-3 py-2 text-gray-400 max-w-[150px] truncate">{row.correo || "—"}</td>
-                      <td className="px-3 py-2">
-                        {row.error ? (
-                          <span className="text-red-500">{row.error}</span>
-                        ) : row.esNuevo ? (
-                          <span className="inline-flex items-center gap-1 text-green-700 font-semibold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-                            Nuevo
-                          </span>
-                        ) : row.cambios.length === 0 ? (
-                          <span className="text-gray-300">Sin cambios</span>
-                        ) : (
-                          <ChangeBadges cambios={row.cambios} />
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                      </>
+                    );
+                  })}
                   {visibleRows.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-gray-400 text-sm">
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">
                         No hay registros nuevos ni con cambios en este archivo.
                       </td>
                     </tr>
@@ -308,10 +345,10 @@ export default function ImportadorHrCorp() {
             {result.errors.length ? "Importación completada con advertencias" : "Importación HrCorp exitosa"}
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Total filas"                value={result.total}      color="gray"  />
-            <StatCard label="Insertados / actualizados"  value={result.upserted}   color="green" />
-            <StatCard label="Registros con cambios"      value={result.conCambios} color="amber" />
-            <StatCard label="Jefes vinculados"           value={result.jefeLinked} color="blue"  />
+            <StatCard label="Total filas"               value={result.total}      color="gray"  />
+            <StatCard label="Insertados / actualizados" value={result.upserted}   color="green" />
+            <StatCard label="Registros con cambios"     value={result.conCambios} color="amber" />
+            <StatCard label="Jefes vinculados"          value={result.jefeLinked} color="blue"  />
             {result.errores > 0 && <StatCard label="Errores" value={result.errores} color="red" />}
           </div>
           {result.conCambios > 0 && (
@@ -325,16 +362,10 @@ export default function ImportadorHrCorp() {
             </div>
           )}
           <div className="flex gap-3">
-            <button
-              onClick={reset}
-              className="text-sm bg-[#1a3a5c] text-white px-5 py-2 rounded-lg hover:bg-[#152e4d] transition-colors"
-            >
+            <button onClick={reset} className="text-sm bg-[#1a3a5c] text-white px-5 py-2 rounded-lg hover:bg-[#152e4d] transition-colors">
               Nueva importación
             </button>
-            <a
-              href="/colaboradores"
-              className="text-sm text-[#1a3a5c] border border-[#1a3a5c] px-5 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-            >
+            <a href="/colaboradores" className="text-sm text-[#1a3a5c] border border-[#1a3a5c] px-5 py-2 rounded-lg hover:bg-gray-50 transition-colors">
               Ver colaboradores →
             </a>
           </div>
@@ -344,7 +375,6 @@ export default function ImportadorHrCorp() {
   );
 }
 
-/** Shows up to 3 changed field labels as chips, with "+N más" overflow. */
 function ChangeBadges({ cambios }: { cambios: string[] }) {
   const visible = cambios.slice(0, 3);
   const rest    = cambios.length - visible.length;
@@ -356,9 +386,7 @@ function ChangeBadges({ cambios }: { cambios: string[] }) {
         </span>
       ))}
       {rest > 0 && (
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">
-          +{rest} más
-        </span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">+{rest} más</span>
       )}
     </div>
   );

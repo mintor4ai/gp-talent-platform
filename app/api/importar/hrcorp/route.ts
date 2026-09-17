@@ -85,8 +85,11 @@ function normVal(v: unknown): string | null {
   return String(v).trim() || null;
 }
 
+type CampoDetalle = { campo: string; anterior: string | null; nuevo: string | null };
+
 type DiffResult = {
-  campos: string[];           // human-readable labels of changed fields
+  campos: string[];
+  cambiosDetalle: CampoDetalle[];
   anterior: Record<string, unknown>;
   nuevo: Record<string, unknown>;
 };
@@ -96,6 +99,7 @@ function computeDiff(
   existing: Record<string, unknown>,
 ): DiffResult {
   const campos: string[] = [];
+  const cambiosDetalle: CampoDetalle[] = [];
   const anterior: Record<string, unknown> = {};
   const nuevo: Record<string, unknown> = {};
 
@@ -104,11 +108,12 @@ function computeDiff(
     const newVal = normVal(incoming[field]);
     if (oldVal !== newVal) {
       campos.push(label);
+      cambiosDetalle.push({ campo: label, anterior: oldVal, nuevo: newVal });
       anterior[field] = existing[field] ?? null;
       nuevo[field] = incoming[field] ?? null;
     }
   }
-  return { campos, anterior, nuevo };
+  return { campos, cambiosDetalle, anterior, nuevo };
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -139,7 +144,8 @@ export type HrCorpPreviewRow = {
   correo_jefe: string | null;
   correo: string | null;
   esNuevo: boolean;
-  cambios: string[];   // labels of fields that differ from current DB value
+  cambios: string[];
+  cambiosDetalle: { campo: string; anterior: string | null; nuevo: string | null }[];
   error?: string;
 };
 
@@ -218,7 +224,7 @@ export async function POST(req: NextRequest) {
         area: null, departamento: null, entidad: null, centro_trabajo: null,
         horario: null, tipo_plantilla: null, segmento_organizacional: null,
         jefe_inmediato_nombre: null, correo_jefe: null, correo: null,
-        esNuevo: true, cambios: [],
+        esNuevo: true, cambios: [], cambiosDetalle: [],
         error: !id_empleado ? "Falta columna Id" : "Falta nombre",
       });
       continue;
@@ -256,13 +262,15 @@ export async function POST(req: NextRequest) {
       correo:                      str(col(row, "Correo Electronico", "CorreoElectronico", "Email", "Correo")),
       esNuevo: !existingMap.has(id_empleado),
       cambios: [],
+      cambiosDetalle: [],
     };
 
     // Compute diff for existing records
     if (!parsed.esNuevo) {
       const existing = existingMap.get(id_empleado)!;
-      const { campos } = computeDiff(parsed as unknown as Record<string, unknown>, existing);
+      const { campos, cambiosDetalle } = computeDiff(parsed as unknown as Record<string, unknown>, existing);
       parsed.cambios = campos;
+      parsed.cambiosDetalle = cambiosDetalle;
     }
 
     results.push(parsed);
