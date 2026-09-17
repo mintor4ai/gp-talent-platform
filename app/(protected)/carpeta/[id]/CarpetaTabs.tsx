@@ -198,6 +198,14 @@ type ExperienciaExterna = {
   responsabilidades: string | null;
 };
 
+type HistorialHrcorpItem = {
+  id: string;
+  importado_en: string;
+  campos_modificados: string[];
+  datos_anteriores: Record<string, unknown>;
+  datos_nuevos: Record<string, unknown>;
+};
+
 type Comentario = {
   id: string;
   id_entrevista: string;
@@ -236,6 +244,7 @@ export default function CarpetaTabs({
   formacionAcademica = [],
   cursosFormacion = [],
   experienciaExterna = [],
+  historialHrcorp = [],
   competenciasPercentiles = [],
   ealRespuestas = [],
   rol,
@@ -273,6 +282,7 @@ export default function CarpetaTabs({
   formacionAcademica?: FormacionAcademica[];
   cursosFormacion?: CursoFormacion[];
   experienciaExterna?: ExperienciaExterna[];
+  historialHrcorp?: HistorialHrcorpItem[];
   ealRespuestas?: Array<{
     ciclo_año: number;
     categoria: string;
@@ -459,6 +469,7 @@ export default function CarpetaTabs({
           formacionAcademica={formacionAcademica}
           cursosFormacion={cursosFormacion}
           experienciaExterna={experienciaExterna}
+          historialHrcorp={historialHrcorp}
         />
       )}
 
@@ -856,6 +867,7 @@ function PerfilTab({
   formacionAcademica = [],
   cursosFormacion = [],
   experienciaExterna = [],
+  historialHrcorp = [],
 }: {
   perfil: ColaboradorPerfil;
   eips: EIP[];
@@ -866,6 +878,7 @@ function PerfilTab({
   formacionAcademica?: FormacionAcademica[];
   cursosFormacion?: CursoFormacion[];
   experienciaExterna?: ExperienciaExterna[];
+  historialHrcorp?: HistorialHrcorpItem[];
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1097,6 +1110,10 @@ function PerfilTab({
       )}
 
       {/* Evaluation history summary */}
+      {isAdmin && historialHrcorp.length > 0 && (
+        <HistorialHrcorpSection items={historialHrcorp} />
+      )}
+
       {allCiclos.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
@@ -1153,6 +1170,139 @@ function PerfilTab({
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistorialHrcorpSection({ items }: { items: HistorialHrcorpItem[] }) {
+  const [open, setOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const FIELD_LABELS: Record<string, string> = {
+    nombre_completo: "Nombre", activo: "Estatus", puesto: "Puesto",
+    area: "Área", "organización": "Organización", departamento: "Departamento",
+    segmento_organizacional: "Segmento", posicion: "Posición",
+    jefe_inmediato_nombre: "Jefe", correo: "Correo", razon_social: "Razón Social",
+    horario: "Horario", tipo_plantilla: "Tipo Plantilla", entidad: "Entidad",
+    centro_trabajo: "Centro Trabajo", sexo: "Sexo",
+    fecha_nacimiento: "F. Nacimiento", fecha_antiguedad: "F. Antigüedad",
+    fecha_ingreso_razon_social: "F. Ingreso RS", fecha_baja: "F. Baja",
+    correo_jefe: "Correo Jefe",
+  };
+
+  function label(campo: string) { return FIELD_LABELS[campo] ?? campo; }
+  function fmt(v: unknown) {
+    if (v === null || v === undefined || v === "") return <span className="text-gray-400 italic">vacío</span>;
+    return String(v);
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-left"
+        aria-expanded={open}
+      >
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Historial de Cambios HrCorp
+          </p>
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+            {items.length}
+          </span>
+        </div>
+        <svg
+          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-100">
+          {items.map((item, idx) => {
+            const isExpanded = expandedId === item.id;
+            const date = new Date(item.importado_en);
+            const dateStr = date.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+            const timeStr = date.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+            const campos = item.campos_modificados ?? [];
+
+            return (
+              <div key={item.id} className={`border-b border-gray-100 last:border-b-0 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}>
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                  className="w-full flex items-start gap-4 px-5 py-3.5 text-left hover:bg-amber-50/40 transition-colors"
+                >
+                  {/* timeline dot */}
+                  <div className="flex flex-col items-center mt-1 flex-shrink-0">
+                    <div className="w-2 h-2 rounded-full bg-amber-400" />
+                    {idx < items.length - 1 && <div className="w-px flex-1 bg-gray-200 mt-1" style={{ minHeight: 16 }} />}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-semibold text-gray-700">{dateStr}</span>
+                      <span className="text-[11px] text-gray-400">{timeStr}</span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        {campos.length} campo{campos.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {campos.slice(0, 5).map((c) => (
+                        <span key={c} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{label(c)}</span>
+                      ))}
+                      {campos.length > 5 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">+{campos.length - 5} más</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <svg
+                    className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 mt-1 ${isExpanded ? "rotate-180" : ""}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-5 pb-4 pt-1 bg-amber-50/50 border-t border-amber-100">
+                    <table className="text-xs w-full max-w-2xl border-collapse">
+                      <thead>
+                        <tr className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                          <th className="text-left py-1.5 pr-6 w-32">Campo</th>
+                          <th className="text-left py-1.5 pr-4">Anterior</th>
+                          <th className="text-left py-1.5">Nuevo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {campos.map((c) => (
+                          <tr key={c} className="border-t border-amber-100/60">
+                            <td className="py-1.5 pr-6 font-semibold text-gray-600">{label(c)}</td>
+                            <td className="py-1.5 pr-4">
+                              <span className="inline-block text-red-600 bg-red-50 px-1.5 py-0.5 rounded line-through">
+                                {fmt((item.datos_anteriores as Record<string, unknown>)[c])}
+                              </span>
+                            </td>
+                            <td className="py-1.5">
+                              <span className="inline-block text-green-700 bg-green-50 px-1.5 py-0.5 rounded font-medium">
+                                {fmt((item.datos_nuevos as Record<string, unknown>)[c])}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -77,6 +77,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     { data: competenciasPercentilesRaw },
     { data: ealRespuestasRaw },
     { data: experienciaExternaRaw },
+    { data: historialHrcorpRaw },
   ] = await Promise.all([
     supabase
       .from("evaluacion_integral_personal")
@@ -188,6 +189,12 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       .select("id, nombre_empresa, area, departamento, giro, pais, ciudad, fecha_inicio, fecha_fin, num_empleados_supervisados, responsabilidades")
       .eq("colaborador_id", colaboradorId)
       .order("fecha_fin", { ascending: false }),
+    supabase
+      .from("colaboradores_historial")
+      .select("id, importado_en, campos_modificados, datos_anteriores, datos_nuevos")
+      .eq("colaborador_id", colaboradorId)
+      .order("importado_en", { ascending: false })
+      .limit(50),
   ]);
 
   const canEdit = isOwn || isAdmin;
@@ -250,6 +257,15 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
     responsabilidades: string | null;
   };
   const experienciaExterna = (experienciaExternaRaw ?? []) as unknown as ExperienciaExternaItem[];
+
+  type HistorialHrcorpItem = {
+    id: string;
+    importado_en: string;
+    campos_modificados: string[];
+    datos_anteriores: Record<string, unknown>;
+    datos_nuevos: Record<string, unknown>;
+  };
+  const historialHrcorp = (historialHrcorpRaw ?? []) as unknown as HistorialHrcorpItem[];
 
   type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
   const colaboradoresLista = (colaboradoresAll ?? []) as unknown as ColabOption[];
@@ -368,6 +384,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
         formacionAcademica={formacionAcademica}
         cursosFormacion={cursosFormacion}
         experienciaExterna={experienciaExterna}
+        historialHrcorp={historialHrcorp}
         competenciasPercentiles={(competenciasPercentilesRaw ?? []) as any[]}
         ealRespuestas={(ealRespuestasRaw ?? []) as any[]}
         rol={rol}
