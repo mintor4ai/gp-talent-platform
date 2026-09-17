@@ -130,6 +130,14 @@ export async function upsertPlanSucesionManual(params: {
           }),
         });
       }
+
+      // Auto-discard the gap_critico match for this puesto+ciclo (it's no longer a gap)
+      await supabase.from("sucesion_matches")
+        .update({ descartado: true, descartado_por: userId, fecha_descarte: now })
+        .eq("ciclo_año", params.cicloAño)
+        .eq("puesto_catalogo_id", puestoCatalogoId)
+        .eq("tipo_match", "gap_critico")
+        .eq("descartado", false);
     }
 
     revalidatePath("/sucesion");
