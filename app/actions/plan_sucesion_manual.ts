@@ -83,8 +83,8 @@ export async function upsertPlanSucesionManual(params: {
       }
     }
 
-    // Upsert sucesion_match when CH validates immediately
-    if (params.validarInmediatamente && puestoCatalogoId) {
+    // Always upsert a sucesion_match of tipo "propuesta" so it appears in MatchingView
+    if (puestoCatalogoId) {
       const { data: existingMatch } = await supabase
         .from("sucesion_matches")
         .select("id")
@@ -93,33 +93,41 @@ export async function upsertPlanSucesionManual(params: {
         .eq("puesto_catalogo_id", puestoCatalogoId)
         .maybeSingle();
 
+      const [{ data: titularRows }, { data: catalogRow }] = await Promise.all([
+        supabase.from("colaboradores").select("id")
+          .eq("puesto_catalogo_id", puestoCatalogoId).eq("activo", true),
+        supabase.from("catalogo_puestos").select("es_critico")
+          .eq("id", puestoCatalogoId).single(),
+      ]);
+
       if (existingMatch) {
         await supabase.from("sucesion_matches").update({
-          validado_ch:      true,
-          validado_por:     userId,
-          fecha_validacion: now,
+          tipo_match:       "propuesta",
           readiness:        params.readiness,
           descartado:       false,
           fecha_descarte:   null,
+          ...(params.validarInmediatamente ? {
+            validado_ch:      true,
+            validado_por:     userId,
+            fecha_validacion: now,
+          } : {}),
         }).eq("id", (existingMatch as any).id);
       } else {
-        const [{ data: titularRows }, { data: catalogRow }] = await Promise.all([
-          supabase.from("colaboradores").select("id")
-            .eq("puesto_catalogo_id", puestoCatalogoId).eq("activo", true),
-          supabase.from("catalogo_puestos").select("es_critico")
-            .eq("id", puestoCatalogoId).single(),
-        ]);
         await supabase.from("sucesion_matches").insert({
           ciclo_año:          params.cicloAño,
           colaborador_id:     params.sucesId,
           puesto_catalogo_id: puestoCatalogoId,
-          tipo_match:         "sucesion",
+          tipo_match:         "propuesta",
           readiness:          params.readiness,
           es_puesto_critico:  (catalogRow as any)?.es_critico ?? false,
-          validado_ch:        true,
-          validado_por:       userId,
-          fecha_validacion:   now,
           titular_ids:        (titularRows ?? []).map((r: any) => r.id),
+          ...(params.validarInmediatamente ? {
+            validado_ch:      true,
+            validado_por:     userId,
+            fecha_validacion: now,
+          } : {
+            validado_ch: false,
+          }),
         });
       }
     }

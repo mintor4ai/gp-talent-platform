@@ -266,7 +266,7 @@ function MatchCard({
           )}
           {!match.descartado ? (
             <>
-              {!match.validado_ch && (
+              {!match.validado_ch && !isGap && (
                 <button onClick={() => onValidar(match.id)}
                   className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
                   Validar
@@ -613,7 +613,7 @@ function MatchTable({
                         </button>
                       ) : (
                         <>
-                          {!m.validado_ch && (
+                          {!m.validado_ch && !isGap && (
                             <button
                               onClick={() => onValidar(m.id)}
                               className="text-[11px] px-2.5 py-1 rounded-lg font-medium border border-green-200 text-green-700 hover:bg-green-50 transition-colors"
