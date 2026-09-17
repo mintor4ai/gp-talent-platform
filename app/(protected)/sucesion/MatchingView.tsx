@@ -908,10 +908,11 @@ export default function MatchingView({
     if (selectedPuesto !== "all" && m.puesto_nombre !== selectedPuesto) return false;
     if (soloCriticos && !m.es_puesto_critico) return false;
     if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      const nm = (m.colaborador_nombre ?? "").toLowerCase().includes(q);
-      const pm = (m.puesto_nombre ?? "").toLowerCase().includes(q);
-      const tm = (m.titular_nombres ?? []).some((t) => t.toLowerCase().includes(q));
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      const q = norm(search.trim());
+      const nm = norm(m.colaborador_nombre ?? "").includes(q);
+      const pm = norm(m.puesto_nombre ?? "").includes(q);
+      const tm = (m.titular_nombres ?? []).some((t) => norm(t).includes(q));
       if (!nm && !pm && !tm) return false;
     }
     return true;
@@ -1162,12 +1163,45 @@ export default function MatchingView({
       </div>
 
       {/* ── Count row ───────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="text-xs text-gray-400 mr-auto">
-          Mostrando <strong className="text-gray-700">{gridMatches.length}</strong> match{gridMatches.length !== 1 ? "es" : ""}
-          {selectedCiclo !== "all" ? ` · Ciclo ${selectedCiclo}` : " · Todos los ciclos"}
-        </p>
-      </div>
+      {(() => {
+        const hasFilters =
+          search.trim() !== "" ||
+          selectedTipo !== "all" ||
+          selectedUen !== "all" ||
+          selectedSegmento !== "all" ||
+          selectedArea !== "all" ||
+          selectedPuesto !== "all" ||
+          selectedEstado !== "all" ||
+          soloCriticos;
+
+        const resetFilters = () => {
+          setSearch("");
+          setSelectedTipo("all");
+          setSelectedUen("all");
+          setSelectedSegmento("all");
+          setSelectedArea("all");
+          setSelectedPuesto("all");
+          setSelectedEstado("all");
+          setSoloCriticos(false);
+        };
+
+        return (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-gray-400 mr-auto">
+              Mostrando <strong className="text-gray-700">{gridMatches.length}</strong> match{gridMatches.length !== 1 ? "es" : ""}
+              {selectedCiclo !== "all" ? ` · Ciclo ${selectedCiclo}` : " · Todos los ciclos"}
+            </p>
+            {hasFilters && (
+              <button
+                onClick={resetFilters}
+                className="text-xs text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1 rounded-full transition-colors"
+              >
+                ✕ Limpiar filtros
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Gaps críticos alert ──────────────────────────────────────────── */}
       {gapsCriticos.length > 0 && selectedTipo === "all" && selectedEstado !== "descartado" && (
