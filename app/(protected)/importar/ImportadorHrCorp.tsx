@@ -19,7 +19,18 @@ type PreviewRow = {
   jefe_inmediato_nombre: string | null;
   correo: string | null;
   esNuevo: boolean;
+  cambios: string[];
   error?: string;
+};
+
+type PreviewSummary = {
+  rows: PreviewRow[];
+  total: number;
+  nuevos: number;
+  actualizaciones: number;
+  conCambios: number;
+  sinCambios: number;
+  errores: number;
 };
 
 type ImportResult = {
@@ -27,16 +38,18 @@ type ImportResult = {
   total: number;
   upserted: number;
   jefeLinked: number;
+  conCambios: number;
   errores: number;
   errors: string[];
 };
 
 export default function ImportadorHrCorp() {
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<PreviewRow[] | null>(null);
-  const [result, setResult] = useState<ImportResult | null>(null);
+  const [file, setFile]       = useState<File | null>(null);
+  const [preview, setPreview] = useState<PreviewSummary | null>(null);
+  const [result, setResult]   = useState<ImportResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handlePreview() {
@@ -45,6 +58,7 @@ export default function ImportadorHrCorp() {
     setError(null);
     setPreview(null);
     setResult(null);
+    setShowAll(false);
     try {
       const fd = new FormData();
       fd.set("archivo", file);
@@ -52,7 +66,7 @@ export default function ImportadorHrCorp() {
       const res = await fetch("/api/importar/hrcorp", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al leer el archivo");
-      setPreview(data.rows);
+      setPreview(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Error desconocido");
     } finally {
@@ -62,8 +76,8 @@ export default function ImportadorHrCorp() {
 
   async function handleImport() {
     if (!file || !preview) return;
-    const validos = preview.filter((r) => !r.error).length;
-    if (!confirm(`¿Importar ${validos} colaboradores desde HrCorp? Los registros existentes se actualizarán.`)) return;
+    const validos = preview.rows.filter((r) => !r.error).length;
+    if (!confirm(`¿Importar ${validos} colaboradores desde HrCorp? Los registros existentes se actualizarán y se guardará historial de cambios.`)) return;
     setLoading(true);
     setError(null);
     try {
@@ -87,13 +101,16 @@ export default function ImportadorHrCorp() {
     setPreview(null);
     setResult(null);
     setError(null);
+    setShowAll(false);
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  const validCount  = preview?.filter((r) => !r.error).length ?? 0;
-  const errorCount  = preview?.filter((r) => !!r.error).length ?? 0;
-  const nuevosCount = preview?.filter((r) => r.esNuevo && !r.error).length ?? 0;
-  const updateCount = preview?.filter((r) => !r.esNuevo && !r.error).length ?? 0;
+  const validCount = preview?.rows.filter((r) => !r.error).length ?? 0;
+
+  // In preview, show only rows with changes or new rows by default; show all on toggle
+  const visibleRows = preview
+    ? (showAll ? preview.rows : preview.rows.filter((r) => r.esNuevo || r.cambios.length > 0 || r.error))
+    : [];
 
   return (
     <div className="space-y-5">
@@ -122,7 +139,7 @@ export default function ImportadorHrCorp() {
         </div>
         <ul className="text-xs text-blue-600 space-y-0.5 mt-2 list-disc list-inside">
           <li><strong>CURP y RFC nunca se importan</strong> — quedan fuera aunque estén en el archivo</li>
-          <li>Registros existentes (mismo Id/no. empleado) se actualizan, no se duplican</li>
+          <li>Registros existentes (mismo Id/no. empleado) se actualizan y se guarda historial inmutable de lo que cambió</li>
           <li>Los jefes se vinculan por UUID automáticamente si el nombre coincide</li>
           <li>Fecha Baja puede estar vacía para colaboradores activos</li>
         </ul>
@@ -168,16 +185,38 @@ export default function ImportadorHrCorp() {
       {/* Preview */}
       {preview && (
         <div className="space-y-4">
+          {/* Summary chips */}
           <div className="flex flex-wrap gap-3">
-            <StatCard label="Nuevos" value={nuevosCount} color="green" />
-            <StatCard label="Actualizaciones" value={updateCount} color="blue" />
-            {errorCount > 0 && <StatCard label="Errores" value={errorCount} color="red" />}
-            <StatCard label="Total" value={preview.length} color="gray" />
+            <StatCard label="Nuevos"          value={preview.nuevos}          color="green" />
+            <StatCard label="Con cambios"      value={preview.conCambios}      color="amber" />
+            <StatCard label="Sin cambios"      value={preview.sinCambios}      color="gray"  />
+            {preview.errores > 0 && <StatCard label="Errores" value={preview.errores} color="red" />}
+            <StatCard label="Total" value={preview.total} color="gray" />
           </div>
 
+          {/* Callout if everything is unchanged */}
+          {preview.conCambios === 0 && preview.nuevos === 0 && (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4 text-sm text-gray-600">
+              El archivo no contiene registros nuevos ni cambios respecto a la base de datos actual.
+            </div>
+          )}
+
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-700">Vista previa — HrCorp</p>
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Vista previa — HrCorp</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {showAll
+                    ? `Mostrando todos los ${preview.total} registros`
+                    : `Mostrando solo registros nuevos y con cambios (${visibleRows.length} de ${preview.total})`}
+                  <button
+                    onClick={() => setShowAll((v) => !v)}
+                    className="ml-2 text-[#1a3a5c] underline hover:no-underline"
+                  >
+                    {showAll ? "Ver solo cambios" : "Ver todos"}
+                  </button>
+                </p>
+              </div>
               <div className="flex gap-2">
                 <button onClick={reset} className="text-xs text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
                   Cancelar
@@ -195,7 +234,6 @@ export default function ImportadorHrCorp() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-gray-400 border-b border-gray-100 bg-gray-50">
-                    <th className="px-3 py-2.5">Fila</th>
                     <th className="px-3 py-2.5">No. Emp.</th>
                     <th className="px-3 py-2.5">Nombre</th>
                     <th className="px-3 py-2.5">Estatus</th>
@@ -204,16 +242,19 @@ export default function ImportadorHrCorp() {
                     <th className="px-3 py-2.5">Segmento</th>
                     <th className="px-3 py-2.5">Jefe</th>
                     <th className="px-3 py-2.5">Correo</th>
-                    <th className="px-3 py-2.5 text-center">Acción</th>
+                    <th className="px-3 py-2.5 min-w-[180px]">Cambios</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {preview.map((row) => (
+                  {visibleRows.map((row) => (
                     <tr
                       key={row.fila}
-                      className={row.error ? "bg-red-50/50" : row.esNuevo ? "bg-green-50/30" : ""}
+                      className={
+                        row.error    ? "bg-red-50/50"   :
+                        row.esNuevo  ? "bg-green-50/40" :
+                        row.cambios.length > 0 ? "bg-amber-50/30" : ""
+                      }
                     >
-                      <td className="px-3 py-2 text-gray-400">{row.fila}</td>
                       <td className="px-3 py-2 font-mono text-gray-600">{row.id_empleado || "—"}</td>
                       <td className="px-3 py-2 font-medium text-gray-800 max-w-[180px] truncate">{row.nombre_completo || "—"}</td>
                       <td className="px-3 py-2">
@@ -230,17 +271,29 @@ export default function ImportadorHrCorp() {
                       <td className="px-3 py-2 text-gray-500 max-w-[110px] truncate">{row.segmento_organizacional || "—"}</td>
                       <td className="px-3 py-2 text-gray-500 max-w-[130px] truncate">{row.jefe_inmediato_nombre || "—"}</td>
                       <td className="px-3 py-2 text-gray-400 max-w-[150px] truncate">{row.correo || "—"}</td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-3 py-2">
                         {row.error ? (
-                          <span className="text-red-500 text-xs">{row.error}</span>
+                          <span className="text-red-500">{row.error}</span>
                         ) : row.esNuevo ? (
-                          <span className="text-green-600 font-semibold text-xs">Nuevo</span>
+                          <span className="inline-flex items-center gap-1 text-green-700 font-semibold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                            Nuevo
+                          </span>
+                        ) : row.cambios.length === 0 ? (
+                          <span className="text-gray-300">Sin cambios</span>
                         ) : (
-                          <span className="text-blue-500 text-xs">Actualizar</span>
+                          <ChangeBadges cambios={row.cambios} />
                         )}
                       </td>
                     </tr>
                   ))}
+                  {visibleRows.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-8 text-center text-gray-400 text-sm">
+                        No hay registros nuevos ni con cambios en este archivo.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -255,14 +308,15 @@ export default function ImportadorHrCorp() {
             {result.errors.length ? "Importación completada con advertencias" : "Importación HrCorp exitosa"}
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Total filas" value={result.total} color="gray" />
-            <StatCard label="Insertados / actualizados" value={result.upserted} color="green" />
-            <StatCard label="Jefes vinculados" value={result.jefeLinked} color="blue" />
-            <StatCard label="Errores" value={result.errores} color={result.errores > 0 ? "red" : "gray"} />
+            <StatCard label="Total filas"                value={result.total}      color="gray"  />
+            <StatCard label="Insertados / actualizados"  value={result.upserted}   color="green" />
+            <StatCard label="Registros con cambios"      value={result.conCambios} color="amber" />
+            <StatCard label="Jefes vinculados"           value={result.jefeLinked} color="blue"  />
+            {result.errores > 0 && <StatCard label="Errores" value={result.errores} color="red" />}
           </div>
-          {result.jefeLinked > 0 && (
+          {result.conCambios > 0 && (
             <p className="text-sm text-green-700">
-              {result.jefeLinked} colaborador(es) quedaron vinculados a su jefe por UUID.
+              Se guardó historial inmutable de cambios para {result.conCambios} colaborador(es).
             </p>
           )}
           {result.errors.length > 0 && (
@@ -290,12 +344,33 @@ export default function ImportadorHrCorp() {
   );
 }
 
-function StatCard({ label, value, color }: { label: string; value: number; color: "green" | "blue" | "red" | "gray" }) {
+/** Shows up to 3 changed field labels as chips, with "+N más" overflow. */
+function ChangeBadges({ cambios }: { cambios: string[] }) {
+  const visible = cambios.slice(0, 3);
+  const rest    = cambios.length - visible.length;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {visible.map((c) => (
+        <span key={c} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium whitespace-nowrap">
+          {c}
+        </span>
+      ))}
+      {rest > 0 && (
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">
+          +{rest} más
+        </span>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, color }: { label: string; value: number; color: "green" | "blue" | "red" | "gray" | "amber" }) {
   const cls = {
     green: "border-green-200 bg-green-50 text-green-700",
     blue:  "border-blue-200 bg-blue-50 text-blue-700",
     red:   "border-red-200 bg-red-50 text-red-700",
     gray:  "border-gray-200 bg-white text-gray-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-700",
   }[color];
   return (
     <div className={`rounded-lg border p-3 text-center ${cls}`}>

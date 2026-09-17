@@ -51,6 +51,68 @@ function parseDate(v: unknown): string | null {
   return null;
 }
 
+// ── Diff helpers ───────────────────────────────────────────────────────────────
+
+/** Fields tracked for history, in order of importance. [db_key, label] */
+const TRACKED_FIELDS: [string, string][] = [
+  ["nombre_completo",            "Nombre"],
+  ["activo",                     "Estatus"],
+  ["puesto",                     "Puesto"],
+  ["area",                       "Área"],
+  ["organización",               "Organización"],
+  ["departamento",               "Departamento"],
+  ["segmento_organizacional",    "Segmento"],
+  ["posicion",                   "Posición"],
+  ["jefe_inmediato_nombre",      "Jefe"],
+  ["correo",                     "Correo"],
+  ["razon_social",               "Razón Social"],
+  ["horario",                    "Horario"],
+  ["tipo_plantilla",             "Tipo Plantilla"],
+  ["entidad",                    "Entidad"],
+  ["centro_trabajo",             "Centro Trabajo"],
+  ["sexo",                       "Sexo"],
+  ["fecha_nacimiento",           "F. Nacimiento"],
+  ["fecha_antiguedad",           "F. Antigüedad"],
+  ["fecha_ingreso_razon_social", "F. Ingreso RS"],
+  ["fecha_baja",                 "F. Baja"],
+  ["correo_jefe",                "Correo Jefe"],
+];
+
+/** Normalize any value to a comparable string (null for empty). */
+function normVal(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  if (typeof v === "boolean") return v ? "activo" : "baja";
+  return String(v).trim() || null;
+}
+
+type DiffResult = {
+  campos: string[];           // human-readable labels of changed fields
+  anterior: Record<string, unknown>;
+  nuevo: Record<string, unknown>;
+};
+
+function computeDiff(
+  incoming: Record<string, unknown>,
+  existing: Record<string, unknown>,
+): DiffResult {
+  const campos: string[] = [];
+  const anterior: Record<string, unknown> = {};
+  const nuevo: Record<string, unknown> = {};
+
+  for (const [field, label] of TRACKED_FIELDS) {
+    const oldVal = normVal(existing[field]);
+    const newVal = normVal(incoming[field]);
+    if (oldVal !== newVal) {
+      campos.push(label);
+      anterior[field] = existing[field] ?? null;
+      nuevo[field] = incoming[field] ?? null;
+    }
+  }
+  return { campos, anterior, nuevo };
+}
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
 export type HrCorpPreviewRow = {
   fila: number;
   id_empleado: string;
@@ -77,6 +139,7 @@ export type HrCorpPreviewRow = {
   correo_jefe: string | null;
   correo: string | null;
   esNuevo: boolean;
+  cambios: string[];   // labels of fields that differ from current DB value
   error?: string;
 };
 
@@ -103,8 +166,27 @@ export async function POST(req: NextRequest) {
 
   if (!rows.length) return NextResponse.json({ error: "El archivo está vacío" }, { status: 400 });
 
-  const { data: existingRaw } = await supabase.from("colaboradores").select("id_empleado");
-  const existingIds = new Set((existingRaw ?? []).map((r) => String(r.id_empleado).trim()));
+  // Fetch all existing collaborators with tracked fields for diff comparison
+  const { data: existingRaw } = await supabase
+    .from("colaboradores")
+    .select("id, id_empleado, nombre_completo, activo, sexo, fecha_nacimiento, edad, fecha_antiguedad, fecha_ingreso_razon_social, fecha_baja, razon_social, posicion, puesto, area, departamento, entidad, centro_trabajo, horario, tipo_plantilla, segmento_organizacional, jefe_inmediato_nombre, correo_jefe, correo");
+
+  // Map id_empleado → {uuid, ...fields} for O(1) lookup
+  const existingMap = new Map<string, Record<string, unknown> & { _uuid: string }>();
+  for (const r of existingRaw ?? []) {
+    const rec = r as unknown as Record<string, unknown>;
+    const empId = String(rec["id_empleado"] ?? "").trim();
+    if (empId) existingMap.set(empId, { ...rec, _uuid: rec["id"] as string });
+  }
+
+  // Supabase returns organización with accent — alias key for the diff map
+  for (const rec of existingMap.values()) {
+    if (!("organización" in rec)) {
+      // Try to find the accented key and alias it
+      const orgKey = Object.keys(rec).find((k) => k.toLowerCase().replace(/[^a-z]/g, "") === "organizacion");
+      if (orgKey && orgKey !== "organización") rec["organización"] = rec[orgKey];
+    }
+  }
 
   const results: HrCorpPreviewRow[] = [];
 
@@ -112,11 +194,9 @@ export async function POST(req: NextRequest) {
     const row = rows[i];
     const fila = i + 2;
 
-    // "Id" in HrCorp is the employee number (numeric but stored as text)
     const id_raw = col(row, "Id");
     const id_empleado = id_raw != null ? String(id_raw).trim() : null;
 
-    // Prefer "Nombre completo"; fallback to concatenating parts
     const nombre_parts = [
       str(col(row, "Nombre")),
       str(col(row, "Apellido Paterno", "ApellidoPaterno")),
@@ -138,7 +218,7 @@ export async function POST(req: NextRequest) {
         area: null, departamento: null, entidad: null, centro_trabajo: null,
         horario: null, tipo_plantilla: null, segmento_organizacional: null,
         jefe_inmediato_nombre: null, correo_jefe: null, correo: null,
-        esNuevo: true,
+        esNuevo: true, cambios: [],
         error: !id_empleado ? "Falta columna Id" : "Falta nombre",
       });
       continue;
@@ -149,7 +229,7 @@ export async function POST(req: NextRequest) {
       estatusVal == null ? true
         : !["inactivo", "baja", "no", "0", "false"].includes(estatusVal.toLowerCase());
 
-    results.push({
+    const parsed: HrCorpPreviewRow = {
       fila,
       id_empleado,
       nombre_completo: nombre_completo.trim().toUpperCase(),
@@ -174,18 +254,29 @@ export async function POST(req: NextRequest) {
       jefe_inmediato_nombre:       str(col(row, "Nombre Jefe", "NombreJefe", "Jefe")),
       correo_jefe:                 str(col(row, "Correo Electronico Jefe", "CorreoElectronicoJefe", "Correo Jefe")),
       correo:                      str(col(row, "Correo Electronico", "CorreoElectronico", "Email", "Correo")),
-      // CURP and RFC are never read — security constraint
-      esNuevo: !existingIds.has(id_empleado),
-    });
+      esNuevo: !existingMap.has(id_empleado),
+      cambios: [],
+    };
+
+    // Compute diff for existing records
+    if (!parsed.esNuevo) {
+      const existing = existingMap.get(id_empleado)!;
+      const { campos } = computeDiff(parsed as unknown as Record<string, unknown>, existing);
+      parsed.cambios = campos;
+    }
+
+    results.push(parsed);
   }
 
   if (modo === "preview") {
     return NextResponse.json({
       rows: results,
       total: results.length,
-      nuevos: results.filter((r) => r.esNuevo && !r.error).length,
+      nuevos:          results.filter((r) => r.esNuevo && !r.error).length,
       actualizaciones: results.filter((r) => !r.esNuevo && !r.error).length,
-      errores: results.filter((r) => !!r.error).length,
+      conCambios:      results.filter((r) => !r.esNuevo && !r.error && r.cambios.length > 0).length,
+      sinCambios:      results.filter((r) => !r.esNuevo && !r.error && r.cambios.length === 0).length,
+      errores:         results.filter((r) => !!r.error).length,
     });
   }
 
@@ -193,6 +284,35 @@ export async function POST(req: NextRequest) {
   const validos = results.filter((r) => !r.error && r.id_empleado && r.nombre_completo);
   const errors: string[] = [];
   let upserted = 0;
+
+  // Collect history records for changed collaborators (before upsert)
+  type HistorialRecord = {
+    colaborador_id: string;
+    importado_por: string;
+    campos_modificados: string[];
+    datos_anteriores: Record<string, unknown>;
+    datos_nuevos: Record<string, unknown>;
+  };
+  const historialPending: HistorialRecord[] = [];
+
+  for (const r of validos) {
+    if (!r.esNuevo && existingMap.has(r.id_empleado)) {
+      const existing = existingMap.get(r.id_empleado)!;
+      const { campos, anterior, nuevo } = computeDiff(
+        r as unknown as Record<string, unknown>,
+        existing,
+      );
+      if (campos.length > 0) {
+        historialPending.push({
+          colaborador_id: existing._uuid,
+          importado_por: user.id,
+          campos_modificados: campos,
+          datos_anteriores: anterior,
+          datos_nuevos: nuevo,
+        });
+      }
+    }
+  }
 
   // Pass 1: upsert all collaborators (without jefe_inmediato_id link)
   for (const r of validos) {
@@ -248,11 +368,21 @@ export async function POST(req: NextRequest) {
     jefeLinked++;
   }
 
+  // Pass 3: insert history records (fire-and-forget — don't fail the import)
+  let historialInserted = 0;
+  if (historialPending.length > 0) {
+    const { error: histErr } = await supabase
+      .from("colaboradores_historial")
+      .insert(historialPending);
+    if (!histErr) historialInserted = historialPending.length;
+  }
+
   return NextResponse.json({
     ok: true,
     total: results.length,
     upserted,
     jefeLinked,
+    conCambios: historialInserted,
     errores: results.filter((r) => !!r.error).length,
     errors: errors.slice(0, 20),
   });
