@@ -1191,8 +1191,21 @@ function HistorialHrcorpSection({ items }: { items: HistorialHrcorpItem[] }) {
     fecha_ingreso_razon_social: "F. Ingreso RS", fecha_baja: "F. Baja",
     correo_jefe: "Correo Jefe",
   };
+  // reverse map: label → db_key (for old records that stored labels in campos_modificados)
+  const LABEL_TO_KEY: Record<string, string> = Object.fromEntries(
+    Object.entries(FIELD_LABELS).map(([k, v]) => [v, k])
+  );
 
-  function fieldLabel(dbKey: string) { return FIELD_LABELS[dbKey] ?? dbKey; }
+  function fieldLabel(c: string) { return FIELD_LABELS[c] ?? c; }
+
+  // Resolve the actual db_key from either a db_key or a legacy label
+  function resolveKey(c: string, data: Record<string, unknown>): string {
+    if (c in data) return c;
+    const byLabel = LABEL_TO_KEY[c];
+    if (byLabel && byLabel in data) return byLabel;
+    return c;
+  }
+
   function fmt(v: unknown) {
     if (v === null || v === undefined || v === "") return <span className="text-gray-400 italic">vacío</span>;
     if (typeof v === "boolean") return v ? "activo" : "baja";
@@ -1282,21 +1295,27 @@ function HistorialHrcorpSection({ items }: { items: HistorialHrcorpItem[] }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {campos.map((c) => (
-                          <tr key={c} className="border-t border-amber-100/60">
-                            <td className="py-1.5 pr-6 font-semibold text-gray-600">{fieldLabel(c)}</td>
-                            <td className="py-1.5 pr-4">
-                              <span className="inline-block text-red-600 bg-red-50 px-1.5 py-0.5 rounded line-through">
-                                {fmt((item.datos_anteriores as Record<string, unknown>)[c])}
-                              </span>
-                            </td>
-                            <td className="py-1.5">
-                              <span className="inline-block text-green-700 bg-green-50 px-1.5 py-0.5 rounded font-medium">
-                                {fmt((item.datos_nuevos as Record<string, unknown>)[c])}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
+                        {campos.map((c) => {
+                          const ant = item.datos_anteriores as Record<string, unknown>;
+                          const nvo = item.datos_nuevos as Record<string, unknown>;
+                          const antKey = resolveKey(c, ant);
+                          const nvoKey = resolveKey(c, nvo);
+                          return (
+                            <tr key={c} className="border-t border-amber-100/60">
+                              <td className="py-1.5 pr-6 font-semibold text-gray-600">{fieldLabel(c)}</td>
+                              <td className="py-1.5 pr-4">
+                                <span className="inline-block text-red-600 bg-red-50 px-1.5 py-0.5 rounded line-through">
+                                  {fmt(ant[antKey])}
+                                </span>
+                              </td>
+                              <td className="py-1.5">
+                                <span className="inline-block text-green-700 bg-green-50 px-1.5 py-0.5 rounded font-medium">
+                                  {fmt(nvo[nvoKey])}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
