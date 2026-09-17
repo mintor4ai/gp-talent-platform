@@ -1215,14 +1215,19 @@ export default function MatchingView({
           </div>
           <div className="flex flex-wrap gap-2">
             {gapsCriticos.map((g) => (
-              <span
+              <button
                 key={g.id}
-                className="text-xs px-2.5 py-1 rounded-lg bg-red-100 text-red-700 border border-red-200 font-medium"
+                onClick={() => {
+                  setSearch(g.puesto_nombre ?? "");
+                  setSelectedTipo("gap_critico");
+                  if (typeof g.ciclo_año === "number") setSelectedCiclo(g.ciclo_año);
+                }}
+                className="text-xs px-2.5 py-1 rounded-lg bg-red-100 text-red-700 border border-red-200 font-medium hover:bg-red-200 transition-colors cursor-pointer"
               >
                 {g.puesto_nombre ?? "Puesto sin nombre"}
                 {g.puesto_org ? ` · ${g.puesto_org}` : ""}
                 <span className="ml-1.5 text-red-400 font-normal">({g.ciclo_año})</span>
-              </span>
+              </button>
             ))}
           </div>
         </div>
