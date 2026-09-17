@@ -183,9 +183,17 @@ export async function descartarMatch(
           .eq("tipo_match", "gap_critico")
           .maybeSingle();
 
+        // Get current titulares for this puesto
+        const { data: titularRows } = await supabase
+          .from("colaboradores")
+          .select("id")
+          .eq("puesto_catalogo_id", match.puesto_catalogo_id)
+          .eq("activo", true);
+        const titularIds = (titularRows ?? []).map((r: any) => r.id);
+
         if (existingGap) {
           await supabase.from("sucesion_matches")
-            .update({ descartado: false, descartado_por: null, fecha_descarte: null })
+            .update({ descartado: false, descartado_por: null, fecha_descarte: null, titular_ids: titularIds })
             .eq("id", (existingGap as any).id);
         } else {
           await supabase.from("sucesion_matches").insert({
@@ -196,7 +204,7 @@ export async function descartarMatch(
             es_puesto_critico:  true,
             validado_ch:        null,
             descartado:         false,
-            titular_ids:        [],
+            titular_ids:        titularIds,
           });
         }
       }
