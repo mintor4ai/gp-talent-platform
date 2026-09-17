@@ -814,7 +814,7 @@ export default function MatchingView({
   const router = useRouter();
   const [matches, setMatches] = useState<MatchRow[]>(initialMatches);
   const [isPending, startTransition] = useTransition();
-  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addModalPrefill, setAddModalPrefill] = useState<{ titularId: string; cicloAño: number } | null>(null);
 
   // Filters
   const [selectedCiclo, setSelectedCiclo] = useState<number | "all">(ciclosDisponibles[0] ?? "all");
@@ -1217,7 +1217,7 @@ export default function MatchingView({
               onDescartar={handleDescartar}
               onReactivar={handleReactivar}
               onReadinessChange={handleReadinessChange}
-              onAgregarManual={m.tipo_match === "gap_critico" ? () => setAddModalOpen(true) : undefined}
+              onAgregarManual={m.tipo_match === "gap_critico" ? () => setAddModalPrefill({ titularId: m.titular_ids[0] ?? "", cicloAño: m.ciclo_año }) : undefined}
             />
           ))}
         </div>
@@ -1235,12 +1235,13 @@ export default function MatchingView({
         <DescartadosPanel matches={discardedFiltered} onReactivar={handleReactivar} />
       )}
 
-      {addModalOpen && (
+      {addModalPrefill && (
         <AgregarSucesorModal
           colabs={colabs}
           ciclos={ciclosDisponibles}
-          cicloDefault={typeof selectedCiclo === "number" ? selectedCiclo : ciclosDisponibles[0] ?? new Date().getFullYear()}
-          onClose={() => { setAddModalOpen(false); router.refresh(); }}
+          cicloDefault={addModalPrefill.cicloAño}
+          prefill={addModalPrefill}
+          onClose={() => { setAddModalPrefill(null); router.refresh(); }}
         />
       )}
     </div>

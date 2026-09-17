@@ -112,19 +112,26 @@ export default function AgregarSucesorModal({
   ciclos,
   cicloDefault,
   initialData,
+  prefill,
   onClose,
 }: {
   colabs: ColabOption[];
   ciclos: number[];
   cicloDefault: number;
   initialData?: InitialData;
+  prefill?: { titularId: string; cicloAño: number };
   onClose: () => void;
 }) {
   const isEdit = !!initialData;
+  const isPrefilled = !isEdit && !!prefill?.titularId;
 
-  const [ciclo, setCiclo]         = useState(initialData?.cicloAño ?? cicloDefault);
+  const [ciclo, setCiclo]         = useState(initialData?.cicloAño ?? prefill?.cicloAño ?? cicloDefault);
   const [titular, setTitular]     = useState<ColabOption | null>(
-    initialData ? (colabs.find((c) => c.id === initialData.titularId) ?? null) : null
+    initialData
+      ? (colabs.find((c) => c.id === initialData.titularId) ?? null)
+      : prefill?.titularId
+        ? (colabs.find((c) => c.id === prefill.titularId) ?? null)
+        : null
   );
   const [sucesor, setSucesor]     = useState<ColabOption | null>(
     initialData ? (colabs.find((c) => c.id === initialData.sucesId) ?? null) : null
@@ -176,7 +183,7 @@ export default function AgregarSucesorModal({
         {/* Ciclo */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Ciclo</label>
-          {isEdit ? (
+          {isEdit || isPrefilled ? (
             <p className="text-sm font-medium text-gray-700 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">{ciclo}</p>
           ) : (
             <select value={ciclo} onChange={(e) => setCiclo(Number(e.target.value))}
@@ -186,8 +193,8 @@ export default function AgregarSucesorModal({
           )}
         </div>
 
-        {/* Titular — locked in edit mode */}
-        {isEdit ? (
+        {/* Titular — locked in edit or prefill mode */}
+        {isEdit || isPrefilled ? (
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Titular (posición a suceder)</label>
             <div className="border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
