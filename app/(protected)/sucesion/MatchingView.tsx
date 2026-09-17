@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import AgregarSucesorModal from "./AgregarSucesorModal";
 import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 import {
   validarMatch,
@@ -18,7 +20,7 @@ export type MatchRow = {
   colaborador_id: string | null;
   titular_ids: string[];
   puesto_catalogo_id: string;
-  tipo_match: "bidireccional" | "aspiracion" | "propuesta" | "gap_critico";
+  tipo_match: "bidireccional" | "aspiracion" | "propuesta" | "gap_critico" | "manual";
   readiness: string | null;
   es_puesto_critico: boolean;
   validado_ch: boolean | null;
@@ -74,6 +76,14 @@ const TIPO_CONFIG = {
     dot: "bg-red-500",
     order: 3,
   },
+  manual: {
+    label: "Manual",
+    description: "Sucesor capturado directamente por Capital Humano",
+    color: "bg-orange-50 border-orange-300 text-orange-800",
+    badge: "bg-orange-100 text-orange-700 border-orange-200",
+    dot: "bg-orange-500",
+    order: 4,
+  },
 } as const;
 
 const READINESS_LABEL: Record<string, string> = {
@@ -107,11 +117,13 @@ function MatchCard({
   onDescartar,
   onReactivar,
   onReadinessChange,
+  onAgregarManual,
 }: {
   match: MatchRow;
   onValidar: (id: string) => void;
   onDescartar: (id: string, motivo: string | null) => void;
   onReactivar: (id: string) => void;
+  onAgregarManual?: () => void;
   onReadinessChange: (id: string, readiness: string | null) => void;
 }) {
   const [flipped, setFlipped] = useState(false);
@@ -266,6 +278,12 @@ function MatchCard({
           )}
           {!match.descartado ? (
             <>
+              {isGap && onAgregarManual && (
+                <button onClick={onAgregarManual}
+                  className="text-xs px-3 py-1 rounded-lg font-semibold bg-white bg-opacity-80 hover:bg-opacity-100 transition-colors border border-current border-opacity-30">
+                  + Agregar sucesor
+                </button>
+              )}
               {!match.validado_ch && !isGap && (
                 <button onClick={() => onValidar(match.id)}
                   className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
@@ -778,19 +796,25 @@ function DescartadosPanel({
 }
 
 // ── MatchingView (main) ───────────────────────────────────────────────────────
+type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
+
 export default function MatchingView({
   matches: initialMatches,
   ciclosDisponibles,
   uens,
   segmentos,
+  colabs,
 }: {
   matches: MatchRow[];
   ciclosDisponibles: number[];
   uens: string[];
   segmentos: string[];
+  colabs: ColabOption[];
 }) {
+  const router = useRouter();
   const [matches, setMatches] = useState<MatchRow[]>(initialMatches);
   const [isPending, startTransition] = useTransition();
+  const [addModalOpen, setAddModalOpen] = useState(false);
 
   // Filters
   const [selectedCiclo, setSelectedCiclo] = useState<number | "all">(ciclosDisponibles[0] ?? "all");
@@ -905,6 +929,7 @@ export default function MatchingView({
     aspiracion:    countBase.filter((m) => m.tipo_match === "aspiracion").length,
     propuesta:     countBase.filter((m) => m.tipo_match === "propuesta").length,
     gap_critico:   countBase.filter((m) => m.tipo_match === "gap_critico").length,
+    manual:        countBase.filter((m) => m.tipo_match === "manual").length,
   }), [countBase]);
 
   // Active (non-discarded) after all base filters
@@ -1192,6 +1217,7 @@ export default function MatchingView({
               onDescartar={handleDescartar}
               onReactivar={handleReactivar}
               onReadinessChange={handleReadinessChange}
+              onAgregarManual={m.tipo_match === "gap_critico" ? () => setAddModalOpen(true) : undefined}
             />
           ))}
         </div>
@@ -1207,6 +1233,15 @@ export default function MatchingView({
       {/* ── Descartados panel (only when estado = all) ───────────────────── */}
       {showDescartadosPanel && (
         <DescartadosPanel matches={discardedFiltered} onReactivar={handleReactivar} />
+      )}
+
+      {addModalOpen && (
+        <AgregarSucesorModal
+          colabs={colabs}
+          ciclos={ciclosDisponibles}
+          cicloDefault={typeof selectedCiclo === "number" ? selectedCiclo : ciclosDisponibles[0] ?? new Date().getFullYear()}
+          onClose={() => { setAddModalOpen(false); router.refresh(); }}
+        />
       )}
     </div>
   );

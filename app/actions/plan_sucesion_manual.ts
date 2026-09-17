@@ -117,7 +117,7 @@ export async function upsertPlanSucesionManual(params: {
           ciclo_año:          params.cicloAño,
           colaborador_id:     params.sucesId,
           puesto_catalogo_id: puestoCatalogoId,
-          tipo_match:         "propuesta",
+          tipo_match:         "manual",
           readiness:          params.readiness,
           es_puesto_critico:  (catalogRow as any)?.es_critico ?? false,
           titular_ids:        (titularRows ?? []).map((r: any) => r.id),

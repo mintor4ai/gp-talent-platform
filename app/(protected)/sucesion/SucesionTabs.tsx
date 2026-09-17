@@ -100,6 +100,7 @@ export default function SucesionTabs({
           ciclosDisponibles={matchCiclos}
           uens={uens}
           segmentos={segmentos}
+          colabs={colabs.map((c) => ({ id: c.id, nombre_completo: c.nombre_completo, puesto: c.puesto }))}
         />
       )}
     </div>
