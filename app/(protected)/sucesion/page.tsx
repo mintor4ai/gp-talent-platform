@@ -134,6 +134,8 @@ export default async function SucesionPage() {
         readiness:       p.readiness,
         tiempo_estimado: p.tiempo_estimado,
         estado:          p.estado,
+        titular_id:      p.id_empleado,
+        titular_nombre:  colabById.get(p.id_empleado) ?? null,
       });
     }
 

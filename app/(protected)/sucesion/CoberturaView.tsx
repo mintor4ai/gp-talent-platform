@@ -9,6 +9,8 @@ export type SucesorItem = {
   readiness: string | null;
   tiempo_estimado: string | null;
   estado: string;
+  titular_id?: string | null;
+  titular_nombre?: string | null;
 };
 
 export type TitularItem = {
@@ -81,6 +83,45 @@ const ESTADO_COLORS: Record<string, string> = {
   aprobado:     "bg-green-100 text-green-700",
   rechazado:    "bg-red-100 text-red-600",
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+type SucesorGroup = {
+  key: string;
+  sucesor_nombre: string;
+  sucesor_id: string | null;
+  readiness: string | null;
+  estado: string;
+  titulares: string[];
+};
+
+function groupSucesores(sucesores: SucesorItem[]): SucesorGroup[] {
+  const map = new Map<string, SucesorGroup>();
+  for (const s of sucesores) {
+    const key = s.sucesor_id ?? s.sucesor_nombre;
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        sucesor_nombre: s.sucesor_nombre,
+        sucesor_id: s.sucesor_id ?? null,
+        readiness: s.readiness ?? s.tiempo_estimado,
+        estado: s.estado,
+        titulares: [],
+      });
+    }
+    const g = map.get(key)!;
+    if (s.titular_nombre && !g.titulares.includes(s.titular_nombre)) {
+      g.titulares.push(s.titular_nombre);
+    }
+    // Keep best readiness
+    const order = ["listo_ahora", "uno_dos_anios", "tres_mas_anios"];
+    const cur = s.readiness ?? s.tiempo_estimado ?? "";
+    if (cur && (!g.readiness || order.indexOf(cur) < order.indexOf(g.readiness))) {
+      g.readiness = cur;
+    }
+  }
+  return Array.from(map.values());
+}
 
 // ── Drawer ────────────────────────────────────────────────────────────────────
 
@@ -166,42 +207,48 @@ function PuestoDrawer({
           </Section>
 
           {/* Sucesores formales */}
-          <Section title="Sucesores propuestos" count={puesto.sucesores.length} accent="blue">
-            {puesto.sucesores.length === 0 ? (
-              <EmptyMsg>No hay sucesores formalmente propuestos para este ciclo.</EmptyMsg>
-            ) : (
-              <div className="space-y-2">
-                {puesto.sucesores.map((s, i) => {
-                  const r = s.readiness ?? s.tiempo_estimado;
-                  return (
-                    <div key={i} className="px-3 py-2.5 bg-blue-50/60 rounded-lg">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{s.sucesor_nombre}</p>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
-                          {r && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${readinessBadgeColor(r)}`}>
-                              {READINESS_LABEL[r] ?? r}
+          {(() => {
+            const grouped = groupSucesores(puesto.sucesores);
+            return (
+              <Section title="Sucesores propuestos" count={grouped.length} accent="blue">
+                {grouped.length === 0 ? (
+                  <EmptyMsg>No hay sucesores formalmente propuestos para este ciclo.</EmptyMsg>
+                ) : (
+                  <div className="space-y-2">
+                    {grouped.map((g) => (
+                      <div key={g.key} className="px-3 py-2.5 bg-blue-50/60 rounded-lg space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium text-gray-800 truncate">{g.sucesor_nombre}</p>
+                          <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                            {g.readiness && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${readinessBadgeColor(g.readiness)}`}>
+                                {READINESS_LABEL[g.readiness] ?? g.readiness}
+                              </span>
+                            )}
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${ESTADO_COLORS[g.estado] ?? "bg-gray-100 text-gray-500"}`}>
+                              {ESTADO_LABELS[g.estado] ?? g.estado}
                             </span>
-                          )}
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${ESTADO_COLORS[s.estado] ?? "bg-gray-100 text-gray-500"}`}>
-                            {ESTADO_LABELS[s.estado] ?? s.estado}
-                          </span>
+                          </div>
                         </div>
+                        {g.titulares.length > 0 && (
+                          <p className="text-[10px] text-gray-400 leading-snug">
+                            <span className="font-medium text-gray-500">Propuesto por:</span>{" "}
+                            {g.titulares.join(" · ")}
+                          </p>
+                        )}
+                        {g.sucesor_id && (
+                          <a href={`/carpeta/${g.sucesor_id}`}
+                            className="text-[10px] text-[#1a3a5c] hover:underline block">
+                            Ver carpeta del sucesor →
+                          </a>
+                        )}
                       </div>
-                      {s.sucesor_id && (
-                        <a href={`/carpeta/${s.sucesor_id}`}
-                          className="text-[10px] text-[#1a3a5c] hover:underline mt-1 block">
-                          Ver carpeta del sucesor →
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Section>
+                    ))}
+                  </div>
+                )}
+              </Section>
+            );
+          })()}
 
           {/* Aspirantes del Motor */}
           <Section
@@ -590,7 +637,9 @@ export default function CoberturaView({
                     </td>
                     <td className="px-4 py-3 text-center">
                       {p.sucesores.length > 0
-                        ? <span className="font-semibold text-gray-700">{p.sucesores.length}</span>
+                        ? <span className="font-semibold text-gray-700">
+                            {new Set(p.sucesores.map((s) => s.sucesor_id ?? s.sucesor_nombre)).size}
+                          </span>
                         : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-center">
