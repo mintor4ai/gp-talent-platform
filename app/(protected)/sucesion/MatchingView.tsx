@@ -171,6 +171,15 @@ function MatchCard({
   const cfg = TIPO_CONFIG[match.tipo_match];
   const isGap = match.tipo_match === "gap_critico";
 
+  // Silently pre-load profile so EIP/zona appear on the front face
+  useEffect(() => {
+    if (!match.colaborador_id || isGap) return;
+    getColaboradorMatchProfile(match.colaborador_id).then((result) => {
+      if (result.ok && result.data) setProfile(result.data);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match.colaborador_id]);
+
   const handleFlip = async () => {
     if (!flipped && !profile && match.colaborador_id) {
       setLoadingProfile(true);
@@ -200,14 +209,14 @@ function MatchCard({
   // ── Front face ──────────────────────────────────────────────────────────
   const front = (
     <div
-      className={`absolute inset-0 rounded-xl border p-4 flex flex-col ${cfg.color} ${
+      className={`absolute inset-0 rounded-xl border flex flex-col ${cfg.color} ${
         match.descartado ? "opacity-50" : ""
       }`}
       style={{ backfaceVisibility: "hidden" }}
     >
-      {/* Ciclo badge */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-semibold tracking-wide opacity-50 uppercase">
+      {/* Header: ciclo + all badges */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        <span className="text-[10px] font-semibold tracking-wide opacity-40 uppercase">
           Ciclo {match.ciclo_año}
         </span>
         <div className="flex items-center gap-1 flex-wrap justify-end">
@@ -220,41 +229,6 @@ function MatchCard({
               Crítico
             </span>
           )}
-        </div>
-      </div>
-
-      <div className="flex items-start gap-3 flex-1">
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm break-words leading-snug">
-            {match.puesto_nombre ?? "Puesto desconocido"}
-          </p>
-          {match.puesto_org && (
-            <p className="text-xs opacity-70 mt-0.5">{match.puesto_org}</p>
-          )}
-          <div className="mt-2 space-y-0.5 text-xs">
-            {!isGap && match.colaborador_nombre && (
-              <div className="flex items-start gap-1.5">
-                <span className="opacity-60 flex-shrink-0">Colaborador:</span>
-                <span className="font-medium break-words">{match.colaborador_nombre}</span>
-              </div>
-            )}
-            {match.titular_nombres && match.titular_nombres.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <span className="opacity-60 flex-shrink-0">
-                  {match.titular_nombres.length > 1 ? "Titulares:" : "Titular:"}
-                </span>
-                <TitularBadge nombres={match.titular_nombres} />
-              </div>
-            )}
-            {localReadiness && (
-              <div className="flex items-center gap-1.5">
-                <span className="opacity-60">Readiness:</span>
-                <span className="font-medium">{READINESS_LABEL[localReadiness] ?? localReadiness}</span>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
           {match.validado_ch && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">
               ✓ Validado
@@ -268,9 +242,84 @@ function MatchCard({
         </div>
       </div>
 
+      {/* Section 1: Puesto + UEN + Titular */}
+      <div className="px-4 pb-3">
+        <p className="font-bold text-sm break-words leading-snug">
+          {match.puesto_nombre ?? "Puesto desconocido"}
+        </p>
+        {match.puesto_org && (
+          <p className="text-xs opacity-60 mt-0.5">{match.puesto_org}</p>
+        )}
+        {match.titular_nombres && match.titular_nombres.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-2">
+            <span className="text-[10px] opacity-50 font-medium flex-shrink-0">
+              {match.titular_nombres.length > 1 ? "Titulares" : "Titular"}
+            </span>
+            <TitularBadge nombres={match.titular_nombres} />
+          </div>
+        )}
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-current border-opacity-10 mx-4" />
+
+      {/* Section 2: Sucesor + EIP/Zona + Readiness */}
+      <div className="px-4 py-3 flex-1">
+        {isGap ? (
+          <p className="text-xs opacity-40 italic">Sin sucesor propuesto</p>
+        ) : (
+          <>
+            {/* Sucesor row with EIP top-right */}
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] opacity-50 font-medium tracking-wide mb-0.5">SUCESOR</p>
+                <p className="font-semibold text-sm break-words leading-snug">
+                  {match.colaborador_nombre ?? "—"}
+                </p>
+              </div>
+              {profile?.eip && (
+                <div className="flex items-center gap-1.5 flex-shrink-0 mt-4">
+                  <span className="text-xs font-bold opacity-70 tabular-nums">
+                    {profile.eip.total !== null ? profile.eip.total.toFixed(1) : "—"}
+                  </span>
+                  {profile.eip.zona && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${ZONA_COLORS[profile.eip.zona] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                      {profile.eip.zona}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Readiness selector */}
+            <div>
+              <p className="text-[10px] opacity-50 font-medium tracking-wide mb-1.5">
+                READINESS{savingReadiness && <span className="normal-case opacity-60 ml-1">(guardando…)</span>}
+              </p>
+              <div className="flex gap-1.5 flex-wrap">
+                {READINESS_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => handleReadiness(opt.value)}
+                    disabled={savingReadiness || !!match.descartado}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all disabled:opacity-50 ${
+                      localReadiness === opt.value
+                        ? opt.color + " ring-2 ring-offset-1 ring-current"
+                        : "bg-white bg-opacity-60 text-current border-current border-opacity-20 hover:bg-opacity-90"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Inline discard form */}
       {showDiscardForm && !match.descartado && (
-        <div className="mt-3 pt-3 border-t border-current border-opacity-10">
+        <div className="px-4 pb-3 pt-3 border-t border-current border-opacity-10">
           <p className="text-xs font-medium mb-1.5 opacity-80">
             Motivo del descarte{isGap ? <span className="text-red-600"> *</span> : " (opcional)"}
           </p>
@@ -299,9 +348,9 @@ function MatchCard({
         </div>
       )}
 
-      {/* Actions */}
+      {/* Actions — always visible at bottom */}
       {!showDiscardForm && (
-        <div className="mt-3 pt-3 border-t border-current border-opacity-10 flex items-center gap-2 flex-wrap">
+        <div className="px-4 pb-3 pt-2 border-t border-current border-opacity-10 flex items-center gap-2 flex-wrap">
           {!isGap && match.colaborador_id && (
             <button
               onClick={handleFlip}
@@ -333,7 +382,7 @@ function MatchCard({
                 </Link>
               )}
               <button onClick={() => setShowDiscardForm(true)}
-                className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-40 hover:bg-opacity-70 transition-colors border border-current border-opacity-20">
+                className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-40 hover:bg-opacity-70 transition-colors border border-current border-opacity-20 ml-auto">
                 Descartar
               </button>
             </>
@@ -476,7 +525,7 @@ function MatchCard({
     </div>
   );
 
-  const cardH = showDiscardForm ? 420 : 320;
+  const cardH = showDiscardForm ? 480 : 390;
 
   return (
     <div style={{ perspective: "1000px", height: cardH }}>
