@@ -58,6 +58,7 @@ export default async function SucesionPage() {
       supabase.from("sucesion_matches").select("*")
         .order("ciclo_año", { ascending: false })
         .order("tipo_match")
+        .order("id")
         .range(from, to)
     ),
   ]);
