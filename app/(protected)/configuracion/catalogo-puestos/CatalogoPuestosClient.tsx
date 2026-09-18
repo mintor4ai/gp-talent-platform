@@ -37,7 +37,15 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
   const [filterTipo, setFilterTipo] = useState("");
   const [filterCritico, setFilterCritico] = useState<"" | "si" | "no">("");
   const [filterActivo, setFilterActivo] = useState<FilterActivo>("activo");
+  const [filterArea, setFilterArea] = useState("");
   const [filterSinDept, setFilterSinDept] = useState(false);
+
+  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+  const availableAreas = useMemo(() => {
+    const base = filterUen ? puestos.filter((p) => p.organización === filterUen) : puestos;
+    return [...new Set(base.map((p) => p.area).filter(Boolean))].sort() as string[];
+  }, [puestos, filterUen]);
 
   // Inference panel state
   const [inferencia, setInferencia] = useState<{ rows: InferenciaRow[]; sin_colaboradores: number } | null>(null);
@@ -137,7 +145,7 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
   }
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const nq = norm(search.trim());
     const base = puestos.filter((p) => {
       const critico   = getField(p, "es_critico");
       const activo    = getField(p, "activo");
@@ -147,11 +155,12 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
       if (filterActivo === "propuesto" && !propuesto)             return false;
       if (filterCritico === "si" && !critico) return false;
       if (filterCritico === "no" && critico)  return false;
-      if (filterUen      && p.organización !== filterUen)               return false;
+      if (filterUen      && p.organización !== filterUen)                 return false;
       if (filterSegmento && p.segmento_organizacional !== filterSegmento) return false;
-      if (filterTipo     && p.tipo_vacante !== filterTipo)              return false;
-      if (filterSinDept  && p.departamento)                             return false;
-      if (q && !p.nombre.toLowerCase().includes(q) && !(p.clave ?? "").toLowerCase().includes(q)) return false;
+      if (filterTipo     && p.tipo_vacante !== filterTipo)                return false;
+      if (filterArea     && p.area !== filterArea)                        return false;
+      if (filterSinDept  && p.departamento)                               return false;
+      if (nq && !norm(p.nombre).includes(nq) && !norm(p.clave ?? "").includes(nq)) return false;
       return true;
     });
     const dir = sortDir === "asc" ? 1 : -1;
@@ -161,7 +170,7 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
       return dir * ((a[sortKey] ?? "") as string).localeCompare((b[sortKey] ?? "") as string, "es");
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [puestos, search, filterUen, filterSegmento, filterTipo, filterCritico, filterActivo, optimistic, sortKey, sortDir]);
+  }, [puestos, search, filterUen, filterSegmento, filterTipo, filterArea, filterCritico, filterActivo, optimistic, sortKey, sortDir]);
 
   const criticosCount   = filtered.filter((p) => getField(p, "es_critico")).length;
   const sinTitular      = filtered.filter((p) => p.titulares_count === 0).length;
@@ -291,10 +300,15 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
             onChange={setSearch}
             className="col-span-full sm:col-span-2 lg:col-span-1"
           />
-          <select value={filterUen} onChange={(e) => setFilterUen(e.target.value)}
+          <select value={filterUen} onChange={(e) => { setFilterUen(e.target.value); setFilterArea(""); }}
             className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
             <option value="">Todas las UEN</option>
             {uens.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+          <select value={filterArea} onChange={(e) => setFilterArea(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
+            <option value="">Todas las áreas</option>
+            {availableAreas.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
           <select value={filterSegmento} onChange={(e) => setFilterSegmento(e.target.value)}
             className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
@@ -321,9 +335,9 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
           </select>
         </div>
         <div className="flex items-center justify-between pt-1">
-          {(search || filterUen || filterSegmento || filterTipo || filterCritico || filterActivo !== "activo" || filterSinDept) ? (
+          {(search || filterUen || filterArea || filterSegmento || filterTipo || filterCritico || filterActivo !== "activo" || filterSinDept) ? (
             <button
-              onClick={() => { setSearch(""); setFilterUen(""); setFilterSegmento(""); setFilterTipo(""); setFilterCritico(""); setFilterActivo("activo"); setFilterSinDept(false); }}
+              onClick={() => { setSearch(""); setFilterUen(""); setFilterArea(""); setFilterSegmento(""); setFilterTipo(""); setFilterCritico(""); setFilterActivo("activo"); setFilterSinDept(false); }}
               className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
             >
               Limpiar filtros
@@ -838,12 +852,14 @@ function PuestoAutocomplete({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const suggestions = useMemo(() => {
-    const q = value.trim().toLowerCase();
-    if (!q || q.length < 1) return [];
+    const raw = value.trim();
+    if (!raw) return [];
+    const q = raw.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const n = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     return puestos
       .filter((p) =>
-        p.nombre.toLowerCase().includes(q) ||
-        (p.clave ?? "").toLowerCase().includes(q)
+        n(p.nombre).includes(q) ||
+        n(p.clave ?? "").includes(q)
       )
       .slice(0, 10);
   }, [puestos, value]);
