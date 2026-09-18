@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+
+const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 import type { SucesionItem } from "../carpeta/[id]/SucesionEditor";
 import { readinessBadge, ESTADO_CONFIG } from "../carpeta/[id]/SucesionEditor";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -52,27 +54,38 @@ export default function SucesionAdminView({
   const [readinessFilter, setReadinessFilter]   = useState("");
   const [searchFilter, setSearchFilter]         = useState("");
   const [segmentoFilter, setSegmentoFilter]     = useState("");
+  const [uenFilter, setUenFilter]               = useState("");
+  const [areaFilter, setAreaFilter]             = useState("");
   const [showModal, setShowModal]             = useState(false);
   const [editTarget, setEditTarget]           = useState<SucesionItemExt | null>(null);
+
+  const availableUens = useMemo(() =>
+    [...new Set(colabs.map((c) => c.organización).filter(Boolean))].sort() as string[],
+    [colabs]
+  );
+
+  const availableAreas = useMemo(() => {
+    const base = uenFilter ? colabs.filter((c) => c.organización === uenFilter) : colabs;
+    return [...new Set(base.map((c) => c.area).filter(Boolean))].sort() as string[];
+  }, [colabs, uenFilter]);
 
   const planesExt = planes as SucesionItemExt[];
 
   const plansCiclo = planesExt.filter((p) => p.ciclo_año === cicloActual);
 
   const filtered = plansCiclo.filter((p) => {
-    if (estadoFilter   && p.estado !== estadoFilter)                    return false;
-    if (readinessFilter && (p.readiness ?? p.tiempo_estimado) !== readinessFilter) return false;
-    if (segmentoFilter) {
-      const titular = colabs.find((c) => c.id === p.id_empleado);
-      if ((titular?.segmento_organizacional ?? "") !== segmentoFilter) return false;
-    }
+    if (estadoFilter    && p.estado !== estadoFilter)                                   return false;
+    if (readinessFilter && (p.readiness ?? p.tiempo_estimado) !== readinessFilter)      return false;
+    const titular = colabs.find((c) => c.id === p.id_empleado);
+    if (segmentoFilter && (titular?.segmento_organizacional ?? "") !== segmentoFilter)  return false;
+    if (uenFilter      && (titular?.organización ?? "") !== uenFilter)                  return false;
+    if (areaFilter     && (titular?.area ?? "") !== areaFilter)                         return false;
     if (searchFilter) {
-      const q = searchFilter.toLowerCase();
-      const titular = colabs.find((c) => c.id === p.id_empleado);
+      const nq = norm(searchFilter);
       if (
-        !p.sucesor_nombre.toLowerCase().includes(q) &&
-        !(titular?.nombre_completo ?? "").toLowerCase().includes(q) &&
-        !(titular?.puesto ?? "").toLowerCase().includes(q)
+        !norm(p.sucesor_nombre).includes(nq) &&
+        !norm(titular?.nombre_completo ?? "").includes(nq) &&
+        !norm(titular?.puesto ?? "").includes(nq)
       ) return false;
     }
     return true;
@@ -149,35 +162,61 @@ export default function SucesionAdminView({
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <input
-          type="text"
-          value={searchFilter}
-          onChange={(e) => setSearchFilter(e.target.value)}
-          placeholder="Buscar titular o sucesor..."
-          className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] w-56 bg-white"
-        />
-        <select value={estadoFilter} onChange={(e) => setEstadoFilter(e.target.value)}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
-          {ESTADO_FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <select value={readinessFilter} onChange={(e) => setReadinessFilter(e.target.value)}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
-          {READINESS_FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        {segmentos.length > 0 && (
-          <select value={segmentoFilter} onChange={(e) => setSegmentoFilter(e.target.value)}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
-            <option value="">Todos los segmentos</option>
-            {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 space-y-2.5">
+        <div className="flex flex-wrap gap-2.5 items-center">
+          <div className="relative">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              placeholder="Buscar titular o sucesor..."
+              className="text-sm border border-gray-200 rounded-lg pl-8 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] w-56 bg-white"
+            />
+          </div>
+          <select value={estadoFilter} onChange={(e) => setEstadoFilter(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
+            {ESTADO_FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-        )}
-        {(estadoFilter || readinessFilter || searchFilter || segmentoFilter) && (
-          <button onClick={() => { setEstadoFilter(""); setReadinessFilter(""); setSearchFilter(""); setSegmentoFilter(""); }}
-            className="text-xs text-gray-400 hover:text-gray-600">
-            Limpiar filtros
-          </button>
-        )}
+          <select value={readinessFilter} onChange={(e) => setReadinessFilter(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
+            {READINESS_FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          {segmentos.length > 0 && (
+            <select value={segmentoFilter} onChange={(e) => setSegmentoFilter(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
+              <option value="">Todos los segmentos</option>
+              {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2.5 items-center">
+          {availableUens.length > 0 && (
+            <select value={uenFilter} onChange={(e) => { setUenFilter(e.target.value); setAreaFilter(""); }}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
+              <option value="">Todas las UEN</option>
+              {availableUens.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          )}
+          {availableAreas.length > 0 && (
+            <select value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] bg-white">
+              <option value="">Todas las áreas</option>
+              {availableAreas.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          )}
+          {(estadoFilter || readinessFilter || searchFilter || segmentoFilter || uenFilter || areaFilter) && (
+            <button
+              onClick={() => { setEstadoFilter(""); setReadinessFilter(""); setSearchFilter(""); setSegmentoFilter(""); setUenFilter(""); setAreaFilter(""); }}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+              ✕ Limpiar filtros
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Results count */}
