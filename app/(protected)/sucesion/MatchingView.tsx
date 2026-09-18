@@ -350,42 +350,44 @@ function MatchCard({
 
       {/* Actions — always visible at bottom */}
       {!showDiscardForm && (
-        <div className="px-4 pb-3 pt-2 border-t border-current border-opacity-10 flex items-center gap-2 flex-wrap">
-          {!isGap && match.colaborador_id && (
-            <button
-              onClick={handleFlip}
-              className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-70 hover:bg-opacity-100 transition-colors border border-current border-opacity-20"
-            >
-              {loadingProfile ? "…" : "Ver perfil →"}
-            </button>
-          )}
-          {!match.descartado ? (
-            <>
-              {isGap && onAgregarManual && (
-                <button onClick={onAgregarManual}
-                  className="text-xs px-3 py-1 rounded-lg font-semibold bg-white bg-opacity-80 hover:bg-opacity-100 transition-colors border border-current border-opacity-30">
-                  + Agregar sucesor
-                </button>
-              )}
-              {!match.validado_ch && !isGap && (
-                <button onClick={() => onValidar(match.id)}
-                  className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
-                  Validar
-                </button>
-              )}
-              {match.validado_ch && match.colaborador_id && (
-                <Link
-                  href={`/plan-carrera/${match.colaborador_id}`}
-                  className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-80 hover:bg-opacity-100 transition-colors border border-current border-opacity-30 flex items-center gap-1"
-                >
-                  📐 Plano de Carrera
-                </Link>
-              )}
-              <button onClick={() => setShowDiscardForm(true)}
-                className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-40 hover:bg-opacity-70 transition-colors border border-current border-opacity-20 ml-auto">
-                Descartar
+        <div className="px-4 pb-3 pt-2 border-t border-current border-opacity-10 flex items-center justify-between gap-2">
+          {/* Left: primary actions */}
+          <div className="flex items-center gap-2">
+            {!isGap && match.colaborador_id && (
+              <button
+                onClick={handleFlip}
+                className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-70 hover:bg-opacity-100 transition-colors border border-current border-opacity-20"
+              >
+                {loadingProfile ? "…" : "Ver perfil →"}
               </button>
-            </>
+            )}
+            {isGap && onAgregarManual && (
+              <button onClick={onAgregarManual}
+                className="text-xs px-3 py-1 rounded-lg font-semibold bg-white bg-opacity-80 hover:bg-opacity-100 transition-colors border border-current border-opacity-30">
+                + Agregar sucesor
+              </button>
+            )}
+            {!match.descartado && !match.validado_ch && !isGap && (
+              <button onClick={() => onValidar(match.id)}
+                className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
+                Validar
+              </button>
+            )}
+            {!match.descartado && match.validado_ch && match.colaborador_id && (
+              <Link
+                href={`/plan-carrera/${match.colaborador_id}`}
+                className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-80 hover:bg-opacity-100 transition-colors border border-current border-opacity-30 flex items-center gap-1"
+              >
+                📐 Plano
+              </Link>
+            )}
+          </div>
+          {/* Right: destructive / reactivar */}
+          {!match.descartado ? (
+            <button onClick={() => setShowDiscardForm(true)}
+              className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-40 hover:bg-opacity-70 transition-colors border border-current border-opacity-20">
+              Descartar
+            </button>
           ) : (
             <button onClick={() => onReactivar(match.id)}
               className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-60 hover:bg-opacity-90 transition-colors border border-current border-opacity-20">
