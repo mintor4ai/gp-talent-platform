@@ -1,6 +1,40 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect } from "react";
+
+// ── Filter persistence ────────────────────────────────────────────────────────
+const FILTER_KEY = "matching-filters-v1";
+
+type PersistedFilters = {
+  selectedCiclo?: number | "all";
+  selectedTipo?: string;
+  selectedUen?: string;
+  selectedSegmento?: string;
+  selectedArea?: string;
+  selectedPuesto?: string;
+  selectedEstado?: "all" | "pendiente" | "validado" | "descartado";
+  soloCriticos?: boolean;
+  search?: string;
+  viewMode?: "cards" | "table";
+};
+
+function loadFilters(): PersistedFilters {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(FILTER_KEY);
+    return raw ? (JSON.parse(raw) as PersistedFilters) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveFilters(f: PersistedFilters) {
+  try { localStorage.setItem(FILTER_KEY, JSON.stringify(f)); } catch {}
+}
+
+function clearFilters() {
+  try { localStorage.removeItem(FILTER_KEY); } catch {}
+}
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AgregarSucesorModal from "./AgregarSucesorModal";
@@ -816,19 +850,25 @@ export default function MatchingView({
   const [isPending, startTransition] = useTransition();
   const [addModalPrefill, setAddModalPrefill] = useState<{ titularId: string; cicloAño: number } | null>(null);
 
-  // Filters
-  const [selectedCiclo, setSelectedCiclo] = useState<number | "all">(ciclosDisponibles[0] ?? "all");
-  const [selectedTipo, setSelectedTipo] = useState<string>("all");
-  const [selectedUen, setSelectedUen] = useState<string>("all");
-  const [selectedSegmento, setSelectedSegmento] = useState<string>("all");
-  const [selectedArea, setSelectedArea] = useState<string>("all");
-  const [selectedPuesto, setSelectedPuesto] = useState<string>("all");
-  const [selectedEstado, setSelectedEstado] = useState<"all" | "pendiente" | "validado" | "descartado">("all");
-  const [soloCriticos, setSoloCriticos] = useState(false);
-  const [search, setSearch] = useState("");
+  // Filters — initialized from localStorage if available
+  const [_saved] = useState<PersistedFilters>(() => loadFilters());
+  const [selectedCiclo, setSelectedCiclo] = useState<number | "all">(_saved.selectedCiclo ?? ciclosDisponibles[0] ?? "all");
+  const [selectedTipo, setSelectedTipo] = useState<string>(_saved.selectedTipo ?? "all");
+  const [selectedUen, setSelectedUen] = useState<string>(_saved.selectedUen ?? "all");
+  const [selectedSegmento, setSelectedSegmento] = useState<string>(_saved.selectedSegmento ?? "all");
+  const [selectedArea, setSelectedArea] = useState<string>(_saved.selectedArea ?? "all");
+  const [selectedPuesto, setSelectedPuesto] = useState<string>(_saved.selectedPuesto ?? "all");
+  const [selectedEstado, setSelectedEstado] = useState<"all" | "pendiente" | "validado" | "descartado">(_saved.selectedEstado ?? "all");
+  const [soloCriticos, setSoloCriticos] = useState<boolean>(_saved.soloCriticos ?? false);
+  const [search, setSearch] = useState<string>(_saved.search ?? "");
 
   // View
-  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+  const [viewMode, setViewMode] = useState<"cards" | "table">(_saved.viewMode ?? "cards");
+
+  // Persist filters to localStorage whenever they change
+  useEffect(() => {
+    saveFilters({ selectedCiclo, selectedTipo, selectedUen, selectedSegmento, selectedArea, selectedPuesto, selectedEstado, soloCriticos, search, viewMode });
+  }, [selectedCiclo, selectedTipo, selectedUen, selectedSegmento, selectedArea, selectedPuesto, selectedEstado, soloCriticos, search, viewMode]);
 
   // ── Actions ──────────────────────────────────────────────────────────────
   const handleValidar = (id: string) => {
@@ -1183,6 +1223,7 @@ export default function MatchingView({
           setSelectedPuesto("all");
           setSelectedEstado("all");
           setSoloCriticos(false);
+          clearFilters();
         };
 
         return (
