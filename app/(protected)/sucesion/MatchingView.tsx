@@ -160,7 +160,6 @@ function MatchCard({
   onAgregarManual?: () => void;
   onReadinessChange: (id: string, readiness: string | null) => void;
 }) {
-  const [flipped, setFlipped] = useState(false);
   const [profile, setProfile] = useState<ColaboradorMatchProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [savingReadiness, setSavingReadiness] = useState(false);
@@ -171,15 +170,16 @@ function MatchCard({
   const cfg = TIPO_CONFIG[match.tipo_match];
   const isGap = match.tipo_match === "gap_critico";
 
-  const handleFlip = async () => {
-    if (!flipped && !profile && match.colaborador_id) {
-      setLoadingProfile(true);
-      const result = await getColaboradorMatchProfile(match.colaborador_id);
+  // Auto-load profile on mount for non-gap matches
+  useEffect(() => {
+    if (!match.colaborador_id || isGap) return;
+    setLoadingProfile(true);
+    getColaboradorMatchProfile(match.colaborador_id).then((result) => {
       if (result.ok && result.data) setProfile(result.data);
       setLoadingProfile(false);
-    }
-    setFlipped((v) => !v);
-  };
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match.colaborador_id]);
 
   const handleReadiness = async (value: string) => {
     const next = localReadiness === value ? null : value;
@@ -197,16 +197,11 @@ function MatchCard({
     setMotivoText("");
   };
 
-  // ── Front face ──────────────────────────────────────────────────────────
-  const front = (
-    <div
-      className={`absolute inset-0 rounded-xl border p-4 flex flex-col ${cfg.color} ${
-        match.descartado ? "opacity-50" : ""
-      }`}
-      style={{ backfaceVisibility: "hidden" }}
-    >
-      {/* Ciclo badge */}
-      <div className="flex items-center justify-between mb-2">
+  return (
+    <div className={`rounded-xl border flex flex-col ${cfg.color} ${match.descartado ? "opacity-60" : ""}`}>
+
+      {/* ── Header: ciclo + type/status badges ── */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <span className="text-[10px] font-semibold tracking-wide opacity-50 uppercase">
           Ciclo {match.ciclo_año}
         </span>
@@ -220,41 +215,6 @@ function MatchCard({
               Crítico
             </span>
           )}
-        </div>
-      </div>
-
-      <div className="flex items-start gap-3 flex-1">
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm break-words leading-snug">
-            {match.puesto_nombre ?? "Puesto desconocido"}
-          </p>
-          {match.puesto_org && (
-            <p className="text-xs opacity-70 mt-0.5">{match.puesto_org}</p>
-          )}
-          <div className="mt-2 space-y-0.5 text-xs">
-            {!isGap && match.colaborador_nombre && (
-              <div className="flex items-start gap-1.5">
-                <span className="opacity-60 flex-shrink-0">Colaborador:</span>
-                <span className="font-medium break-words">{match.colaborador_nombre}</span>
-              </div>
-            )}
-            {match.titular_nombres && match.titular_nombres.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <span className="opacity-60 flex-shrink-0">
-                  {match.titular_nombres.length > 1 ? "Titulares:" : "Titular:"}
-                </span>
-                <TitularBadge nombres={match.titular_nombres} />
-              </div>
-            )}
-            {localReadiness && (
-              <div className="flex items-center gap-1.5">
-                <span className="opacity-60">Readiness:</span>
-                <span className="font-medium">{READINESS_LABEL[localReadiness] ?? localReadiness}</span>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
           {match.validado_ch && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">
               ✓ Validado
@@ -268,9 +228,87 @@ function MatchCard({
         </div>
       </div>
 
-      {/* Inline discard form */}
+      {/* ── Section 1: Puesto + Titular ── */}
+      <div className="px-4 pb-3">
+        <p className="font-bold text-sm break-words leading-snug">
+          {match.puesto_nombre ?? "Puesto desconocido"}
+        </p>
+        {match.puesto_org && (
+          <p className="text-xs opacity-60 mt-0.5">{match.puesto_org}</p>
+        )}
+        {match.titular_nombres && match.titular_nombres.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-2">
+            <span className="text-[10px] opacity-50 uppercase tracking-wide font-semibold flex-shrink-0">
+              {match.titular_nombres.length > 1 ? "Titulares" : "Titular"}
+            </span>
+            <TitularBadge nombres={match.titular_nombres} />
+          </div>
+        )}
+      </div>
+
+      {/* ── Divider ── */}
+      <div className="border-t border-current border-opacity-10 mx-4" />
+
+      {/* ── Section 2: Sucesor + EIP + Readiness ── */}
+      <div className="px-4 py-3 flex-1">
+        {isGap ? (
+          <p className="text-xs opacity-50 italic">Sin sucesor propuesto</p>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] opacity-50 uppercase tracking-wide font-semibold mb-0.5">Sucesor</p>
+                <p className="font-semibold text-sm break-words leading-snug">
+                  {match.colaborador_nombre ?? <span className="opacity-40 italic">—</span>}
+                </p>
+              </div>
+              {/* EIP potencial + Zona */}
+              {loadingProfile ? (
+                <div className="text-[11px] opacity-30 mt-4 flex-shrink-0">…</div>
+              ) : profile?.eip ? (
+                <div className="flex items-center gap-1.5 flex-shrink-0 mt-4">
+                  <span className="text-xs font-bold opacity-80">
+                    {profile.eip.total !== null ? profile.eip.total.toFixed(1) : "—"}
+                  </span>
+                  {profile.eip.zona && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${ZONA_COLORS[profile.eip.zona] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                      {profile.eip.zona}
+                    </span>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Readiness selector */}
+            <div className="mt-3">
+              <p className="text-[10px] opacity-50 uppercase tracking-wide font-semibold mb-1.5">
+                Readiness
+                {savingReadiness && <span className="normal-case ml-1 opacity-60"> (guardando…)</span>}
+              </p>
+              <div className="flex gap-1.5 flex-wrap">
+                {READINESS_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => handleReadiness(opt.value)}
+                    disabled={savingReadiness || match.descartado}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all disabled:opacity-50 ${
+                      localReadiness === opt.value
+                        ? opt.color + " ring-2 ring-offset-1 ring-current"
+                        : "bg-white bg-opacity-60 text-current border-current border-opacity-20 hover:bg-opacity-90"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Inline discard form ── */}
       {showDiscardForm && !match.descartado && (
-        <div className="mt-3 pt-3 border-t border-current border-opacity-10">
+        <div className="px-4 pb-3 pt-3 border-t border-current border-opacity-10">
           <p className="text-xs font-medium mb-1.5 opacity-80">
             Motivo del descarte{isGap ? <span className="text-red-600"> *</span> : " (opcional)"}
           </p>
@@ -299,17 +337,9 @@ function MatchCard({
         </div>
       )}
 
-      {/* Actions */}
+      {/* ── Actions footer (always visible) ── */}
       {!showDiscardForm && (
-        <div className="mt-3 pt-3 border-t border-current border-opacity-10 flex items-center gap-2 flex-wrap">
-          {!isGap && match.colaborador_id && (
-            <button
-              onClick={handleFlip}
-              className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-70 hover:bg-opacity-100 transition-colors border border-current border-opacity-20"
-            >
-              {loadingProfile ? "…" : "Ver perfil →"}
-            </button>
-          )}
+        <div className="px-4 pb-3 pt-2 border-t border-current border-opacity-10 flex items-center gap-2 flex-wrap mt-auto">
           {!match.descartado ? (
             <>
               {isGap && onAgregarManual && (
@@ -332,8 +362,16 @@ function MatchCard({
                   📐 Plano de Carrera
                 </Link>
               )}
+              {!isGap && match.colaborador_id && (
+                <Link
+                  href={`/plan-carrera/${match.colaborador_id}`}
+                  className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-70 hover:bg-opacity-100 transition-colors border border-current border-opacity-20"
+                >
+                  Ver perfil →
+                </Link>
+              )}
               <button onClick={() => setShowDiscardForm(true)}
-                className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-40 hover:bg-opacity-70 transition-colors border border-current border-opacity-20">
+                className="text-xs px-3 py-1 rounded-lg font-medium bg-white bg-opacity-40 hover:bg-opacity-70 transition-colors border border-current border-opacity-20 ml-auto">
                 Descartar
               </button>
             </>
@@ -345,153 +383,35 @@ function MatchCard({
           )}
         </div>
       )}
-    </div>
-  );
 
-  // ── Back face ───────────────────────────────────────────────────────────
-  const back = (
-    <div
-      className="absolute inset-0 rounded-xl border border-gray-200 bg-white p-4 flex flex-col"
-      style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <button onClick={() => setFlipped(false)}
-          className="text-xs text-gray-400 hover:text-gray-700 transition-colors flex items-center gap-1">
-          ← Volver
-        </button>
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${cfg.badge}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-          {cfg.label}
-        </span>
-      </div>
-
-      <div className="flex-1 flex flex-col gap-3 overflow-auto">
-        {loadingProfile ? (
-          <div className="flex-1 flex items-center justify-center text-xs text-gray-400">
-            Cargando perfil…
-          </div>
-        ) : profile ? (
-          <>
+      {/* ── Audit trail ── */}
+      {(match.validado_ch || match.descartado) && (match.validado_por_nombre || match.descartado_por_nombre) && (
+        <div className="px-4 pb-3 pt-2 border-t border-current border-opacity-10 space-y-0.5">
+          {match.validado_ch && match.validado_por_nombre && (
+            <div className="flex items-start gap-1.5 text-[10px] text-green-700">
+              <span className="font-medium flex-shrink-0">✓ Validado por</span>
+              <span>{match.validado_por_nombre}</span>
+              {match.fecha_validacion && (
+                <span className="text-green-500 ml-auto flex-shrink-0">{fmtDate(match.fecha_validacion)}</span>
+              )}
+            </div>
+          )}
+          {match.descartado && match.descartado_por_nombre && (
             <div>
-              <p className="font-bold text-sm text-gray-900 break-words leading-snug">
-                {profile.nombre_completo}
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5 break-words">
-                {profile.puesto}{profile.nivel ? ` · ${profile.nivel}` : ""}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <StatChip label="Edad" value={profile.edad !== null ? `${profile.edad} años` : "—"} />
-              <StatChip label="Antigüedad" value={profile.antiguedad !== null ? `${profile.antiguedad} año${profile.antiguedad !== 1 ? "s" : ""}` : "—"} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
-                  Potencial{profile.eip ? ` ${profile.eip.ciclo_año}` : ""}
-                </p>
-                {profile.eip ? (
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className="text-sm font-bold text-gray-800">
-                      {profile.eip.total !== null ? profile.eip.total.toFixed(1) : "—"}
-                    </span>
-                    {profile.eip.zona && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${ZONA_COLORS[profile.eip.zona] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
-                        {profile.eip.zona}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm font-bold text-gray-300 mt-1">—</p>
+              <div className="flex items-start gap-1.5 text-[10px] text-gray-500">
+                <span className="font-medium flex-shrink-0">✕ Descartado por</span>
+                <span>{match.descartado_por_nombre}</span>
+                {match.fecha_descarte && (
+                  <span className="text-gray-400 ml-auto flex-shrink-0">{fmtDate(match.fecha_descarte)}</span>
                 )}
               </div>
-              <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
-                  Desempeño{profile.desempeno ? ` ${profile.desempeno.ciclo_año}` : ""}
-                </p>
-                <p className="text-sm font-bold text-gray-800 mt-1">
-                  {profile.desempeno?.calificacion !== null && profile.desempeno?.calificacion !== undefined
-                    ? profile.desempeno.calificacion.toFixed(2)
-                    : "—"}
-                </p>
-              </div>
+              {match.motivo_descarte && (
+                <p className="text-[10px] text-gray-400 mt-0.5 italic ml-4">"{match.motivo_descarte}"</p>
+              )}
             </div>
-          </>
-        ) : (
-          <p className="text-xs text-gray-400 text-center py-2">Sin datos de evaluación.</p>
-        )}
-
-        <div className="pt-2 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-1.5">
-            Readiness para este puesto
-            {savingReadiness && <span className="normal-case ml-1 text-gray-300">(guardando…)</span>}
-          </p>
-          <div className="flex gap-1.5 flex-wrap">
-            {READINESS_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => handleReadiness(opt.value)}
-                disabled={savingReadiness}
-                className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all disabled:opacity-50 ${
-                  localReadiness === opt.value
-                    ? opt.color + " ring-2 ring-offset-1 ring-current"
-                    : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          )}
         </div>
-
-        {(match.validado_ch || match.descartado) && (
-          <div className="pt-2 border-t border-gray-100">
-            {match.validado_ch && match.validado_por_nombre && (
-              <div className="flex items-start gap-1.5 text-[10px] text-green-700">
-                <span className="font-medium flex-shrink-0">✓ Validado por</span>
-                <span>{match.validado_por_nombre}</span>
-                {match.fecha_validacion && (
-                  <span className="text-green-500 ml-auto flex-shrink-0">{fmtDate(match.fecha_validacion)}</span>
-                )}
-              </div>
-            )}
-            {match.descartado && match.descartado_por_nombre && (
-              <div className="mt-1">
-                <div className="flex items-start gap-1.5 text-[10px] text-gray-500">
-                  <span className="font-medium flex-shrink-0">✕ Descartado por</span>
-                  <span>{match.descartado_por_nombre}</span>
-                  {match.fecha_descarte && (
-                    <span className="text-gray-400 ml-auto flex-shrink-0">{fmtDate(match.fecha_descarte)}</span>
-                  )}
-                </div>
-                {match.motivo_descarte && (
-                  <p className="text-[10px] text-gray-400 mt-0.5 italic ml-4">"{match.motivo_descarte}"</p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const cardH = showDiscardForm ? 420 : 320;
-
-  return (
-    <div style={{ perspective: "1000px", height: cardH }}>
-      <div
-        style={{
-          transformStyle: "preserve-3d",
-          transition: "transform 0.45s ease",
-          transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
-          position: "relative",
-          height: cardH,
-        }}
-      >
-        {front}
-        {back}
-      </div>
+      )}
     </div>
   );
 }
