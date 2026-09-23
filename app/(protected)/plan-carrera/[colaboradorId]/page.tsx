@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import { getPlanCarrera } from "@/app/actions/plan_carrera";
+import { getNotasByPlan } from "@/app/actions/plan_carrera_notas";
 import PlanCarreraView from "./PlanCarreraView";
 import PlanCarreraViewColaborador from "./PlanCarreraViewColaborador";
 
@@ -47,6 +48,9 @@ export default async function PlanCarreraPage({
   const planResult = await getPlanCarrera(colaboradorId);
   const plan = planResult.data ?? null;
 
+  // Load notas for this plan
+  const notas = plan ? (await getNotasByPlan(plan.id)).data ?? [] : [];
+
   // Load catalog positions for the objective selector
   const { data: catalogoRaw } = await supabase
     .from("catalogo_puestos")
@@ -78,6 +82,7 @@ export default async function PlanCarreraPage({
     <PlanCarreraView
       colab={colabInfo}
       plan={plan}
+      notas={notas}
       catalogo={catalogo}
     />
   );

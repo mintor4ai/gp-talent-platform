@@ -201,6 +201,16 @@ export async function crearPlanCarrera(params: {
 
     if (objError) throw objError;
 
+    // Create automatic first entry
+    const { crearNotaInicial } = await import("@/app/actions/plan_carrera_notas");
+    const colabRes = await supabase.from("colaboradores")
+      .select("nombre_completo").eq("id", params.colaboradorId).single();
+    const colabNombre = (colabRes.data as any)?.nombre_completo ?? params.colaboradorId;
+    const catalogoRes = await supabase.from("catalogo_puestos")
+      .select("nombre").eq("id", params.puestoCatalogoId).single();
+    const puestoNombre = (catalogoRes.data as any)?.nombre ?? params.puestoCatalogoId;
+    await crearNotaInicial({ planId: plan.id, colaboradorNombre: colabNombre, puestoObjetivo: puestoNombre });
+
     revalidatePath(`/plan-carrera/${params.colaboradorId}`);
     return { ok: true, planId: plan.id };
   } catch (err) {
