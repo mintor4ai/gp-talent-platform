@@ -781,6 +781,7 @@ export default function CarpetaTabs({
               itemsIniciales={sucesionItems}
               colaboradores={colaboradores}
               canEdit={isOwn || isAdmin}
+              isAdmin={isAdmin}
             />
           </div>
         </div>

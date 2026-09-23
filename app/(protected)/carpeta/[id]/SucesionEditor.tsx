@@ -256,6 +256,7 @@ function SucesorCard({
   item,
   colaboradorId,
   canEdit,
+  isAdmin,
   onEdit,
   onDelete,
   onSubmitted,
@@ -264,6 +265,7 @@ function SucesorCard({
   item: SucesionItem;
   colaboradorId: string;
   canEdit: boolean;
+  isAdmin?: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onSubmitted: (item: SucesionItem) => void;
@@ -316,10 +318,10 @@ function SucesorCard({
             </div>
           </div>
         </div>
-        {canEdit && isBorrador && (
+        {canEdit && (isBorrador || isAdmin) && (
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={onEdit} className="text-xs text-gray-400 hover:text-[#1a3a5c] transition-colors">Editar</button>
-            <span className="text-gray-200">|</span>
+            {isBorrador && <button onClick={onEdit} className="text-xs text-gray-400 hover:text-[#1a3a5c] transition-colors">Editar</button>}
+            {isBorrador && <span className="text-gray-200">|</span>}
             <button onClick={onDelete} disabled={isDeleting}
               className="text-xs text-red-400 hover:text-red-600 disabled:opacity-40 transition-colors">Eliminar</button>
           </div>
@@ -409,12 +411,14 @@ export default function SucesionEditor({
   itemsIniciales,
   colaboradores,
   canEdit,
+  isAdmin,
 }: {
   colaboradorId: string;
   cicloAño: number;
   itemsIniciales: SucesionItem[];
   colaboradores: ColabOption[];
   canEdit: boolean;
+  isAdmin?: boolean;
 }) {
   const [items, setItems]         = useState<SucesionItem[]>(
     itemsIniciales.filter((i) => i.ciclo_año === cicloAño)
@@ -483,6 +487,7 @@ export default function SucesionEditor({
             ) : (
               <SucesorCard key={item.id} item={item} colaboradorId={colaboradorId}
                 canEdit={canEdit}
+                isAdmin={isAdmin}
                 onEdit={() => { setEditingId(item.id); setAdding(false); }}
                 onDelete={() => handleDelete(item.id)}
                 onSubmitted={handleSubmitted}
