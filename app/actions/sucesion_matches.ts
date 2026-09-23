@@ -227,11 +227,30 @@ export async function updateMatchReadiness(
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const { supabase } = await getAdminUser();
+
+    // Fetch match to get colaborador + puesto for syncing plan_sucesion
+    const { data: matchRaw } = await supabase
+      .from("sucesion_matches")
+      .select("colaborador_id, puesto_catalogo_id")
+      .eq("id", matchId)
+      .single();
+    const match = matchRaw as { colaborador_id: string | null; puesto_catalogo_id: string | null } | null;
+
     const { error } = await supabase
       .from("sucesion_matches")
       .update({ readiness })
       .eq("id", matchId);
     if (error) throw error;
+
+    // Keep plan_sucesion.readiness in sync so Cobertura por Puesto stays consistent
+    if (match?.colaborador_id && match?.puesto_catalogo_id && readiness) {
+      await supabase
+        .from("plan_sucesion")
+        .update({ readiness })
+        .eq("sucesor_id", match.colaborador_id)
+        .eq("puesto_catalogo_id", match.puesto_catalogo_id);
+    }
+
     revalidatePath("/sucesion");
     return { ok: true };
   } catch (err) {
