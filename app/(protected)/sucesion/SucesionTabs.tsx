@@ -41,7 +41,7 @@ export default function SucesionTabs({
   matches: MatchRow[];
   matchCiclos: number[];
 }) {
-  const [tab, setTab] = useState<"planes" | "cobertura" | "matching">("planes");
+  const [tab, setTab] = useState<"planes" | "cobertura" | "matching">("matching");
   const [cicloCobertura, setCicloCobertura] = useState<number | "todos">(ciclos[0] ?? "todos");
 
   const puestosCobertura =
