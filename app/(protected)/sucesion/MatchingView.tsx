@@ -94,20 +94,20 @@ const TIPO_CONFIG = {
     dot: "bg-emerald-500",
     order: 0,
   },
-  aspiracion: {
-    label: "Aspiración",
-    description: "El colaborador aspira al puesto en su PICD",
-    color: "bg-blue-50 border-blue-300 text-blue-800",
-    badge: "bg-blue-100 text-blue-700 border-blue-200",
-    dot: "bg-blue-500",
-    order: 1,
-  },
   propuesta: {
     label: "Propuesta",
     description: "El colaborador está propuesto como sucesor",
     color: "bg-violet-50 border-violet-300 text-violet-800",
     badge: "bg-violet-100 text-violet-700 border-violet-200",
     dot: "bg-violet-500",
+    order: 1,
+  },
+  aspiracion: {
+    label: "Aspiración",
+    description: "El colaborador aspira al puesto en su PICD",
+    color: "bg-blue-50 border-blue-300 text-blue-800",
+    badge: "bg-blue-100 text-blue-700 border-blue-200",
+    dot: "bg-blue-500",
     order: 2,
   },
   gap_critico: {
