@@ -75,6 +75,14 @@ export type MatchRow = {
   colaborador_org?: string | null;
   validado_por_nombre?: string | null;
   descartado_por_nombre?: string | null;
+  plan_estado?: string | null;
+};
+
+const PLAN_ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
+  activo:    { label: "Plan activo",    color: "bg-blue-50 text-blue-600 border-blue-200" },
+  pausado:   { label: "Plan pausado",   color: "bg-amber-50 text-amber-600 border-amber-200" },
+  cerrado:   { label: "Plan cerrado",   color: "bg-gray-100 text-gray-500 border-gray-200" },
+  eliminado: { label: "Plan eliminado", color: "bg-red-50 text-red-500 border-red-200" },
 };
 
 const TIPO_CONFIG = {
@@ -230,9 +238,16 @@ function MatchCard({
             </span>
           )}
           {match.validado_ch && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">
-              ✓ Validado
-            </span>
+            <>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">
+                ✓ Validado
+              </span>
+              {match.plan_estado && PLAN_ESTADO_CONFIG[match.plan_estado] && (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${PLAN_ESTADO_CONFIG[match.plan_estado].color}`}>
+                  {PLAN_ESTADO_CONFIG[match.plan_estado].label}
+                </span>
+              )}
+            </>
           )}
           {match.descartado && (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
@@ -693,9 +708,16 @@ function MatchTable({
                         Descartado
                       </span>
                     ) : m.validado_ch ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">
-                        ✓ Validado
-                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">
+                          ✓ Validado
+                        </span>
+                        {m.plan_estado && PLAN_ESTADO_CONFIG[m.plan_estado] && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${PLAN_ESTADO_CONFIG[m.plan_estado].color}`}>
+                            {PLAN_ESTADO_CONFIG[m.plan_estado].label}
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-50 text-yellow-600 border border-yellow-100">
                         Pendiente

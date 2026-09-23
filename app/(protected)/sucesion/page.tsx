@@ -35,7 +35,7 @@ export default async function SucesionPage() {
     return results;
   }
 
-  const [planesRaw, colabsRaw, catalogoResult, matchesRaw] = await Promise.all([
+  const [planesRaw, colabsRaw, catalogoResult, matchesRaw, planCarreraRaw] = await Promise.all([
     fetchAllRows((from, to) =>
       supabase.from("plan_sucesion").select("*")
         .neq("estado", "descartado")
@@ -61,6 +61,7 @@ export default async function SucesionPage() {
         .order("id")
         .range(from, to)
     ),
+    supabase.from("plan_carrera").select("colaborador_id, estado"),
   ]);
   const catalogoRaw = catalogoResult.data;
 
@@ -108,6 +109,12 @@ export default async function SucesionPage() {
 
   // Raw matches array (typed)
   const rawMatches = (matchesRaw ?? []) as unknown as MatchRow[];
+
+  // Map colaborador_id → plan estado (from plan_carrera)
+  const planEstadoByColab = new Map<string, string>();
+  for (const p of (planCarreraRaw.data ?? []) as Array<{ colaborador_id: string; estado: string }>) {
+    planEstadoByColab.set(p.colaborador_id, p.estado);
+  }
 
   // Group titulares by catalog id — FK first, then name-based fallback (same as colabToCatalog)
   const titularesByCatalog = new Map<string, TitularItem[]>();
@@ -228,6 +235,7 @@ export default async function SucesionPage() {
       colaborador_org:  m.colaborador_id ? (colabOrgById.get(m.colaborador_id)  ?? null) : null,
       validado_por_nombre: m.validado_por ? (adminNames.get(m.validado_por) ?? null) : null,
       descartado_por_nombre: m.descartado_por ? (adminNames.get(m.descartado_por) ?? null) : null,
+      plan_estado: m.colaborador_id ? (planEstadoByColab.get(m.colaborador_id) ?? null) : null,
     };
   });
 
