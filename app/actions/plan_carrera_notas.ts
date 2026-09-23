@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 export type PlanCarreraNota = {
   id: string;
   plan_id: string;
-  tipo: "creacion" | "sesion";
+  tipo: "creacion" | "sesion" | "sistema";
   autor_id: string | null;
   autor_nombre: string | null;
   fortalezas: string | null;

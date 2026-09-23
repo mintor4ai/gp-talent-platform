@@ -804,12 +804,32 @@ export async function cambiarEstadoPlan(
   estado: "activo" | "pausado" | "cerrado"
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const { supabase, userId } = await getAdminUser();
+    const { supabase, userId, userName } = await getAdminUser();
     const { error } = await supabase
       .from("plan_carrera")
       .update({ estado, updated_by: userId })
       .eq("id", planId);
     if (error) throw error;
+
+    if (estado === "pausado" || estado === "cerrado") {
+      const label = estado === "pausado" ? "Expediente pausado" : "Expediente cerrado";
+      await supabase.from("plan_carrera_notas").insert({
+        plan_id: planId,
+        tipo: "sistema",
+        autor_id: userId,
+        autor_nombre: userName,
+        observaciones: `${label} por ${userName ?? "Capital Humano"}.`,
+      });
+    } else if (estado === "activo") {
+      await supabase.from("plan_carrera_notas").insert({
+        plan_id: planId,
+        tipo: "sistema",
+        autor_id: userId,
+        autor_nombre: userName,
+        observaciones: `Expediente reactivado por ${userName ?? "Capital Humano"}.`,
+      });
+    }
+
     revalidatePath("/plan-carrera");
     return { ok: true };
   } catch (err) {

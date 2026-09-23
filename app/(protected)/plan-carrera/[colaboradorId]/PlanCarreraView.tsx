@@ -253,6 +253,7 @@ function NotaCard({
   const [isPending, startTransition] = useTransition();
 
   const isCreacion = nota.tipo === "creacion";
+  const isSistema  = nota.tipo === "sistema";
 
   function handleSave() {
     startTransition(async () => {
@@ -279,6 +280,17 @@ function NotaCard({
   }
 
   const seccionesConContenido = SECCIONES.filter((s) => nota[s.key]);
+
+  // Sistema entries: just show the observaciones line, no edit
+  if (isSistema) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-xs text-gray-500">
+        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
+        <span className="flex-1">{nota.observaciones}</span>
+        <span className="text-gray-300 flex-shrink-0">{formatFecha(nota.created_at)}</span>
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-white rounded-xl border shadow-sm overflow-hidden ${isCreacion ? "border-[#1a3a5c]/20" : "border-gray-200"}`}>
