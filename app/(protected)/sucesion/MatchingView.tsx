@@ -1062,10 +1062,23 @@ export default function MatchingView({
 
   // What goes in the main grid depends on selectedEstado
   const gridMatches = useMemo(() => {
-    if (selectedEstado === "descartado") return discardedFiltered;
-    if (selectedEstado === "pendiente") return activeFiltered.filter((m) => !m.validado_ch);
-    if (selectedEstado === "validado")  return activeFiltered.filter((m) => !!m.validado_ch);
-    return [...activeFiltered].sort((a, b) => TIPO_CONFIG[a.tipo_match].order - TIPO_CONFIG[b.tipo_match].order);
+    const segSort = (a: MatchRow, b: MatchRow) => {
+      const tipoOrder = TIPO_CONFIG[a.tipo_match].order - TIPO_CONFIG[b.tipo_match].order;
+      if (tipoOrder !== 0) return tipoOrder;
+      return (a.puesto_area ?? "￿").localeCompare(b.puesto_area ?? "￿", "es");
+    };
+    if (selectedEstado === "descartado") return [...discardedFiltered].sort(segSort);
+    if (selectedEstado === "pendiente") return activeFiltered.filter((m) => !m.validado_ch).sort(segSort);
+    if (selectedEstado === "validado")  return activeFiltered.filter((m) => !!m.validado_ch).sort(segSort);
+    return [...activeFiltered].sort((a, b) => {
+      // 1st: tipo (Bidireccional → Propuesta → Aspiración → …)
+      const tipoOrder = TIPO_CONFIG[a.tipo_match].order - TIPO_CONFIG[b.tipo_match].order;
+      if (tipoOrder !== 0) return tipoOrder;
+      // 2nd: puesto segmento (A Director → B Subdirector → C Gerente → …)
+      const segA = a.puesto_area ?? "￿";
+      const segB = b.puesto_area ?? "￿";
+      return segA.localeCompare(segB, "es");
+    });
   }, [activeFiltered, discardedFiltered, selectedEstado]);
 
   const gapsCriticos = useMemo(
