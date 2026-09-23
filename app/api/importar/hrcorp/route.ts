@@ -1,6 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+export const maxDuration = 60;
+
+async function paginateAll<T>(
+  supabase: SupabaseClient,
+  table: string,
+  selectFields: string,
+  extraFilter?: (q: ReturnType<SupabaseClient["from"]>["select"]) => ReturnType<SupabaseClient["from"]>["select"]
+): Promise<T[]> {
+  const PAGE = 1000;
+  const results: T[] = [];
+  for (let start = 0; ; start += PAGE) {
+    let q = supabase.from(table).select(selectFields).range(start, start + PAGE - 1);
+    if (extraFilter) q = extraFilter(q as any) as any;
+    const { data } = await q;
+    if (!data?.length) break;
+    results.push(...(data as unknown as T[]));
+    if (data.length < PAGE) break;
+  }
+  return results;
+}
 
 // ── column lookup (normalizes accents + spaces) ────────────────────────────────
 function col(row: Record<string, unknown>, ...aliases: string[]): unknown {
@@ -172,17 +194,12 @@ export async function POST(req: NextRequest) {
 
   if (!rows.length) return NextResponse.json({ error: "El archivo está vacío" }, { status: 400 });
 
-  // Fetch all existing collaborators with tracked fields for diff comparison.
-  // Use select("*") to safely include the accented column `organización`.
-  // Use range(0, 9999) to bypass Supabase's default 1000-row page limit.
-  const { data: existingRaw } = await supabase
-    .from("colaboradores")
-    .select("*")
-    .range(0, 9999);
+  // Fetch ALL existing collaborators (paginated — no row-count cap).
+  const existingRaw = await paginateAll<Record<string, unknown>>(supabase, "colaboradores", "*");
 
   // Map id_empleado → {_uuid, ...fields} for O(1) lookup
   const existingMap = new Map<string, Record<string, unknown> & { _uuid: string }>();
-  for (const r of existingRaw ?? []) {
+  for (const r of existingRaw) {
     const rec = r as unknown as Record<string, unknown>;
     const empId = String(rec["id_empleado"] ?? "").trim();
     if (empId) existingMap.set(empId, { ...rec, _uuid: rec["id"] as string });
@@ -316,46 +333,51 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Pass 1: upsert all collaborators (without jefe_inmediato_id link)
-  for (const r of validos) {
-    const { error } = await supabase.from("colaboradores").upsert(
-      {
-        id_empleado:                r.id_empleado,
-        nombre_completo:            r.nombre_completo,
-        activo:                     r.activo,
-        estatus_empleado:           r.activo ? 1 : 0,
-        sexo:                       r.sexo,
-        fecha_nacimiento:           r.fecha_nacimiento,
-        edad:                       r.edad,
-        fecha_antiguedad:           r.fecha_antiguedad,
-        fecha_ingreso_razon_social: r.fecha_ingreso_razon_social,
-        fecha_baja:                 r.fecha_baja,
-        razon_social:               r.razon_social,
-        organización:               r.organización,
-        posicion:                   r.posicion,
-        puesto:                     r.puesto,
-        area:                       r.area,
-        departamento:               r.departamento,
-        entidad:                    r.entidad,
-        centro_trabajo:             r.centro_trabajo,
-        horario:                    r.horario,
-        tipo_plantilla:             r.tipo_plantilla,
-        segmento_organizacional:    r.segmento_organizacional,
-        jefe_inmediato_nombre:      r.jefe_inmediato_nombre,
-        correo_jefe:                r.correo_jefe,
-        correo:                     r.correo,
-      },
-      { onConflict: "id_empleado" }
-    );
-    if (error) errors.push(`Fila ${r.fila} (${r.nombre_completo}): ${error.message}`);
-    else upserted++;
+  // Pass 1: batch-upsert collaborators in chunks of 500 (without jefe_inmediato_id)
+  const CHUNK = 500;
+  const upsertRows = validos.map((r) => ({
+    id_empleado:                r.id_empleado,
+    nombre_completo:            r.nombre_completo,
+    activo:                     r.activo,
+    estatus_empleado:           r.activo ? 1 : 0,
+    sexo:                       r.sexo,
+    fecha_nacimiento:           r.fecha_nacimiento,
+    edad:                       r.edad,
+    fecha_antiguedad:           r.fecha_antiguedad,
+    fecha_ingreso_razon_social: r.fecha_ingreso_razon_social,
+    fecha_baja:                 r.fecha_baja,
+    razon_social:               r.razon_social,
+    organización:               r.organización,
+    posicion:                   r.posicion,
+    puesto:                     r.puesto,
+    area:                       r.area,
+    departamento:               r.departamento,
+    entidad:                    r.entidad,
+    centro_trabajo:             r.centro_trabajo,
+    horario:                    r.horario,
+    tipo_plantilla:             r.tipo_plantilla,
+    segmento_organizacional:    r.segmento_organizacional,
+    jefe_inmediato_nombre:      r.jefe_inmediato_nombre,
+    correo_jefe:                r.correo_jefe,
+    correo:                     r.correo,
+  }));
+  for (let i = 0; i < upsertRows.length; i += CHUNK) {
+    const chunk = upsertRows.slice(i, i + CHUNK);
+    const { error } = await supabase.from("colaboradores").upsert(chunk, { onConflict: "id_empleado" });
+    if (error) {
+      const names = validos.slice(i, i + CHUNK).map((r) => `${r.fila}:${r.nombre_completo}`).join(", ");
+      errors.push(`Chunk ${Math.floor(i / CHUNK) + 1} (${names.slice(0, 120)}…): ${error.message}`);
+    } else {
+      upserted += chunk.length;
+    }
   }
 
-  // Pass 2: resolve jefe_inmediato_id by name match
-  const { data: allColabs } = await supabase
-    .from("colaboradores").select("id, nombre_completo, id_empleado");
+  // Pass 2: resolve jefe_inmediato_id by name match (paginated — no row cap)
+  const allColabs = await paginateAll<{ id: string; nombre_completo: string | null; id_empleado: string }>(
+    supabase, "colaboradores", "id, nombre_completo, id_empleado"
+  );
   const byNombre = new Map<string, string>();
-  for (const c of allColabs ?? []) {
+  for (const c of allColabs) {
     byNombre.set((c.nombre_completo ?? "").trim().toUpperCase(), c.id);
   }
 
