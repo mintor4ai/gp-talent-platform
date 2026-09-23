@@ -801,7 +801,7 @@ export async function generarSugerenciasIA(params: {
 
 export async function cambiarEstadoPlan(
   planId: string,
-  estado: "activo" | "pausado" | "cerrado"
+  estado: "activo" | "pausado" | "cerrado" | "eliminado"
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const { supabase, userId, userName } = await getAdminUser();
@@ -841,12 +841,19 @@ export async function eliminarPlan(
   planId: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const { supabase } = await getAdminUser();
+    const { supabase, userId, userName } = await getAdminUser();
     const { error } = await supabase
       .from("plan_carrera")
-      .delete()
+      .update({ estado: "eliminado", updated_by: userId })
       .eq("id", planId);
     if (error) throw error;
+    await supabase.from("plan_carrera_notas").insert({
+      plan_id: planId,
+      tipo: "sistema",
+      autor_id: userId,
+      autor_nombre: userName,
+      observaciones: `Expediente marcado como eliminado por ${userName ?? "Capital Humano"}.`,
+    });
     revalidatePath("/plan-carrera");
     return { ok: true };
   } catch (err) {

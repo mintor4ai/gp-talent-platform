@@ -21,9 +21,10 @@ type PlanRow = {
 };
 
 const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
-  activo:  { label: "Activo",  color: "bg-green-100 text-green-700" },
-  pausado: { label: "Pausado", color: "bg-amber-100 text-amber-700" },
-  cerrado: { label: "Cerrado", color: "bg-gray-100 text-gray-500" },
+  activo:    { label: "Activo",    color: "bg-green-100 text-green-700" },
+  pausado:   { label: "Pausado",   color: "bg-amber-100 text-amber-700" },
+  cerrado:   { label: "Cerrado",   color: "bg-gray-100 text-gray-500" },
+  eliminado: { label: "Eliminado", color: "bg-red-100 text-red-500" },
 };
 
 function PlanActions({ plan, onDone }: { plan: PlanRow; onDone: () => void }) {
@@ -31,7 +32,7 @@ function PlanActions({ plan, onDone }: { plan: PlanRow; onDone: () => void }) {
   const [isPending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const handleEstado = (estado: "activo" | "pausado" | "cerrado") => {
+  const handleEstado = (estado: "activo" | "pausado" | "cerrado" | "eliminado") => {
     setOpen(false);
     startTransition(async () => {
       await cambiarEstadoPlan(plan.id, estado);
@@ -71,38 +72,49 @@ function PlanActions({ plan, onDone }: { plan: PlanRow; onDone: () => void }) {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => { setOpen(false); setConfirmDelete(false); }} />
-          <div className="absolute right-0 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 text-sm">
-            {plan.estado !== "activo" && (
+          <div className="absolute right-0 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-48 text-sm">
+            {plan.estado === "eliminado" ? (
               <button
                 onClick={() => handleEstado("activo")}
                 className="w-full text-left px-4 py-2 text-green-700 hover:bg-green-50"
               >
-                Reactivar
+                Restaurar expediente
               </button>
+            ) : (
+              <>
+                {plan.estado !== "activo" && (
+                  <button
+                    onClick={() => handleEstado("activo")}
+                    className="w-full text-left px-4 py-2 text-green-700 hover:bg-green-50"
+                  >
+                    Reactivar
+                  </button>
+                )}
+                {plan.estado !== "pausado" && (
+                  <button
+                    onClick={() => handleEstado("pausado")}
+                    className="w-full text-left px-4 py-2 text-amber-700 hover:bg-amber-50"
+                  >
+                    Pausar
+                  </button>
+                )}
+                {plan.estado !== "cerrado" && (
+                  <button
+                    onClick={() => handleEstado("cerrado")}
+                    className="w-full text-left px-4 py-2 text-gray-600 hover:bg-gray-50"
+                  >
+                    Cerrar
+                  </button>
+                )}
+                <div className="border-t border-gray-100 my-1" />
+                <button
+                  onClick={handleEliminar}
+                  className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
+                >
+                  {confirmDelete ? "¿Confirmar eliminación?" : "Eliminar plan"}
+                </button>
+              </>
             )}
-            {plan.estado !== "pausado" && (
-              <button
-                onClick={() => handleEstado("pausado")}
-                className="w-full text-left px-4 py-2 text-amber-700 hover:bg-amber-50"
-              >
-                Pausar
-              </button>
-            )}
-            {plan.estado !== "cerrado" && (
-              <button
-                onClick={() => handleEstado("cerrado")}
-                className="w-full text-left px-4 py-2 text-gray-600 hover:bg-gray-50"
-              >
-                Cerrar
-              </button>
-            )}
-            <div className="border-t border-gray-100 my-1" />
-            <button
-              onClick={handleEliminar}
-              className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
-            >
-              {confirmDelete ? "¿Confirmar eliminación?" : "Eliminar plan"}
-            </button>
           </div>
         </>
       )}
@@ -125,6 +137,8 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return planes.filter((p) => {
+      // Hide eliminated by default unless explicitly selected
+      if (selectedEstado === "all" && p.estado === "eliminado") return false;
       if (selectedOrg !== "all" && p.colaborador_org !== selectedOrg) return false;
       if (selectedEstado !== "all" && p.estado !== selectedEstado) return false;
       if (q) {
@@ -139,10 +153,10 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
   }, [planes, search, selectedOrg, selectedEstado]);
 
   const stats = useMemo(() => ({
-    total:   planes.length,
-    activos: planes.filter((p) => p.estado === "activo").length,
-    pausados: planes.filter((p) => p.estado === "pausado").length,
-    cerrados: planes.filter((p) => p.estado === "cerrado").length,
+    total:     planes.filter((p) => p.estado !== "eliminado").length,
+    activos:   planes.filter((p) => p.estado === "activo").length,
+    pausados:  planes.filter((p) => p.estado === "pausado").length,
+    cerrados:  planes.filter((p) => p.estado === "cerrado").length,
   }), [planes]);
 
   const refresh = () => startTransition(() => { router.refresh(); });
@@ -207,6 +221,7 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
             <option value="activo">Activo</option>
             <option value="pausado">Pausado</option>
             <option value="cerrado">Cerrado</option>
+            <option value="eliminado">Eliminados</option>
           </select>
           <span className="text-xs text-gray-400 ml-auto">
             {filtered.length} {filtered.length === 1 ? "plan" : "planes"}
