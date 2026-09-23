@@ -375,7 +375,7 @@ export default function CoberturaView({
   const [filterTipoVacante, setFilterTipoVacante] = useState("");
   const [search,            setSearch]             = useState("");
   const [selected, setSelected] = useState<PuestoCoberturaItem | null>(null);
-  const { sortKey, sortDir, handleSort } = useSortState<"nombre" | "organización" | "tipo_vacante" | "sucesores" | "aspirantes" | "riesgo">("riesgo");
+  const { sortKey, sortDir, handleSort } = useSortState<"nombre" | "organización" | "segmento_organizacional" | "sucesores" | "aspirantes" | "riesgo">("riesgo");
 
   // Cascading option lists — each level filtered by the upstream selection
   const availableAreas = useMemo(
@@ -420,10 +420,10 @@ export default function CoberturaView({
     const dir = sortDir === "asc" ? 1 : -1;
     return [...base].sort((a, b) => {
       switch (sortKey) {
-        case "nombre":       return dir * a.nombre.localeCompare(b.nombre, "es");
-        case "organización": return dir * (a.organización ?? "").localeCompare(b.organización ?? "", "es");
-        case "tipo_vacante": return dir * (a.tipo_vacante ?? "").localeCompare(b.tipo_vacante ?? "", "es");
-        case "sucesores":    return dir * (a.sucesores.length - b.sucesores.length);
+        case "nombre":                   return dir * a.nombre.localeCompare(b.nombre, "es");
+        case "organización":             return dir * (a.organización ?? "").localeCompare(b.organización ?? "", "es");
+        case "segmento_organizacional":  return dir * (a.segmento_organizacional ?? "").localeCompare(b.segmento_organizacional ?? "", "es");
+        case "sucesores":                return dir * (a.sucesores.length - b.sucesores.length);
         case "aspirantes":   return dir * (a.aspirantes.length - b.aspirantes.length);
         case "riesgo":
         default:
@@ -579,21 +579,21 @@ export default function CoberturaView({
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-gray-400 border-b border-gray-100 bg-gray-50">
-                <SortableTh label="Puesto" sortKey="nombre" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3" />
-                <SortableTh label="UEN" sortKey="organización" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3" />
-                <SortableTh label="Tipo" sortKey="tipo_vacante" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3" />
-                <th className="px-4 py-3 font-medium">Titular(es)</th>
-                <SortableTh label="Sucesores" sortKey="sucesores" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 text-center" />
-                <SortableTh label="Aspirantes" sortKey="aspirantes" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 text-center" />
-                <th className="px-4 py-3 font-medium">Mejor Readiness</th>
-                <SortableTh label="Riesgo" sortKey="riesgo" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-4 py-3 text-center" />
-                <th className="px-3 py-3" />
+                <SortableTh label="Puesto" sortKey="nombre" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-3 py-3" />
+                <SortableTh label="UEN" sortKey="organización" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-3 py-3 hidden md:table-cell" />
+                <SortableTh label="Segmento" sortKey="segmento_organizacional" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-3 py-3 hidden lg:table-cell" />
+                <th className="px-3 py-3 font-medium hidden xl:table-cell">Titular(es)</th>
+                <SortableTh label="Suc." sortKey="sucesores" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-2 py-3 text-center" />
+                <SortableTh label="Asp." sortKey="aspirantes" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-2 py-3 text-center" />
+                <th className="px-3 py-3 font-medium hidden lg:table-cell">Readiness</th>
+                <SortableTh label="Riesgo" sortKey="riesgo" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-3 py-3 text-center" />
+                <th className="px-2 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">
+                  <td colSpan={9} className="px-3 py-10 text-center text-sm text-gray-400">
                     No hay puestos que coincidan con los filtros
                   </td>
                 </tr>
@@ -615,34 +615,34 @@ export default function CoberturaView({
                         : "hover:bg-blue-50/30"
                     }`}
                   >
-                    <td className="px-4 py-3 font-medium text-gray-800 max-w-[240px]">
+                    <td className="px-3 py-3 font-medium text-gray-800 max-w-[200px]">
                       <div className="flex items-start gap-1.5">
                         {p.es_critico && <span className="text-red-500 text-[10px] font-bold mt-0.5 flex-shrink-0">★</span>}
                         <span className="break-words leading-snug">{p.nombre}</span>
                       </div>
                       <span className="font-mono text-gray-400 text-[10px]">{p.clave}</span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{p.organización ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      {p.tipo_vacante
-                        ? <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${TIPO_COLORS[p.tipo_vacante] ?? "bg-gray-100 text-gray-700"}`}>{p.tipo_vacante}</span>
+                    <td className="px-3 py-3 text-gray-500 whitespace-nowrap hidden md:table-cell">{p.organización ?? "—"}</td>
+                    <td className="px-3 py-3 text-gray-500 hidden lg:table-cell">
+                      {p.segmento_organizacional
+                        ? <span className="text-[11px]">{p.segmento_organizacional}</span>
                         : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                    <td className="px-3 py-3 text-gray-600 hidden xl:table-cell">
                       {p.titulares.length === 0
-                        ? <span className="text-gray-400 italic">Vacante</span>
+                        ? <span className="text-gray-400 italic text-[11px]">Vacante</span>
                         : p.titulares.map((t) => (
-                            <span key={t.id} className="block">{t.nombre_completo}</span>
+                            <span key={t.id} className="block text-[11px] truncate max-w-[160px]">{t.nombre_completo}</span>
                           ))}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-2 py-3 text-center">
                       {p.sucesores.length > 0
                         ? <span className="font-semibold text-gray-700">
                             {new Set(p.sucesores.map((s) => s.sucesor_id ?? s.sucesor_nombre)).size}
                           </span>
                         : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-2 py-3 text-center">
                       {p.aspirantes.length > 0 ? (
                         <span className={`inline-flex items-center gap-1 font-semibold text-[11px] px-1.5 py-0.5 rounded-full ${
                           p.aspirantes.some((a) => a.tipo_match === "bidireccional")
@@ -655,20 +655,20 @@ export default function CoberturaView({
                         <span className="text-gray-300">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-3 py-3 text-gray-500 hidden lg:table-cell">
                       {bestReadiness
                         ? <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${readinessBadgeColor(bestReadiness)}`}>
                             {READINESS_LABEL[bestReadiness] ?? bestReadiness}
                           </span>
                         : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 py-3 text-center">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${rCfg.color}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${rCfg.dot}`} />
                         {rCfg.label}
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-gray-400 text-center">
+                    <td className="px-2 py-3 text-gray-400 text-center">
                       <span className={`text-xs transition-colors ${isSelected ? "text-[#1a3a5c] font-bold" : "group-hover:text-gray-600"}`}>›</span>
                     </td>
                   </tr>
