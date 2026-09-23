@@ -73,10 +73,12 @@ export async function deleteSucesor(id: string, id_empleado: string) {
   const isAdmin = perfil.rol === "capital_humano" || perfil.rol === "superadmin";
   if (!isAdmin && perfil.id_empleado !== id_empleado) throw new Error("Sin permisos");
 
-  const { data: existing } = await supabase
-    .from("plan_sucesion").select("estado").eq("id", id).single();
-  if (existing && existing.estado !== "borrador")
-    throw new Error("Solo se pueden eliminar borradores");
+  if (!isAdmin) {
+    const { data: existing } = await supabase
+      .from("plan_sucesion").select("estado").eq("id", id).single();
+    if (existing && existing.estado !== "borrador")
+      throw new Error("Solo se pueden eliminar borradores");
+  }
 
   const { error } = await supabase.from("plan_sucesion").delete().eq("id", id);
   if (error) throw new Error(error.message);
