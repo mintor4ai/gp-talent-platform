@@ -65,9 +65,9 @@ export type SucesionPreviewRow = {
 function mapReadiness(raw: string | null): string | null {
   if (!raw) return null;
   const v = raw.trim().toLowerCase();
-  if (v === "largo plazo" || v === "largo" || v === "3+" || v === "tres_mas_anios") return "tres_mas_anios";
+  if (v === "largo plazo" || v === "largo" || v === "3+" || v === "tres_mas_anios" || v === "largo plazo") return "tres_mas_anios";
   if (v === "mediano plazo" || v === "mediano" || v === "1-2" || v === "uno_dos_anios") return "uno_dos_anios";
-  if (v === "corto plazo" || v === "corto" || v === "listo ahora" || v === "listo_ahora") return "listo_ahora";
+  if (v === "corto plazo" || v === "corto" || v === "listo ahora" || v === "listo_ahora" || v === "inmediato" || v === "< 1 año" || v === "menos de 1 año") return "listo_ahora";
   if (v === "n/a" || v === "na" || v === "-") return null;
   return null;
 }

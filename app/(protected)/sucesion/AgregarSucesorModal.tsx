@@ -6,9 +6,9 @@ import { upsertPlanSucesionManual } from "@/app/actions/plan_sucesion_manual";
 type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
 
 const READINESS_OPTIONS = [
-  { value: "listo_ahora",    label: "Listo ahora (< 1 año)" },
-  { value: "uno_dos_anios",  label: "1-2 años" },
-  { value: "tres_mas_anios", label: "3+ años" },
+  { value: "listo_ahora",    label: "Inmediato" },
+  { value: "uno_dos_anios",  label: "Mediano Plazo" },
+  { value: "tres_mas_anios", label: "Largo Plazo" },
 ];
 
 const TIEMPO_OPTIONS = [

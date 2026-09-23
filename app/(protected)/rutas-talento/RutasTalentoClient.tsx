@@ -1265,9 +1265,9 @@ export default function RutasTalentoClient({
                     </p>
                     <div className="flex gap-2">
                       {[
-                        { value: "listo_ahora", label: "Listo ahora", color: "emerald" },
-                        { value: "uno_dos_anios", label: "1-2 años", color: "amber" },
-                        { value: "tres_mas_anios", label: "3+ años", color: "red" },
+                        { value: "listo_ahora", label: "Inmediato", color: "emerald" },
+                        { value: "uno_dos_anios", label: "Mediano Plazo", color: "amber" },
+                        { value: "tres_mas_anios", label: "Largo Plazo", color: "red" },
                       ].map(({ value, label, color }) => (
                         <button
                           key={value}

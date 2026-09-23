@@ -34,9 +34,9 @@ export type SucesionItem = {
 type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
 
 export const READINESS_OPTIONS = [
-  { value: "listo_ahora",    label: "Listo ahora",  sub: "< 1 año",               color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
-  { value: "uno_dos_anios",  label: "1-2 años",     sub: "corto plazo",            color: "bg-blue-100 text-blue-800 border-blue-300"           },
-  { value: "tres_mas_anios", label: "3+ años",      sub: "largo plazo",            color: "bg-amber-100 text-amber-800 border-amber-300"        },
+  { value: "listo_ahora",    label: "Inmediato",     sub: "",  color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  { value: "uno_dos_anios",  label: "Mediano Plazo", sub: "",  color: "bg-blue-100 text-blue-800 border-blue-300"           },
+  { value: "tres_mas_anios", label: "Largo Plazo",   sub: "",  color: "bg-amber-100 text-amber-800 border-amber-300"        },
 ];
 
 export const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {

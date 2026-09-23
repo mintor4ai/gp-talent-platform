@@ -31,9 +31,9 @@ const ESTADO_FILTER_OPTIONS = [
 
 const READINESS_FILTER_OPTIONS = [
   { value: "",               label: "Todos los niveles" },
-  { value: "listo_ahora",    label: "Listo ahora" },
-  { value: "uno_dos_anios",  label: "1-2 años" },
-  { value: "tres_mas_anios", label: "3+ años" },
+  { value: "listo_ahora",    label: "Inmediato" },
+  { value: "uno_dos_anios",  label: "Mediano Plazo" },
+  { value: "tres_mas_anios", label: "Largo Plazo" },
 ];
 
 export default function SucesionAdminView({

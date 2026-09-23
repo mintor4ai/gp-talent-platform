@@ -129,9 +129,9 @@ const TIPO_CONFIG = {
 } as const;
 
 const READINESS_LABEL: Record<string, string> = {
-  listo_ahora: "Listo ahora",
-  uno_dos_anios: "1-2 años",
-  tres_mas_anios: "3+ años",
+  listo_ahora:    "Inmediato",
+  uno_dos_anios:  "Mediano Plazo",
+  tres_mas_anios: "Largo Plazo",
 };
 
 const ZONA_COLORS: Record<string, string> = {
@@ -142,9 +142,9 @@ const ZONA_COLORS: Record<string, string> = {
 };
 
 const READINESS_OPTIONS = [
-  { value: "listo_ahora",    label: "Listo ahora",  color: "bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200" },
-  { value: "uno_dos_anios",  label: "1-2 años",     color: "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200" },
-  { value: "tres_mas_anios", label: "3+ años",      color: "bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200" },
+  { value: "listo_ahora",    label: "Inmediato",     color: "bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200" },
+  { value: "uno_dos_anios",  label: "Mediano Plazo", color: "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200" },
+  { value: "tres_mas_anios", label: "Largo Plazo",   color: "bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200" },
 ];
 
 function fmtDate(iso: string | null | undefined): string {

@@ -25,9 +25,9 @@ type ImportResult = {
 };
 
 const READINESS_LABELS: Record<string, string> = {
-  listo_ahora:    "Listo ahora",
-  uno_dos_anios:  "1–2 años",
-  tres_mas_anios: "3+ años",
+  listo_ahora:    "Inmediato",
+  uno_dos_anios:  "Mediano Plazo",
+  tres_mas_anios: "Largo Plazo",
 };
 
 export default function ImportadorSucesion() {
