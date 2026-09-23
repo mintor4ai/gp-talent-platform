@@ -797,6 +797,43 @@ export async function generarSugerenciasIA(params: {
   }
 }
 
+// ── Estado del plan ────────────────────────────────────────────────────────
+
+export async function cambiarEstadoPlan(
+  planId: string,
+  estado: "activo" | "pausado" | "cerrado"
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { supabase, userId } = await getAdminUser();
+    const { error } = await supabase
+      .from("plan_carrera")
+      .update({ estado, updated_by: userId })
+      .eq("id", planId);
+    if (error) throw error;
+    revalidatePath("/plan-carrera");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function eliminarPlan(
+  planId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { supabase } = await getAdminUser();
+    const { error } = await supabase
+      .from("plan_carrera")
+      .delete()
+      .eq("id", planId);
+    if (error) throw error;
+    revalidatePath("/plan-carrera");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // ── Revisiones ─────────────────────────────────────────────────────────────
 
 export async function crearRevision(

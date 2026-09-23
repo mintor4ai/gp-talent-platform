@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { cambiarEstadoPlan, eliminarPlan } from "@/app/actions/plan_carrera";
 
 type PlanRow = {
   id: string;
@@ -11,16 +13,11 @@ type PlanRow = {
   created_at: string;
   colaborador_nombre: string;
   colaborador_puesto: string;
-  colaborador_area: string;
   colaborador_org: string;
   objetivo_principal: string | null;
   objetivo_org: string | null;
   objetivos_count: number;
-  progress: number;
-  acciones_total: number;
-  acciones_completadas: number;
-  ultima_revision_ciclo: number | null;
-  ultima_revision_estado: string | null;
+  sesiones_count: number;
 };
 
 const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
@@ -29,16 +26,104 @@ const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
   cerrado: { label: "Cerrado", color: "bg-gray-100 text-gray-500" },
 };
 
-const REV_ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
-  pendiente:   { label: "Pendiente",   color: "text-gray-400" },
-  en_proceso:  { label: "En proceso",  color: "text-blue-500" },
-  completada:  { label: "Completada",  color: "text-green-600" },
-};
+function PlanActions({ plan, onDone }: { plan: PlanRow; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleEstado = (estado: "activo" | "pausado" | "cerrado") => {
+    setOpen(false);
+    startTransition(async () => {
+      await cambiarEstadoPlan(plan.id, estado);
+      onDone();
+    });
+  };
+
+  const handleEliminar = () => {
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    setOpen(false);
+    setConfirmDelete(false);
+    startTransition(async () => {
+      await eliminarPlan(plan.id);
+      onDone();
+    });
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => { setOpen((v) => !v); setConfirmDelete(false); }}
+        disabled={isPending}
+        className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
+        title="Acciones"
+      >
+        {isPending ? (
+          <span className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <circle cx="10" cy="4" r="1.5" />
+            <circle cx="10" cy="10" r="1.5" />
+            <circle cx="10" cy="16" r="1.5" />
+          </svg>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => { setOpen(false); setConfirmDelete(false); }} />
+          <div className="absolute right-0 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 text-sm">
+            <Link
+              href={`/plan-carrera/${plan.colaborador_id}`}
+              className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
+              onClick={() => setOpen(false)}
+            >
+              Ver expediente
+            </Link>
+            <div className="border-t border-gray-100 my-1" />
+            {plan.estado !== "activo" && (
+              <button
+                onClick={() => handleEstado("activo")}
+                className="w-full text-left px-4 py-2 text-green-700 hover:bg-green-50"
+              >
+                Reactivar
+              </button>
+            )}
+            {plan.estado !== "pausado" && (
+              <button
+                onClick={() => handleEstado("pausado")}
+                className="w-full text-left px-4 py-2 text-amber-700 hover:bg-amber-50"
+              >
+                Pausar
+              </button>
+            )}
+            {plan.estado !== "cerrado" && (
+              <button
+                onClick={() => handleEstado("cerrado")}
+                className="w-full text-left px-4 py-2 text-gray-600 hover:bg-gray-50"
+              >
+                Cerrar
+              </button>
+            )}
+            <div className="border-t border-gray-100 my-1" />
+            <button
+              onClick={handleEliminar}
+              className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
+            >
+              {confirmDelete ? "¿Confirmar eliminación?" : "Eliminar plan"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
   const [search, setSearch] = useState("");
   const [selectedOrg, setSelectedOrg] = useState("all");
   const [selectedEstado, setSelectedEstado] = useState("all");
+  const router = useRouter();
+  const [, startTransition] = useTransition();
 
   const uens = useMemo(
     () => Array.from(new Set(planes.map((p) => p.colaborador_org).filter(Boolean))).sort(),
@@ -62,18 +147,19 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
   }, [planes, search, selectedOrg, selectedEstado]);
 
   const stats = useMemo(() => ({
-    total: filtered.length,
-    activos: filtered.filter((p) => p.estado === "activo").length,
-    avgProgress: filtered.length
-      ? Math.round(filtered.reduce((s, p) => s + p.progress, 0) / filtered.length)
-      : 0,
-    conRevision: filtered.filter((p) => p.ultima_revision_estado === "completada").length,
-  }), [filtered]);
+    total:   planes.length,
+    activos: planes.filter((p) => p.estado === "activo").length,
+    pausados: planes.filter((p) => p.estado === "pausado").length,
+    cerrados: planes.filter((p) => p.estado === "cerrado").length,
+  }), [planes]);
+
+  const refresh = () => startTransition(() => { router.refresh(); });
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-[#1a3a5c] text-white px-6 py-8 md:px-10"
+      <div
+        className="bg-[#1a3a5c] text-white px-6 py-8 md:px-10"
         style={{
           backgroundImage: [
             "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)",
@@ -84,15 +170,14 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
       >
         <div className="max-w-6xl mx-auto">
           <h1 className="text-2xl font-bold tracking-tight">Plano de Carrera</h1>
-          <p className="text-white/60 text-sm mt-1">Planes de desarrollo individuales post-validación</p>
+          <p className="text-white/60 text-sm mt-1">Expedientes de talento post-validación</p>
 
-          {/* Summary stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
             {[
-              { label: "Planes totales",       value: stats.total },
-              { label: "Activos",              value: stats.activos },
-              { label: "Progreso promedio",    value: `${stats.avgProgress}%` },
-              { label: "Con revisión completa", value: stats.conRevision },
+              { label: "Planes totales", value: stats.total },
+              { label: "Activos",        value: stats.activos },
+              { label: "Pausados",       value: stats.pausados },
+              { label: "Cerrados",       value: stats.cerrados },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white/10 border border-white/20 rounded-xl px-4 py-3">
                 <p className="text-xs text-white/50 mb-0.5">{label}</p>
@@ -164,42 +249,32 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
                     <th className="text-left px-4 py-3 hidden md:table-cell">UEN</th>
                     <th className="text-left px-4 py-3">Objetivo principal</th>
                     <th className="text-left px-4 py-3 hidden lg:table-cell">Objetivos</th>
-                    <th className="text-left px-4 py-3">Progreso</th>
-                    <th className="text-left px-4 py-3 hidden lg:table-cell">Última revisión</th>
+                    <th className="text-left px-4 py-3 hidden lg:table-cell">Sesiones</th>
                     <th className="text-left px-4 py-3">Estado</th>
-                    <th className="px-4 py-3" />
+                    <th className="px-4 py-3 w-10" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-10 text-sm text-gray-400">
+                      <td colSpan={7} className="text-center py-10 text-sm text-gray-400">
                         Sin resultados para los filtros seleccionados.
                       </td>
                     </tr>
                   ) : (
                     filtered.map((plan) => {
                       const estadoCfg = ESTADO_CONFIG[plan.estado] ?? ESTADO_CONFIG["activo"];
-                      const revCfg = plan.ultima_revision_estado
-                        ? REV_ESTADO_CONFIG[plan.ultima_revision_estado]
-                        : null;
-
                       return (
                         <tr key={plan.id} className="hover:bg-gray-50 transition-colors">
-                          {/* Colaborador */}
                           <td className="px-5 py-3">
                             <p className="font-medium text-gray-900">{plan.colaborador_nombre}</p>
                             <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[180px]">
                               {plan.colaborador_puesto}
                             </p>
                           </td>
-
-                          {/* UEN */}
                           <td className="px-4 py-3 hidden md:table-cell">
                             <span className="text-xs text-gray-600">{plan.colaborador_org || "—"}</span>
                           </td>
-
-                          {/* Objetivo principal */}
                           <td className="px-4 py-3">
                             {plan.objetivo_principal ? (
                               <div>
@@ -212,69 +287,27 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
                               <span className="text-gray-300">—</span>
                             )}
                           </td>
-
-                          {/* Objetivos count */}
                           <td className="px-4 py-3 hidden lg:table-cell">
                             <span className="text-xs text-gray-500 tabular-nums">
-                              {plan.objetivos_count > 1
-                                ? `${plan.objetivos_count} objetivos`
-                                : "1 objetivo"}
+                              {plan.objetivos_count > 1 ? `${plan.objetivos_count} objetivos` : "1 objetivo"}
                             </span>
                           </td>
-
-                          {/* Progress */}
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
-                                <div
-                                  className="h-full bg-[#1a3a5c] rounded-full transition-all"
-                                  style={{ width: `${plan.progress}%` }}
-                                />
-                              </div>
-                              <span className="text-xs tabular-nums text-gray-600 font-medium">
-                                {plan.progress}%
-                              </span>
-                            </div>
-                            {plan.acciones_total > 0 && (
-                              <p className="text-[10px] text-gray-400 mt-1">
-                                {plan.acciones_completadas}/{plan.acciones_total} acciones
-                              </p>
-                            )}
-                          </td>
-
-                          {/* Última revisión */}
                           <td className="px-4 py-3 hidden lg:table-cell">
-                            {revCfg ? (
-                              <div>
-                                <span className={`text-xs font-medium ${revCfg.color}`}>
-                                  {revCfg.label}
-                                </span>
-                                {plan.ultima_revision_ciclo && (
-                                  <p className="text-[10px] text-gray-400 mt-0.5">
-                                    Ciclo {plan.ultima_revision_ciclo}
-                                  </p>
-                                )}
-                              </div>
+                            {plan.sesiones_count > 0 ? (
+                              <span className="text-xs text-gray-700 tabular-nums font-medium">
+                                {plan.sesiones_count} {plan.sesiones_count === 1 ? "sesión" : "sesiones"}
+                              </span>
                             ) : (
-                              <span className="text-xs text-gray-300">Sin revisiones</span>
+                              <span className="text-xs text-gray-300">Sin sesiones</span>
                             )}
                           </td>
-
-                          {/* Estado */}
                           <td className="px-4 py-3">
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${estadoCfg.color}`}>
                               {estadoCfg.label}
                             </span>
                           </td>
-
-                          {/* Action */}
                           <td className="px-4 py-3">
-                            <Link
-                              href={`/plan-carrera/${plan.colaborador_id}`}
-                              className="text-xs font-medium text-[#1a3a5c] hover:underline whitespace-nowrap"
-                            >
-                              Ver plan →
-                            </Link>
+                            <PlanActions plan={plan} onDone={refresh} />
                           </td>
                         </tr>
                       );

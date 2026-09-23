@@ -17,7 +17,6 @@ export default async function PlanCarreraIndexPage() {
   const isAdmin = rol === "capital_humano" || rol === "superadmin";
 
   if (!isAdmin) {
-    // Non-admins go straight to their own plan page
     const { data: propio } = await supabase
       .from("usuarios_app")
       .select("id_empleado")
@@ -27,7 +26,6 @@ export default async function PlanCarreraIndexPage() {
     redirect("/dashboard");
   }
 
-  // Fetch all plans with joined data
   const { data: planesRaw } = await supabase
     .from("plan_carrera")
     .select("*")
@@ -39,77 +37,46 @@ export default async function PlanCarreraIndexPage() {
     return <PlanCarreraList planes={[]} />;
   }
 
-  // Enrich: colaborador info
   const colaboradorIds = planes.map((p) => p["colaborador_id"] as string);
-  const { data: colabsRaw } = await supabase
-    .from("colaboradores")
-    .select("*")
-    .in("id", colaboradorIds);
-  const colabs = (colabsRaw ?? []) as unknown as Array<Record<string, unknown>>;
+  const planIds = planes.map((p) => p["id"] as string);
+
+  const [colabsRes, objetivosRes, notasRes] = await Promise.all([
+    supabase.from("colaboradores").select("id, nombre_completo, puesto, area, organización").in("id", colaboradorIds),
+    supabase.from("plan_carrera_objetivos")
+      .select("plan_id, puesto_catalogo_id, prioridad, catalogo_puestos(nombre, organización)")
+      .in("plan_id", planIds)
+      .eq("activo", true)
+      .order("prioridad"),
+    supabase.from("plan_carrera_notas")
+      .select("plan_id, tipo")
+      .in("plan_id", planIds),
+  ]);
+
+  const colabs = (colabsRes.data ?? []) as unknown as Array<Record<string, unknown>>;
   const colabById = new Map(colabs.map((c) => [c["id"] as string, c]));
 
-  // Enrich: primary objectives (prioridad=1, activo=true)
-  const planIds = planes.map((p) => p["id"] as string);
-  const { data: objetivosRaw } = await supabase
-    .from("plan_carrera_objetivos")
-    .select("*, catalogo_puestos(nombre, organización)")
-    .in("plan_id", planIds)
-    .eq("activo", true)
-    .order("prioridad");
-  const objetivos = (objetivosRaw ?? []) as unknown as Array<Record<string, unknown>>;
-
-  // Primary objective per plan (lowest prioridad)
+  const objetivos = (objetivosRes.data ?? []) as unknown as Array<Record<string, unknown>>;
   const primaryObjByPlan = new Map<string, Record<string, unknown>>();
-  for (const o of objetivos) {
-    const pid = o["plan_id"] as string;
-    if (!primaryObjByPlan.has(pid)) primaryObjByPlan.set(pid, o);
-  }
-
-  // Count all objectives per plan
   const objCountByPlan = new Map<string, number>();
   for (const o of objetivos) {
     const pid = o["plan_id"] as string;
+    if (!primaryObjByPlan.has(pid)) primaryObjByPlan.set(pid, o);
     objCountByPlan.set(pid, (objCountByPlan.get(pid) ?? 0) + 1);
   }
 
-  // Enrich: action progress per plan
-  const { data: accionesRaw } = await supabase
-    .from("plan_carrera_acciones")
-    .select("plan_id, estado")
-    .in("plan_id", planIds);
-  const acciones = (accionesRaw ?? []) as unknown as Array<{ plan_id: string; estado: string }>;
-
-  const accionesByPlan = new Map<string, { total: number; completadas: number }>();
-  for (const a of acciones) {
-    if (a.estado === "cancelado") continue;
-    const cur = accionesByPlan.get(a.plan_id) ?? { total: 0, completadas: 0 };
-    cur.total++;
-    if (a.estado === "completado") cur.completadas++;
-    accionesByPlan.set(a.plan_id, cur);
+  const notas = (notasRes.data ?? []) as unknown as Array<{ plan_id: string; tipo: string }>;
+  const notaCountByPlan = new Map<string, number>();
+  for (const n of notas) {
+    if (n.tipo === "sesion") {
+      notaCountByPlan.set(n.plan_id, (notaCountByPlan.get(n.plan_id) ?? 0) + 1);
+    }
   }
 
-  // Last revision per plan
-  const { data: revisionesRaw } = await supabase
-    .from("plan_carrera_revisiones")
-    .select("plan_id, ciclo_año, estado, fecha_revision")
-    .in("plan_id", planIds)
-    .order("ciclo_año", { ascending: false });
-  const revisiones = (revisionesRaw ?? []) as unknown as Array<Record<string, unknown>>;
-  const lastRevByPlan = new Map<string, Record<string, unknown>>();
-  for (const r of revisiones) {
-    const pid = r["plan_id"] as string;
-    if (!lastRevByPlan.has(pid)) lastRevByPlan.set(pid, r);
-  }
-
-  // Build enriched list
   const enriched = planes.map((p) => {
     const planId = p["id"] as string;
     const colab = colabById.get(p["colaborador_id"] as string);
     const primaryObj = primaryObjByPlan.get(planId);
     const catPuesto = primaryObj?.["catalogo_puestos"] as Record<string, unknown> | undefined;
-    const acc = accionesByPlan.get(planId) ?? { total: 0, completadas: 0 };
-    const progress = acc.total > 0 ? Math.round((acc.completadas / acc.total) * 100) : 0;
-    const lastRev = lastRevByPlan.get(planId);
 
     return {
       id: planId,
@@ -119,16 +86,11 @@ export default async function PlanCarreraIndexPage() {
       created_at: p["created_at"] as string,
       colaborador_nombre: (colab?.["nombre_completo"] as string) ?? "",
       colaborador_puesto: (colab?.["puesto"] as string) ?? "",
-      colaborador_area: (colab?.["area"] as string) ?? "",
       colaborador_org: (colab?.["organización"] as string) ?? "",
       objetivo_principal: catPuesto ? (catPuesto["nombre"] as string) : null,
       objetivo_org: catPuesto ? ((catPuesto["organización"] as string) ?? null) : null,
       objetivos_count: objCountByPlan.get(planId) ?? 0,
-      progress,
-      acciones_total: acc.total,
-      acciones_completadas: acc.completadas,
-      ultima_revision_ciclo: lastRev ? (lastRev["ciclo_año"] as number) : null,
-      ultima_revision_estado: lastRev ? (lastRev["estado"] as string) : null,
+      sesiones_count: notaCountByPlan.get(planId) ?? 0,
     };
   });
 
