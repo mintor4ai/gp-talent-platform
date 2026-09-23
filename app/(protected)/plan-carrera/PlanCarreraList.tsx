@@ -50,7 +50,7 @@ function PlanActions({ plan, onDone }: { plan: PlanRow; onDone: () => void }) {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
       <button
         onClick={() => { setOpen((v) => !v); setConfirmDelete(false); }}
         disabled={isPending}
@@ -72,14 +72,6 @@ function PlanActions({ plan, onDone }: { plan: PlanRow; onDone: () => void }) {
         <>
           <div className="fixed inset-0 z-10" onClick={() => { setOpen(false); setConfirmDelete(false); }} />
           <div className="absolute right-0 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 text-sm">
-            <Link
-              href={`/plan-carrera/${plan.colaborador_id}`}
-              className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
-              onClick={() => setOpen(false)}
-            >
-              Ver expediente
-            </Link>
-            <div className="border-t border-gray-100 my-1" />
             {plan.estado !== "activo" && (
               <button
                 onClick={() => handleEstado("activo")}
@@ -251,7 +243,7 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
                     <th className="text-left px-4 py-3 hidden lg:table-cell">Objetivos</th>
                     <th className="text-left px-4 py-3 hidden lg:table-cell">Sesiones</th>
                     <th className="text-left px-4 py-3">Estado</th>
-                    <th className="px-4 py-3 w-10" />
+                    <th className="px-3 py-3 w-8" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -265,9 +257,15 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
                     filtered.map((plan) => {
                       const estadoCfg = ESTADO_CONFIG[plan.estado] ?? ESTADO_CONFIG["activo"];
                       return (
-                        <tr key={plan.id} className="hover:bg-gray-50 transition-colors">
+                        <tr
+                          key={plan.id}
+                          className="hover:bg-blue-50/40 transition-colors cursor-pointer group"
+                          onClick={() => { window.location.href = `/plan-carrera/${plan.colaborador_id}`; }}
+                        >
                           <td className="px-5 py-3">
-                            <p className="font-medium text-gray-900">{plan.colaborador_nombre}</p>
+                            <p className="font-medium text-gray-900 group-hover:text-[#1a3a5c] transition-colors">
+                              {plan.colaborador_nombre}
+                            </p>
                             <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[180px]">
                               {plan.colaborador_puesto}
                             </p>
@@ -306,7 +304,7 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
                               {estadoCfg.label}
                             </span>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-3">
                             <PlanActions plan={plan} onDone={refresh} />
                           </td>
                         </tr>
