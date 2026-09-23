@@ -71,6 +71,7 @@ export type MatchRow = {
   puesto_nombre?: string | null;
   puesto_org?: string | null;
   puesto_area?: string | null;
+  puesto_catalogo_area?: string | null;
   colaborador_area?: string | null;
   colaborador_org?: string | null;
   validado_por_nombre?: string | null;
@@ -992,21 +993,18 @@ export default function MatchingView({
   };
 
   // ── Cascade options ────────────────────────────────────────────────────────
-  // Available areas: collaborator.area, restricted to collaborators whose own UEN matches the selected UEN
+  // Available areas: puesto catalog area, restricted by selected UEN
   const availableAreas = useMemo(() => {
     let source = matches;
-    if (selectedUen !== "all") {
-      // Only show areas from collaborators who belong to the same UEN as the target puesto
-      source = source.filter((m) => m.puesto_org === selectedUen && m.colaborador_org === selectedUen);
-    }
-    return Array.from(new Set(source.map((m) => m.colaborador_area).filter(Boolean))).sort() as string[];
+    if (selectedUen !== "all") source = source.filter((m) => m.puesto_org === selectedUen);
+    return Array.from(new Set(source.map((m) => m.puesto_catalogo_area).filter(Boolean))).sort() as string[];
   }, [matches, selectedUen]);
 
   // Available puestos given selected UEN + Area
   const availablePuestos = useMemo(() => {
     let source = matches;
-    if (selectedUen !== "all") source = source.filter((m) => m.puesto_org === selectedUen && m.colaborador_org === selectedUen);
-    if (selectedArea !== "all") source = source.filter((m) => m.colaborador_area === selectedArea);
+    if (selectedUen !== "all") source = source.filter((m) => m.puesto_org === selectedUen);
+    if (selectedArea !== "all") source = source.filter((m) => m.puesto_catalogo_area === selectedArea);
     return Array.from(new Set(source.map((m) => m.puesto_nombre).filter(Boolean))).sort() as string[];
   }, [matches, selectedUen, selectedArea]);
 
@@ -1017,7 +1015,7 @@ export default function MatchingView({
     if (includeTipo && selectedTipo !== "all" && m.tipo_match !== selectedTipo) return false;
     if (selectedUen !== "all" && m.puesto_org !== selectedUen) return false;
     if (selectedSegmento !== "all" && (m.puesto_area ?? "") !== selectedSegmento) return false;
-    if (selectedArea !== "all" && m.colaborador_area !== selectedArea) return false;
+    if (selectedArea !== "all" && m.puesto_catalogo_area !== selectedArea) return false;
     if (selectedPuesto !== "all" && m.puesto_nombre !== selectedPuesto) return false;
     if (soloCriticos && !m.es_puesto_critico) return false;
     if (search.trim()) {

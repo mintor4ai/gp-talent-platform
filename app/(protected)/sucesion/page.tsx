@@ -213,6 +213,7 @@ export default async function SucesionPage() {
         nombre: row.nombre,
         org: String(row["organización"] ?? ""),
         area: (row.segmento_organizacional as string | null) ?? null,
+        catalogo_area: (row["area"] as string | null) ?? null,
       }];
     })
   );
@@ -245,6 +246,7 @@ export default async function SucesionPage() {
       puesto_nombre: puesto?.nombre ?? null,
       puesto_org: puesto?.org || null,
       puesto_area: puesto?.area ?? null,
+      puesto_catalogo_area: puesto?.catalogo_area ?? null,
       colaborador_area: m.colaborador_id ? (colabAreaById.get(m.colaborador_id) ?? null) : null,
       colaborador_org:  m.colaborador_id ? (colabOrgById.get(m.colaborador_id)  ?? null) : null,
       validado_por_nombre: m.validado_por ? (adminNames.get(m.validado_por) ?? null) : null,
