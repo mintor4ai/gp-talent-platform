@@ -20,6 +20,12 @@ export type PlanCarreraNota = {
   created_at: string;
 };
 
+function supabaseErrMsg(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === "object" && "message" in err) return String((err as any).message);
+  return String(err);
+}
+
 async function getAuthorizedUser() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -32,7 +38,6 @@ async function getAuthorizedUser() {
     .single();
   if (!perfil) throw new Error("Perfil no encontrado");
 
-  // CH, superadmin, or jefe (jefe access is enforced by RLS; we allow non-admin users here)
   return { supabase, userId: user.id, userName: (perfil as any).nombre ?? null };
 }
 
@@ -49,7 +54,7 @@ export async function getNotasByPlan(
     if (error) throw error;
     return { ok: true, data: (data ?? []) as PlanCarreraNota[] };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: supabaseErrMsg(err) };
   }
 }
 
@@ -79,7 +84,7 @@ export async function crearNotaInicial(params: {
     revalidatePath(`/plan-carrera`);
     return { ok: true, data: data as PlanCarreraNota };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: supabaseErrMsg(err) };
   }
 }
 
@@ -114,7 +119,7 @@ export async function agregarNota(params: {
     revalidatePath(`/plan-carrera`);
     return { ok: true, data: data as PlanCarreraNota };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: supabaseErrMsg(err) };
   }
 }
 
@@ -149,6 +154,6 @@ export async function editarNota(
     revalidatePath(`/plan-carrera`);
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: supabaseErrMsg(err) };
   }
 }

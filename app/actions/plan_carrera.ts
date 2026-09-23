@@ -67,11 +67,11 @@ async function getAdminUser() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
   const { data: perfil } = await supabase
-    .from("usuarios_app").select("rol").eq("id", user.id).single();
+    .from("usuarios_app").select("rol, nombre").eq("id", user.id).single();
   if (!perfil) throw new Error("Perfil no encontrado");
   const isAdmin = perfil.rol === "capital_humano" || perfil.rol === "superadmin";
   if (!isAdmin) throw new Error("Sin permisos");
-  return { supabase, userId: user.id };
+  return { supabase, userId: user.id, userName: (perfil as any).nombre ?? null };
 }
 
 // ── Read ───────────────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ export async function crearPlanCarrera(params: {
   snapshot: Record<string, unknown>;
 }): Promise<{ ok: boolean; planId?: string; error?: string }> {
   try {
-    const { supabase, userId } = await getAdminUser();
+    const { supabase, userId, userName } = await getAdminUser();
 
     // Check if plan already exists
     const { data: existing } = await supabase
@@ -201,15 +201,20 @@ export async function crearPlanCarrera(params: {
 
     if (objError) throw objError;
 
-    // Create automatic first entry
-    const { crearNotaInicial } = await import("@/app/actions/plan_carrera_notas");
-    const colabRes = await supabase.from("colaboradores")
-      .select("nombre_completo").eq("id", params.colaboradorId).single();
+    // Create automatic first entry (inline to keep the authenticated supabase client)
+    const [colabRes, catalogoRes] = await Promise.all([
+      supabase.from("colaboradores").select("nombre_completo").eq("id", params.colaboradorId).single(),
+      supabase.from("catalogo_puestos").select("nombre").eq("id", params.puestoCatalogoId).single(),
+    ]);
     const colabNombre = (colabRes.data as any)?.nombre_completo ?? params.colaboradorId;
-    const catalogoRes = await supabase.from("catalogo_puestos")
-      .select("nombre").eq("id", params.puestoCatalogoId).single();
     const puestoNombre = (catalogoRes.data as any)?.nombre ?? params.puestoCatalogoId;
-    await crearNotaInicial({ planId: plan.id, colaboradorNombre: colabNombre, puestoObjetivo: puestoNombre });
+    await supabase.from("plan_carrera_notas").insert({
+      plan_id: plan.id,
+      tipo: "creacion",
+      autor_id: userId,
+      autor_nombre: userName,
+      observaciones: `Expediente creado al validar match de sucesión.\nColaborador: ${colabNombre}\nPuesto objetivo: ${puestoNombre}`,
+    });
 
     revalidatePath(`/plan-carrera/${params.colaboradorId}`);
     return { ok: true, planId: plan.id };
