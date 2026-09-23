@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import type { SucesionItem } from "../carpeta/[id]/SucesionEditor";
-import type { PuestoCoberturaItem, TitularItem, SucesorItem, AspiranteItem } from "./CoberturaView";
+import type { PuestoCoberturaItem, TitularItem, SucesorItem, AspiranteItem, MatchValidadoItem } from "./CoberturaView";
 import type { MatchRow } from "./MatchingView";
 import SucesionTabs from "./SucesionTabs";
 
@@ -147,18 +147,31 @@ export default async function SucesionPage() {
       });
     }
 
-    // Build aspirantes from matches (aspiracion + bidireccional), exclude discarded
+    // Build validated matches (validado_ch = true, not discarded — any tipo_match)
+    const matchesValidadosByCatalog = new Map<string, MatchValidadoItem[]>();
+    // Build aspirantes from matches (aspiracion + bidireccional, NOT validated, not discarded)
     const aspirantesByCatalog = new Map<string, AspiranteItem[]>();
     for (const m of matchesSubset) {
-      if (m.tipo_match !== "aspiracion" && m.tipo_match !== "bidireccional") continue;
       if (m.descartado) continue;
       if (!m.puesto_catalogo_id || !m.colaborador_id) continue;
-      if (!aspirantesByCatalog.has(m.puesto_catalogo_id)) aspirantesByCatalog.set(m.puesto_catalogo_id, []);
-      aspirantesByCatalog.get(m.puesto_catalogo_id)!.push({
-        colaborador_id:    m.colaborador_id,
-        colaborador_nombre: colabById.get(m.colaborador_id) ?? null,
-        tipo_match:        m.tipo_match as "aspiracion" | "bidireccional",
-      });
+
+      if (m.validado_ch === true) {
+        if (!matchesValidadosByCatalog.has(m.puesto_catalogo_id))
+          matchesValidadosByCatalog.set(m.puesto_catalogo_id, []);
+        matchesValidadosByCatalog.get(m.puesto_catalogo_id)!.push({
+          colaborador_id:     m.colaborador_id,
+          colaborador_nombre: colabById.get(m.colaborador_id) ?? null,
+          tipo_match:         m.tipo_match,
+          readiness:          (m as unknown as Record<string, unknown>)["readiness"] as string | null ?? null,
+        });
+      } else if (m.tipo_match === "aspiracion" || m.tipo_match === "bidireccional") {
+        if (!aspirantesByCatalog.has(m.puesto_catalogo_id)) aspirantesByCatalog.set(m.puesto_catalogo_id, []);
+        aspirantesByCatalog.get(m.puesto_catalogo_id)!.push({
+          colaborador_id:    m.colaborador_id,
+          colaborador_nombre: colabById.get(m.colaborador_id) ?? null,
+          tipo_match:        m.tipo_match as "aspiracion" | "bidireccional",
+        });
+      }
     }
 
     return (catalogoRaw ?? []).map((c) => ({
@@ -172,6 +185,7 @@ export default async function SucesionPage() {
       es_critico:              c.es_critico,
       titulares:               titularesByCatalog.get(c.id) ?? [],
       sucesores:               sucesoresByCatalog.get(c.id) ?? [],
+      matchesValidados:        matchesValidadosByCatalog.get(c.id) ?? [],
       aspirantes:              aspirantesByCatalog.get(c.id) ?? [],
     }));
   }

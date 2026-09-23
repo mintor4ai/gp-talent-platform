@@ -24,6 +24,13 @@ export type AspiranteItem = {
   tipo_match: "aspiracion" | "bidireccional";
 };
 
+export type MatchValidadoItem = {
+  colaborador_id: string;
+  colaborador_nombre: string | null;
+  tipo_match: string;
+  readiness: string | null;
+};
+
 export type PuestoCoberturaItem = {
   id: string;
   clave: string;
@@ -35,16 +42,20 @@ export type PuestoCoberturaItem = {
   es_critico: boolean;
   titulares: TitularItem[];
   sucesores: SucesorItem[];
+  matchesValidados: MatchValidadoItem[];
   aspirantes: AspiranteItem[];
 };
 
 type RiesgoLevel = "sin_sucesor" | "tres_mas" | "listo" | "vacante";
 
 function getRiesgo(p: PuestoCoberturaItem): RiesgoLevel {
-  // Vacante real solo si no hay titular NI sucesor ni aspirante; si hay plan, evaluar readiness
-  if (p.titulares.length === 0 && p.sucesores.length === 0) return "vacante";
-  if (p.sucesores.length === 0) return "sin_sucesor";
-  const readinessValues = p.sucesores.map((s) => s.readiness ?? s.tiempo_estimado ?? "");
+  const hasCoverage = p.sucesores.length > 0 || p.matchesValidados.length > 0;
+  if (p.titulares.length === 0 && !hasCoverage) return "vacante";
+  if (!hasCoverage) return "sin_sucesor";
+  const readinessValues = [
+    ...p.sucesores.map((s) => s.readiness ?? s.tiempo_estimado ?? ""),
+    ...p.matchesValidados.map((m) => m.readiness ?? ""),
+  ];
   if (readinessValues.some((r) => r === "listo_ahora" || r === "uno_dos_anios")) return "listo";
   return "tres_mas";
 }
@@ -250,6 +261,48 @@ function PuestoDrawer({
             );
           })()}
 
+          {/* Matches validados por CH */}
+          <Section
+            title="Matches validados por CH"
+            count={puesto.matchesValidados.length}
+            accent="violet"
+            badge={puesto.matchesValidados.length > 0 ? "Motor de Matching" : undefined}
+          >
+            {puesto.matchesValidados.length === 0 ? (
+              <EmptyMsg>No hay matches validados por Capital Humano para este ciclo.</EmptyMsg>
+            ) : (
+              <div className="space-y-2">
+                {puesto.matchesValidados.map((m) => (
+                  <a
+                    key={m.colaborador_id}
+                    href={`/carpeta/${m.colaborador_id}`}
+                    className="flex items-center justify-between gap-2 px-3 py-2.5 bg-violet-50/70 rounded-lg hover:bg-violet-100/80 transition-colors group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-[11px] font-bold">
+                          {(m.colaborador_nombre ?? "?").charAt(0)}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{m.colaborador_nombre ?? "—"}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-semibold text-violet-700">✓ Validado por CH</span>
+                          {m.readiness && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${readinessBadgeColor(m.readiness)}`}>
+                              {READINESS_LABEL[m.readiness] ?? m.readiness}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-400 group-hover:text-violet-700 flex-shrink-0">Ver carpeta →</span>
+                  </a>
+                ))}
+              </div>
+            )}
+          </Section>
+
           {/* Aspirantes del Motor */}
           <Section
             title="Aspirantes detectados por el Motor"
@@ -298,14 +351,14 @@ function PuestoDrawer({
         </div>
 
         {/* Footer actions */}
-        {(puesto.aspirantes.length > 0 || puesto.sucesores.length === 0) && (
+        {(puesto.aspirantes.length > 0 || (puesto.sucesores.length === 0 && puesto.matchesValidados.length === 0)) && (
           <div className="px-5 py-3 border-t border-gray-200 bg-gray-50 space-y-2">
-            {puesto.sucesores.length === 0 && puesto.aspirantes.length > 0 && (
+            {puesto.sucesores.length === 0 && puesto.matchesValidados.length === 0 && puesto.aspirantes.length > 0 && (
               <p className="text-xs text-amber-700 font-medium">
                 Este puesto tiene aspirantes pero ningún plan formal. Considera abrir un proceso de sucesión.
               </p>
             )}
-            {puesto.sucesores.length === 0 && puesto.aspirantes.length === 0 && puesto.es_critico && (
+            {puesto.sucesores.length === 0 && puesto.matchesValidados.length === 0 && puesto.aspirantes.length === 0 && puesto.es_critico && (
               <p className="text-xs text-red-700 font-medium">
                 Puesto crítico sin pipeline. Requiere acción inmediata de Capital Humano.
               </p>
@@ -320,19 +373,21 @@ function PuestoDrawer({
 function Section({
   title, count, accent = "gray", badge, children,
 }: {
-  title: string; count: number; accent?: "gray" | "blue" | "emerald";
+  title: string; count: number; accent?: "gray" | "blue" | "emerald" | "violet";
   badge?: string; children: React.ReactNode;
 }) {
   const headerColor = {
     gray:    "text-gray-500 border-gray-200",
     blue:    "text-blue-700 border-blue-200",
     emerald: "text-emerald-700 border-emerald-200",
+    violet:  "text-violet-700 border-violet-200",
   }[accent];
   return (
     <div className="px-5 py-4 border-b border-gray-100 last:border-b-0">
       <div className={`flex items-center gap-2 mb-3 pb-2 border-b ${headerColor}`}>
         <span className="text-xs font-bold uppercase tracking-wide">{title}</span>
         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+          accent === "violet"  ? "bg-violet-100 text-violet-700" :
           accent === "emerald" ? "bg-emerald-100 text-emerald-700" :
           accent === "blue"    ? "bg-blue-100 text-blue-700" :
           "bg-gray-100 text-gray-500"
@@ -375,7 +430,7 @@ export default function CoberturaView({
   const [filterTipoVacante, setFilterTipoVacante] = useState("");
   const [search,            setSearch]             = useState("");
   const [selected, setSelected] = useState<PuestoCoberturaItem | null>(null);
-  const { sortKey, sortDir, handleSort } = useSortState<"nombre" | "organización" | "segmento_organizacional" | "sucesores" | "aspirantes" | "riesgo">("riesgo");
+  const { sortKey, sortDir, handleSort } = useSortState<"nombre" | "organización" | "segmento_organizacional" | "sucesores" | "validados" | "aspirantes" | "riesgo">("riesgo");
 
   // Cascading option lists — each level filtered by the upstream selection
   const availableAreas = useMemo(
@@ -423,8 +478,9 @@ export default function CoberturaView({
         case "nombre":                   return dir * a.nombre.localeCompare(b.nombre, "es");
         case "organización":             return dir * (a.organización ?? "").localeCompare(b.organización ?? "", "es");
         case "segmento_organizacional":  return dir * (a.segmento_organizacional ?? "").localeCompare(b.segmento_organizacional ?? "", "es");
-        case "sucesores":                return dir * (a.sucesores.length - b.sucesores.length);
-        case "aspirantes":   return dir * (a.aspirantes.length - b.aspirantes.length);
+        case "sucesores":   return dir * (a.sucesores.length - b.sucesores.length);
+        case "validados":   return dir * (a.matchesValidados.length - b.matchesValidados.length);
+        case "aspirantes":  return dir * (a.aspirantes.length - b.aspirantes.length);
         case "riesgo":
         default:
           if (a.es_critico !== b.es_critico) return a.es_critico ? -1 : 1;
@@ -433,9 +489,9 @@ export default function CoberturaView({
     });
   }, [puestos, filterCritico, filterRiesgo, filterUen, filterArea, filterSegmento, filterTipoVacante, search, sortKey, sortDir]);
 
-  const conSucesor   = filtered.filter((p) => p.sucesores.length > 0).length;
-  const sinSucesor   = filtered.filter((p) => p.sucesores.length === 0 && p.titulares.length > 0).length;
-  const conAspirante = filtered.filter((p) => p.sucesores.length === 0 && p.aspirantes.length > 0).length;
+  const conSucesor   = filtered.filter((p) => p.sucesores.length > 0 || p.matchesValidados.length > 0).length;
+  const sinSucesor   = filtered.filter((p) => p.sucesores.length === 0 && p.matchesValidados.length === 0 && p.titulares.length > 0).length;
+  const conAspirante = filtered.filter((p) => p.sucesores.length === 0 && p.matchesValidados.length === 0 && p.aspirantes.length > 0).length;
   const coberturaPct = filtered.length ? Math.round((conSucesor / filtered.length) * 100) : 0;
 
   return (
@@ -584,6 +640,7 @@ export default function CoberturaView({
                 <SortableTh label="Segmento" sortKey="segmento_organizacional" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-3 py-3 hidden lg:table-cell" />
                 <th className="px-3 py-3 font-medium hidden xl:table-cell">Titular(es)</th>
                 <SortableTh label="Suc." sortKey="sucesores" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-2 py-3 text-center" />
+                <SortableTh label="Val." sortKey="validados" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-2 py-3 text-center" />
                 <SortableTh label="Asp." sortKey="aspirantes" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-2 py-3 text-center" />
                 <th className="px-3 py-3 font-medium hidden lg:table-cell">Readiness</th>
                 <SortableTh label="Riesgo" sortKey="riesgo" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="px-3 py-3 text-center" />
@@ -593,7 +650,7 @@ export default function CoberturaView({
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-3 py-10 text-center text-sm text-gray-400">
+                  <td colSpan={10} className="px-3 py-10 text-center text-sm text-gray-400">
                     No hay puestos que coincidan con los filtros
                   </td>
                 </tr>
@@ -643,6 +700,13 @@ export default function CoberturaView({
                         : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-2 py-3 text-center">
+                      {p.matchesValidados.length > 0
+                        ? <span className="inline-flex items-center gap-1 font-semibold text-[11px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                            {p.matchesValidados.length}
+                          </span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-2 py-3 text-center">
                       {p.aspirantes.length > 0 ? (
                         <span className={`inline-flex items-center gap-1 font-semibold text-[11px] px-1.5 py-0.5 rounded-full ${
                           p.aspirantes.some((a) => a.tipo_match === "bidireccional")
@@ -679,7 +743,7 @@ export default function CoberturaView({
         </div>
         {filtered.length > 0 && (
           <div className="px-4 py-2.5 border-t border-gray-100 text-xs text-gray-400">
-            Mostrando {filtered.length} de {puestos.length} puestos · {coberturaPct}% con sucesor
+            Mostrando {filtered.length} de {puestos.length} puestos · {coberturaPct}% con cobertura
             {conAspirante > 0 && <span className="text-amber-600 ml-2">· {conAspirante} sin plan pero con aspirantes detectados</span>}
           </div>
         )}
