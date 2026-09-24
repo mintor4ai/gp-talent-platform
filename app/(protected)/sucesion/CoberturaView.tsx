@@ -16,17 +16,20 @@ export type SucesorItem = {
 
 export type TitularItem = {
   id: string;
+  id_empleado: string | null;
   nombre_completo: string;
 };
 
 export type AspiranteItem = {
   colaborador_id: string;
+  colaborador_id_empleado: string | null;
   colaborador_nombre: string | null;
   tipo_match: "aspiracion" | "bidireccional";
 };
 
 export type MatchValidadoItem = {
   colaborador_id: string;
+  colaborador_id_empleado: string | null;
   colaborador_nombre: string | null;
   tipo_match: string;
   readiness: string | null;
@@ -204,7 +207,7 @@ function PuestoDrawer({
                     className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 rounded-lg hover:bg-blue-50 hover:text-[#1a3a5c] transition-colors group"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <EmpleadoAvatar id={t.id} nombre={t.nombre_completo} size={28} rounded="lg" />
+                      <EmpleadoAvatar idEmpleado={t.id_empleado} nombre={t.nombre_completo} size={28} rounded="lg" />
                       <span className="text-sm font-medium text-gray-800 truncate group-hover:text-[#1a3a5c]">
                         {t.nombre_completo}
                       </span>
@@ -278,7 +281,7 @@ function PuestoDrawer({
                     className="flex items-center justify-between gap-2 px-3 py-2.5 bg-violet-50/70 rounded-lg hover:bg-violet-100/80 transition-colors group"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <EmpleadoAvatar id={m.colaborador_id} nombre={m.colaborador_nombre} size={28} rounded="lg" />
+                      <EmpleadoAvatar idEmpleado={m.colaborador_id_empleado} nombre={m.colaborador_nombre} size={28} rounded="lg" />
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-800 truncate">{m.colaborador_nombre ?? "—"}</p>
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -319,7 +322,7 @@ function PuestoDrawer({
                     className="flex items-center justify-between gap-2 px-3 py-2.5 bg-emerald-50/70 rounded-lg hover:bg-emerald-100/80 transition-colors group"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <EmpleadoAvatar id={a.colaborador_id} nombre={a.colaborador_nombre} size={28} rounded="lg" />
+                      <EmpleadoAvatar idEmpleado={a.colaborador_id_empleado} nombre={a.colaborador_nombre} size={28} rounded="lg" />
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-800 truncate">
                           {a.colaborador_nombre ?? "—"}

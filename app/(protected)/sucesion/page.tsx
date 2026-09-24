@@ -45,7 +45,7 @@ export default async function SucesionPage() {
     ),
     fetchAllRows((from, to) =>
       supabase.from("colaboradores")
-        .select("id, nombre_completo, puesto, nivel, area, organización, puesto_catalogo_id, segmento_organizacional")
+        .select("id, id_empleado, nombre_completo, puesto, nivel, area, organización, puesto_catalogo_id, segmento_organizacional")
         .eq("activo", true)
         .order("nombre_completo")
         .range(from, to)
@@ -66,7 +66,7 @@ export default async function SucesionPage() {
   const catalogoRaw = catalogoResult.data;
 
   const planes = (planesRaw ?? []) as unknown as SucesionItem[];
-  type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; nivel: string | null; area: string | null; organización: string | null; puesto_catalogo_id: string | null; segmento_organizacional: string | null };
+  type ColabRow = { id: string; id_empleado: string | null; nombre_completo: string | null; puesto: string | null; nivel: string | null; area: string | null; organización: string | null; puesto_catalogo_id: string | null; segmento_organizacional: string | null };
   const colabs = (colabsRaw ?? []) as unknown as ColabRow[];
 
   const ciclos = Array.from(new Set(planes.map((p) => p.ciclo_año))).sort((a, b) => b - a);
@@ -103,6 +103,8 @@ export default async function SucesionPage() {
 
   // Colaborador id → nombre (needed in buildPuestos for aspirantes)
   const colabById = new Map(colabs.map((c) => [c.id, c.nombre_completo ?? ""]));
+  // Colaborador UUID → id_empleado (numeric string, used for photo URLs)
+  const colabIdEmpleadoById = new Map(colabs.map((c) => [c.id, c.id_empleado ?? null]));
   // Colaborador id → area / organización (for match filters)
   const colabAreaById = new Map(colabs.map((c) => [c.id, c.area ?? null]));
   const colabOrgById  = new Map(colabs.map((c) => [c.id, c.organización ?? null]));
@@ -124,6 +126,7 @@ export default async function SucesionPage() {
     if (!titularesByCatalog.has(catalogId)) titularesByCatalog.set(catalogId, []);
     titularesByCatalog.get(catalogId)!.push({
       id: c.id,
+      id_empleado: c.id_empleado ?? null,
       nombre_completo: c.nombre_completo ?? "",
     });
   }
@@ -159,17 +162,19 @@ export default async function SucesionPage() {
         if (!matchesValidadosByCatalog.has(m.puesto_catalogo_id))
           matchesValidadosByCatalog.set(m.puesto_catalogo_id, []);
         matchesValidadosByCatalog.get(m.puesto_catalogo_id)!.push({
-          colaborador_id:     m.colaborador_id,
-          colaborador_nombre: colabById.get(m.colaborador_id) ?? null,
-          tipo_match:         m.tipo_match,
-          readiness:          (m as unknown as Record<string, unknown>)["readiness"] as string | null ?? null,
+          colaborador_id:          m.colaborador_id,
+          colaborador_id_empleado: colabIdEmpleadoById.get(m.colaborador_id) ?? null,
+          colaborador_nombre:      colabById.get(m.colaborador_id) ?? null,
+          tipo_match:              m.tipo_match,
+          readiness:               (m as unknown as Record<string, unknown>)["readiness"] as string | null ?? null,
         });
       } else if (m.tipo_match === "aspiracion" || m.tipo_match === "bidireccional") {
         if (!aspirantesByCatalog.has(m.puesto_catalogo_id)) aspirantesByCatalog.set(m.puesto_catalogo_id, []);
         aspirantesByCatalog.get(m.puesto_catalogo_id)!.push({
-          colaborador_id:    m.colaborador_id,
-          colaborador_nombre: colabById.get(m.colaborador_id) ?? null,
-          tipo_match:        m.tipo_match as "aspiracion" | "bidireccional",
+          colaborador_id:          m.colaborador_id,
+          colaborador_id_empleado: colabIdEmpleadoById.get(m.colaborador_id) ?? null,
+          colaborador_nombre:      colabById.get(m.colaborador_id) ?? null,
+          tipo_match:              m.tipo_match as "aspiracion" | "bidireccional",
         });
       }
     }
@@ -252,6 +257,7 @@ export default async function SucesionPage() {
       validado_por_nombre: m.validado_por ? (adminNames.get(m.validado_por) ?? null) : null,
       descartado_por_nombre: m.descartado_por ? (adminNames.get(m.descartado_por) ?? null) : null,
       plan_estado: m.colaborador_id ? (planEstadoByColab.get(m.colaborador_id) ?? null) : null,
+      colaborador_id_empleado: m.colaborador_id ? (colabIdEmpleadoById.get(m.colaborador_id) ?? null) : null,
     };
   });
 

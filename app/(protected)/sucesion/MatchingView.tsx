@@ -78,6 +78,7 @@ export type MatchRow = {
   validado_por_nombre?: string | null;
   descartado_por_nombre?: string | null;
   plan_estado?: string | null;
+  colaborador_id_empleado?: string | null;
 };
 
 const PLAN_ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
@@ -289,7 +290,7 @@ function MatchCard({
             {/* Sucesor row with EIP top-right */}
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="flex items-start gap-2 flex-1 min-w-0">
-                <EmpleadoAvatar id={match.colaborador_id} nombre={match.colaborador_nombre} size={32} rounded="full" className="mt-3 flex-shrink-0" />
+                <EmpleadoAvatar idEmpleado={match.colaborador_id_empleado} nombre={match.colaborador_nombre} size={32} rounded="full" className="mt-3 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] opacity-50 font-medium tracking-wide mb-0.5">SUCESOR</p>
                   <p className="font-semibold text-sm break-words leading-snug">
