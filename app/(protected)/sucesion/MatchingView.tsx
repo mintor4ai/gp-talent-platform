@@ -47,6 +47,7 @@ import {
   getColaboradorMatchProfile,
 } from "@/app/actions/sucesion_matches";
 import type { ColaboradorMatchProfile } from "@/app/actions/sucesion_matches";
+import EmpleadoAvatar from "@/components/ui/EmpleadoAvatar";
 
 export type MatchRow = {
   id: string;
@@ -287,11 +288,14 @@ function MatchCard({
           <>
             {/* Sucesor row with EIP top-right */}
             <div className="flex items-start justify-between gap-2 mb-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] opacity-50 font-medium tracking-wide mb-0.5">SUCESOR</p>
-                <p className="font-semibold text-sm break-words leading-snug">
-                  {match.colaborador_nombre ?? "—"}
-                </p>
+              <div className="flex items-start gap-2 flex-1 min-w-0">
+                <EmpleadoAvatar id={match.colaborador_id} nombre={match.colaborador_nombre} size={32} rounded="full" className="mt-3 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] opacity-50 font-medium tracking-wide mb-0.5">SUCESOR</p>
+                  <p className="font-semibold text-sm break-words leading-snug">
+                    {match.colaborador_nombre ?? "—"}
+                  </p>
+                </div>
               </div>
               {profile?.eip && (
                 <div className="flex items-center gap-1.5 flex-shrink-0 mt-4">

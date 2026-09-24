@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { SortableTh, useSortState } from "@/components/ui/SortableTh";
+import EmpleadoAvatar from "@/components/ui/EmpleadoAvatar";
 
 export type SucesorItem = {
   sucesor_nombre: string;
@@ -203,9 +204,7 @@ function PuestoDrawer({
                     className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 rounded-lg hover:bg-blue-50 hover:text-[#1a3a5c] transition-colors group"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-7 h-7 rounded-lg bg-[#1a3a5c] flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-[11px] font-bold">{t.nombre_completo.charAt(0)}</span>
-                      </div>
+                      <EmpleadoAvatar id={t.id} nombre={t.nombre_completo} size={28} rounded="lg" />
                       <span className="text-sm font-medium text-gray-800 truncate group-hover:text-[#1a3a5c]">
                         {t.nombre_completo}
                       </span>
@@ -279,11 +278,7 @@ function PuestoDrawer({
                     className="flex items-center justify-between gap-2 px-3 py-2.5 bg-violet-50/70 rounded-lg hover:bg-violet-100/80 transition-colors group"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-[11px] font-bold">
-                          {(m.colaborador_nombre ?? "?").charAt(0)}
-                        </span>
-                      </div>
+                      <EmpleadoAvatar id={m.colaborador_id} nombre={m.colaborador_nombre} size={28} rounded="lg" />
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-800 truncate">{m.colaborador_nombre ?? "—"}</p>
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -324,11 +319,7 @@ function PuestoDrawer({
                     className="flex items-center justify-between gap-2 px-3 py-2.5 bg-emerald-50/70 rounded-lg hover:bg-emerald-100/80 transition-colors group"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-[11px] font-bold">
-                          {(a.colaborador_nombre ?? "?").charAt(0)}
-                        </span>
-                      </div>
+                      <EmpleadoAvatar id={a.colaborador_id} nombre={a.colaborador_nombre} size={28} rounded="lg" />
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-800 truncate">
                           {a.colaborador_nombre ?? "—"}
