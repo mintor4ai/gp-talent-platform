@@ -61,6 +61,7 @@ export default function ConfigTabs({
   tablaMov,
   tablaFormAcad,
   sucesionCiclosDisponibles,
+  uensConfig,
 }: {
   grupos: { uens: string[]; departamentos: string[]; areas: string[]; segmentos: string[] };
   reglasAcceso: Regla[];
