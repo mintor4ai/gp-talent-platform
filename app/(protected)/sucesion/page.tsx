@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
+import { getDisabledOrgs } from "@/lib/disabled-uens";
 import type { SucesionItem } from "../carpeta/[id]/SucesionEditor";
 import type { PuestoCoberturaItem, TitularItem, SucesorItem, AspiranteItem, MatchValidadoItem } from "./CoberturaView";
 import type { MatchRow } from "./MatchingView";
@@ -35,6 +36,8 @@ export default async function SucesionPage() {
     return results;
   }
 
+  const disabledOrgs = await getDisabledOrgs();
+
   const [planesRaw, colabsRaw, catalogoResult, matchesRaw, planCarreraRaw] = await Promise.all([
     fetchAllRows((from, to) =>
       supabase.from("plan_sucesion").select("*")
@@ -43,13 +46,17 @@ export default async function SucesionPage() {
         .order("created_at", { ascending: false })
         .range(from, to)
     ),
-    fetchAllRows((from, to) =>
-      supabase.from("colaboradores")
+    fetchAllRows((from, to) => {
+      let q = supabase.from("colaboradores")
         .select("id, id_empleado, nombre_completo, puesto, nivel, area, organización, puesto_catalogo_id, segmento_organizacional")
         .eq("activo", true)
         .order("nombre_completo")
-        .range(from, to)
-    ),
+        .range(from, to);
+      if (disabledOrgs.length > 0) {
+        q = q.not("organización", "in", `("${disabledOrgs.join('","')}")`);
+      }
+      return q;
+    }),
     supabase.from("catalogo_puestos").select("*")
       .eq("activo", true)
       .order("es_critico", { ascending: false })

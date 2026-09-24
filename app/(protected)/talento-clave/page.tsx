@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import TalentoClavePage from "./TalentoClavePage";
+import { getDisabledOrgs } from "@/lib/disabled-uens";
 
 export const dynamic = "force-dynamic";
 
@@ -86,11 +87,20 @@ export default async function TalentoClaveRoute() {
 
   const pcSet = new Set(((pcData ?? []) as { id_empleado: string }[]).map((r) => r.id_empleado));
 
+  const disabledOrgs = await getDisabledOrgs();
+
   // All collaborators for manual-promotion search
-  const { data: allColabsData } = await supabase
-    .from("colaboradores")
-    .select("id, nombre_completo, puesto, organización")
-    .order("nombre_completo");
+  const allColabsQuery = (() => {
+    let q = supabase
+      .from("colaboradores")
+      .select("id, nombre_completo, puesto, organización")
+      .order("nombre_completo");
+    if (disabledOrgs.length > 0) {
+      q = q.not("organización", "in", `("${disabledOrgs.join('","')}")`);
+    }
+    return q;
+  })();
+  const { data: allColabsData } = await allColabsQuery;
 
   type AllColab = { id: string; nombre_completo: string; puesto: string | null; organización: string | null };
   const allColabsArr = (allColabsData ?? []) as unknown as AllColab[];

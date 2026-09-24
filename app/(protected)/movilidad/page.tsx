@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import type { UmbralRow } from "@/app/actions/movilidad";
 import MovilidadView from "./MovilidadView";
+import { getDisabledOrgs } from "@/lib/disabled-uens";
 
 export type ColabMovilidad = {
   id: string;
@@ -30,12 +31,22 @@ export default async function MovilidadPage() {
 
   const currentYear = new Date().getFullYear();
 
-  const [{ data: colabsRaw }, { data: umbralesRaw }] = await Promise.all([
-    supabase
+  const disabledOrgs = await getDisabledOrgs();
+
+  const colabQuery = (() => {
+    let q = supabase
       .from("colaboradores")
       .select("id, nombre_completo, puesto, nivel, area, organización, segmento_organizacional, fecha_ingreso_posicion")
       .eq("activo", true)
-      .order("nombre_completo"),
+      .order("nombre_completo");
+    if (disabledOrgs.length > 0) {
+      q = q.not("organización", "in", `("${disabledOrgs.join('","')}")`);
+    }
+    return q;
+  })();
+
+  const [{ data: colabsRaw }, { data: umbralesRaw }] = await Promise.all([
+    colabQuery,
     supabase
       .from("movilidad_umbrales")
       .select("*")

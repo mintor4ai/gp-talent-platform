@@ -18,6 +18,7 @@ import ZoneBoundaryEditor from "./ZoneBoundaryEditor";
 import UsuariosTab, { type AuthUsuario } from "./UsuariosTab";
 import TablasEipTab, { type TablasEipRow, type TablaFormAcadRow } from "./TablasEipTab";
 import CalculadorEIP from "@/app/(protected)/importar/CalculadorEIP";
+import UensTab, { type UenConfigRow } from "./UensTab";
 
 type Regla = { id: string; nivel: string; valor: string; habilitado: boolean };
 type Prompt = { id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string };
@@ -76,8 +77,9 @@ export default function ConfigTabs({
   tablaMov: TablasEipRow[];
   tablaFormAcad: TablaFormAcadRow[];
   sucesionCiclosDisponibles: number[];
+  uensConfig: UenConfigRow[];
 }) {
-  const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones" | "tablas_eip" | "sucesion" | "calcular_eip">("usuarios");
+  const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones" | "tablas_eip" | "sucesion" | "calcular_eip" | "uens">("usuarios");
 
   return (
     <div>
@@ -94,6 +96,7 @@ export default function ConfigTabs({
           { key: "tablas_eip",     label: "Tablas Exp. / Movilidad" },
           { key: "sucesion",       label: "Sucesión" },
           { key: "calcular_eip",   label: "Recalcular EIP" },
+          { key: "uens",           label: "UENs" },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -119,6 +122,7 @@ export default function ConfigTabs({
       {tab === "tablas_eip"    && <TablasEipTab tablaExp={tablaExp} tablaMov={tablaMov} tablaFormAcad={tablaFormAcad} periodos={periodos} />}
       {tab === "sucesion"      && <SucesionTab ciclosDisponibles={sucesionCiclosDisponibles} />}
       {tab === "calcular_eip"  && <CalculadorEIP ciclos={periodos.map((p) => p.ciclo_año).sort((a, b) => b - a)} />}
+      {tab === "uens"          && <UensTab uens={uensConfig} />}
     </div>
   );
 }

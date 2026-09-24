@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/lib/types";
 import ColaboradoresClient from "./ColaboradoresClient";
+import { getDisabledOrgs } from "@/lib/disabled-uens";
 
 export default async function ColaboradoresPage() {
   const supabase = await createClient();
@@ -22,12 +23,18 @@ export default async function ColaboradoresPage() {
   const rol = perfil.rol as Rol;
   const isAdmin = rol === "capital_humano" || rol === "superadmin";
 
+  const disabledOrgs = await getDisabledOrgs();
+
   // select("*") avoids Supabase TS parser error on the accented column `organización`
   let query = supabase
     .from("colaboradores")
     .select("*")
     .eq("activo", true)
     .order("nombre_completo");
+
+  if (disabledOrgs.length > 0) {
+    query = query.not("organización", "in", `("${disabledOrgs.join('","')}")`);
+  }
 
   if (rol === "jefe" && perfil.id_empleado) {
     const { data: jefe } = await supabase

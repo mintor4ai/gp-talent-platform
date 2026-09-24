@@ -145,3 +145,24 @@ export async function actualizarConfigApi(modelo: string, maxTokens: number) {
   revalidatePath("/configuracion");
   return { ok: true };
 }
+
+// ── UENs config ──────────────────────────────────────────────────────────────
+
+export async function toggleUenActiva(organización: string, activa: boolean) {
+  const { error: authErr, supabase } = await requireSuperadmin();
+  if (authErr || !supabase) return { error: authErr };
+
+  const { error } = await supabase
+    .from("uens_config")
+    .upsert(
+      { organización, activa, updated_at: new Date().toISOString() },
+      { onConflict: "organización" }
+    );
+
+  if (error) return { error: error.message };
+  revalidatePath("/configuracion");
+  revalidatePath("/colaboradores");
+  revalidatePath("/organigrama");
+  revalidatePath("/sucesion");
+  return { ok: true };
+}

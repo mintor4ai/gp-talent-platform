@@ -4,6 +4,7 @@ import ConfigTabs from "./ConfigTabs";
 import type { ZonaBand, Periodo } from "@/lib/types";
 import type { AuthUsuario } from "./UsuariosTab";
 import type { TablasEipRow, TablaFormAcadRow } from "./TablasEipTab";
+import type { UenConfigRow } from "./UensTab";
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
@@ -20,7 +21,7 @@ export default async function ConfiguracionPage() {
   if (perfil?.rol !== "superadmin") redirect("/dashboard");
 
   // Distinct group values from colaboradores (trim whitespace)
-  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes, ponderacionesRes, tablaExpRes, tablaMovRes, tablaFormAcadRes, sucesionCiclosRes] =
+  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes, ponderacionesRes, tablaExpRes, tablaMovRes, tablaFormAcadRes, sucesionCiclosRes, uensConfigRes] =
     await Promise.all([
       supabase.from("colaboradores").select("razon_social").not("razon_social", "is", null),
       supabase.from("colaboradores").select("departamento").not("departamento", "is", null),
@@ -39,6 +40,7 @@ export default async function ConfiguracionPage() {
       supabase.from("eip_tabla_movilidad").select("ciclo_año, movilidad_floor, nivel_num, score").order("ciclo_año", { ascending: false }).order("movilidad_floor").order("nivel_num"),
       supabase.from("eip_tabla_formacion_academica").select("ciclo_año, nivel_num, escolaridad, score").order("ciclo_año", { ascending: false }).order("nivel_num"),
       supabase.from("plan_sucesion").select("ciclo_año").order("ciclo_año", { ascending: false }),
+      supabase.from("uens_config").select("organización, activa").order("organización"),
     ]);
 
   type Raw = { [key: string]: string | null };
@@ -108,6 +110,8 @@ export default async function ConfiguracionPage() {
   type TablaFormAcadRaw = { ciclo_año: number; nivel_num: number; escolaridad: string; score: number };
   const tablaFormAcadRows = ((tablaFormAcadRes.data as unknown as TablaFormAcadRaw[]) ?? []) as TablaFormAcadRow[];
 
+  const uensConfig = ((uensConfigRes.data ?? []) as UenConfigRow[]);
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
@@ -130,6 +134,7 @@ export default async function ConfiguracionPage() {
         tablaMov={tablaMovRows}
         tablaFormAcad={tablaFormAcadRows}
         sucesionCiclosDisponibles={sucesionCiclosDisponibles}
+        uensConfig={uensConfig}
       />
     </div>
   );
