@@ -164,5 +164,6 @@ export async function toggleUenActiva(organización: string, activa: boolean) {
   revalidatePath("/colaboradores");
   revalidatePath("/organigrama");
   revalidatePath("/sucesion");
+  revalidatePath("/organizacion");
   return { ok: true };
 }

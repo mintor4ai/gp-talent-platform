@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getDisabledOrgs } from "@/lib/disabled-uens";
 
 export type OrgData = {
   uens: string[];
@@ -16,6 +17,15 @@ export type OrgData = {
 
 export async function getOrgData(): Promise<OrgData> {
   const supabase = await createClient();
+  const disabledOrgs = await getDisabledOrgs();
+  const disabledFilter = disabledOrgs.length > 0
+    ? `("${disabledOrgs.join('","')}")`
+    : null;
+
+  function applyDisabledFilter<T extends ReturnType<typeof supabase.from>>(q: T): T {
+    if (!disabledFilter) return q;
+    return (q as any).not("organización", "in", disabledFilter) as T;
+  }
 
   const [hcRes, nivelRes, edadRes, crecRes, areaRes] = await Promise.all([
     supabase.rpc("org_hc_by_uen"),
@@ -27,33 +37,33 @@ export async function getOrgData(): Promise<OrgData> {
 
   // Fallback: raw queries if RPCs don't exist yet
   const [rawHc, rawNivel, rawEdad, rawCrec, rawArea] = await Promise.all([
-    supabase
+    applyDisabledFilter(supabase
       .from("colaboradores")
       .select("organización, edad, fecha_antiguedad")
       .eq("activo", true)
-      .not("organización", "is", null),
-    supabase
+      .not("organización", "is", null)),
+    applyDisabledFilter(supabase
       .from("colaboradores")
       .select("organización, nivel_num")
       .eq("activo", true)
-      .not("organización", "is", null),
-    supabase
+      .not("organización", "is", null)),
+    applyDisabledFilter(supabase
       .from("colaboradores")
       .select("organización, edad")
       .eq("activo", true)
-      .not("organización", "is", null),
-    supabase
+      .not("organización", "is", null)),
+    applyDisabledFilter(supabase
       .from("colaboradores")
       .select("organización, fecha_antiguedad")
       .eq("activo", true)
       .not("organización", "is", null)
       .not("fecha_antiguedad", "is", null)
-      .gte("fecha_antiguedad", "2000-01-01"),
-    supabase
+      .gte("fecha_antiguedad", "2000-01-01")),
+    applyDisabledFilter(supabase
       .from("colaboradores")
       .select("organización, area")
       .eq("activo", true)
-      .not("organización", "is", null),
+      .not("organización", "is", null)),
   ]);
 
   const rows = (rawHc.data ?? []) as { organización: string; edad: number | null; fecha_antiguedad: string | null }[];
