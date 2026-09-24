@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Rol, ZonaBand } from "@/lib/types";
 import CarpetaTabs from "./CarpetaTabs";
 import type { SucesionItem } from "./SucesionEditor";
+import EmpleadoAvatar from "@/components/ui/EmpleadoAvatar";
 
 export default async function CarpetaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: colaboradorId } = await params;
@@ -337,11 +338,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       {/* Header */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-          <div className="w-12 h-12 rounded-xl bg-[#1a3a5c] flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-lg font-bold">
-              {colab.nombre_completo.charAt(0)}
-            </span>
-          </div>
+          <EmpleadoAvatar idEmpleado={(colab as any).id_empleado} nombre={colab.nombre_completo} size={48} rounded="lg" />
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold text-gray-900">{colab.nombre_completo}</h1>
             <p className="text-gray-500 text-sm mt-0.5">{colab.puesto}</p>

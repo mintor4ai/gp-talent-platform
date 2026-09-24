@@ -47,6 +47,7 @@ export default async function ColaboradoresPage() {
 
   type ColabRow = {
     id: string;
+    id_empleado: string | null;
     nombre_completo: string;
     puesto: string | null;
     nivel: string | null;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
+import EmpleadoAvatar from "@/components/ui/EmpleadoAvatar";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -20,7 +21,6 @@ interface OrgNode {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
 function calcAntiguedad(fecha: string | null): string {
   if (!fecha) return "";
@@ -110,60 +110,6 @@ function findPathToNode(roots: OrgNode[], targetId: string): string[] | null {
   return null;
 }
 
-// ─── Avatar ──────────────────────────────────────────────────────────────────
-
-function Avatar({ id, nombre, size = 52 }: { id: string; nombre: string; size?: number }) {
-  const [err, setErr] = useState(false);
-  const initials = nombre
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
-  const photoUrl = `${SUPABASE_URL}/storage/v1/object/public/colaboradores/fotos/${id}.jpg`;
-
-  if (!err && SUPABASE_URL) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={photoUrl}
-        alt={nombre}
-        width={size}
-        height={size}
-        style={{
-          width: size,
-          height: size,
-          borderRadius: "50%",
-          objectFit: "cover",
-          display: "block",
-        }}
-        onError={() => setErr(true)}
-      />
-    );
-  }
-
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: "linear-gradient(135deg, #1a3a5c 0%, #2d6a9f 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "white",
-        fontWeight: 700,
-        fontSize: Math.round(size * 0.34),
-        letterSpacing: "0.03em",
-        flexShrink: 0,
-      }}
-    >
-      {initials}
-    </div>
-  );
-}
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
@@ -192,7 +138,7 @@ function OrgCard({
         className="org-avatar-link"
         title={`Ver carpeta de ${node.nombre}`}
       >
-        <Avatar id={node.id} nombre={node.nombre} size={52} />
+        <EmpleadoAvatar idEmpleado={node.id_empleado} nombre={node.nombre} size={52} rounded="full" />
       </a>
       <div className="org-card-body">
         <p className="org-name">{node.nombre}</p>

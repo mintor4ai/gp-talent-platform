@@ -2,9 +2,11 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { SortableTh, useSortState } from "@/components/ui/SortableTh";
+import EmpleadoAvatar from "@/components/ui/EmpleadoAvatar";
 
 type Colaborador = {
   id: string;
+  id_empleado: string | null;
   nombre_completo: string;
   puesto: string | null;
   nivel: string | null;
@@ -258,10 +260,11 @@ export default function ColaboradoresClient({
                     <td className="px-4 py-3 sticky left-0 bg-white group-hover:bg-gray-50 z-10 min-w-[180px] max-w-[240px] transition-colors">
                       <a
                         href={`/carpeta/${c.id}`}
-                        className="block font-medium text-gray-900 hover:text-[#1a3a5c] truncate transition-colors"
+                        className="flex items-center gap-2 font-medium text-gray-900 hover:text-[#1a3a5c] transition-colors"
                         title={c.nombre_completo}
                       >
-                        {c.nombre_completo}
+                        <EmpleadoAvatar idEmpleado={c.id_empleado} nombre={c.nombre_completo} size={28} rounded="lg" className="flex-shrink-0" />
+                        <span className="truncate">{c.nombre_completo}</span>
                       </a>
                     </td>
                     {visibleCols.has("puesto") && <Cell value={c.puesto} />}
