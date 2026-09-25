@@ -121,8 +121,21 @@ type SucEntry = {
 
 // ── OrgCard ───────────────────────────────────────────────────────────────────
 
+// Hire status derived from data
+function hireStatus(node: CartaNode, isYaAsignado: boolean): "leaving" | "already_assigned" | "employee" {
+  if (isYaAsignado) return "already_assigned";
+  if (node.fecha_baja) return "leaving";
+  return "employee";
+}
+
+const HIRE_BADGE: Record<string, { label: string; cls: string }> = {
+  leaving:          { label: "Leaving",          cls: "bg-yellow-100 text-yellow-800 border border-yellow-300" },
+  already_assigned: { label: "Already Assigned", cls: "bg-gray-100 text-gray-600 border border-gray-300" },
+  employee:         { label: "Employee",          cls: "bg-green-100 text-green-700 border border-green-300" },
+};
+
 function OrgCard({
-  node, pos, cob, talentoClave, concentracion, esCritico,
+  node, pos, cob, talentoClave, concentracion, esCritico, isYaAsignado,
   entries, isSelected, hasKids, isExpanded, onSelect, onToggle,
 }: {
   node: CartaNode;
@@ -131,6 +144,7 @@ function OrgCard({
   talentoClave: boolean;
   concentracion: boolean;
   esCritico: boolean;
+  isYaAsignado: boolean;
   entries: SucEntry[];
   isSelected: boolean;
   hasKids: boolean;
@@ -139,69 +153,77 @@ function OrgCard({
   onToggle: (e: React.MouseEvent) => void;
 }) {
   const nombre = nombreCorto(node.nombre_completo);
+  const hs = hireStatus(node, isYaAsignado);
+  const hb = HIRE_BADGE[hs];
 
   return (
     <div
-      className={`absolute bg-white rounded-xl shadow-md border border-gray-200 border-l-4 overflow-hidden cursor-pointer transition-shadow hover:shadow-lg
+      className={`absolute bg-white rounded-xl shadow-md border border-gray-200 border-l-[5px] overflow-hidden cursor-pointer transition-shadow hover:shadow-lg
         ${COB_LEFT[cob]}
         ${isSelected ? "ring-2 ring-offset-1 ring-[#1a3a5c] shadow-lg" : ""}
       `}
       style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
       onClick={onSelect}
     >
-      {/* Critical position banner */}
-      {esCritico && (
-        <div className="bg-orange-500 px-3 py-0.5 flex items-center gap-1">
-          <span className="text-white text-[9.5px] font-bold uppercase tracking-wide">⚠ Puesto Crítico</span>
-        </div>
-      )}
-
       {/* Header */}
-      <div className="px-3 pt-2.5 pb-2">
-        <div className="flex items-start gap-1">
-          <div className="flex-1 min-w-0">
-            <p className="font-bold text-gray-900 text-[13.5px] leading-snug truncate">
-              {nombre}
-              {talentoClave && <span className="ml-1 text-amber-400" title="Talento Clave">⭐</span>}
-              {concentracion && (
-                <span className="ml-1 text-orange-500" title="Riesgo de concentración: sucesor en 2+ puestos críticos">⚠️</span>
-              )}
-            </p>
-            <p className="text-[11px] text-gray-500 mt-0.5 leading-tight truncate">{node.puesto ?? "—"}</p>
-            <p className="text-[10px] text-gray-400 mt-0.5 truncate">
-              {node.id_empleado ? `#${node.id_empleado}` : ""}
-              {node.id_empleado && node.organización ? " · " : ""}
-              {node.organización ?? ""}
-            </p>
-          </div>
+      <div className="px-3.5 pt-3 pb-2.5">
+        {/* Name row */}
+        <div className="flex items-start justify-between gap-1">
+          <p className="font-bold text-gray-900 leading-snug" style={{ fontSize: 13.5 }}>
+            {talentoClave && <span className="text-amber-400 mr-0.5">⭐</span>}
+            {nombre}
+          </p>
+          {concentracion && (
+            <span className="text-orange-500 text-base flex-shrink-0 mt-0.5" title="Riesgo de concentración: sucesor en 2+ planes">⚠️</span>
+          )}
+        </div>
+
+        {/* Position + critical dot */}
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <p className="text-[11px] text-gray-500 leading-tight truncate flex-1">{node.puesto ?? "—"}</p>
+          {esCritico && (
+            <span
+              className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0"
+              title="Puesto crítico"
+            />
+          )}
+        </div>
+
+        {/* ID */}
+        <p className="text-[10px] text-gray-400 mt-0.5">
+          {node.id_empleado ? `#${node.id_empleado}` : ""}
+        </p>
+
+        {/* Hire Status */}
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-[10px] text-gray-400 font-medium flex-shrink-0">Hire Status:</span>
+          <span className={`text-[9.5px] px-2 py-0.5 rounded-md font-semibold leading-none ${hb.cls}`}>{hb.label}</span>
         </div>
       </div>
 
       {/* Divider */}
-      <div className="border-t border-gray-100 mx-3" />
+      <div className="border-t border-gray-100" />
 
-      {/* Unified successor list */}
-      <div className="px-3 pt-2 pb-1">
+      {/* Succession */}
+      <div className="px-3.5 pt-2 pb-1">
         <p className="text-[8.5px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-1.5">Sucesión</p>
         {entries.length === 0 ? (
           <p className="text-[10.5px] text-red-400 italic">Sin sucesor declarado</p>
         ) : (
-          <div className="space-y-1">
-            {entries.slice(0, 4).map((e, i) => (
-              <SucRow key={i} entry={e} />
-            ))}
-            {entries.length > 4 && (
-              <p className="text-[9.5px] text-gray-400">+{entries.length - 4} más</p>
+          <div className="space-y-[5px]">
+            {entries.slice(0, 3).map((e, i) => <SucRow key={i} entry={e} />)}
+            {entries.length > 3 && (
+              <p className="text-[9.5px] text-gray-400">+{entries.length - 3} más</p>
             )}
           </div>
         )}
       </div>
 
-      {/* Expand / collapse button */}
+      {/* Expand / collapse */}
       {hasKids && (
         <button
           onClick={onToggle}
-          className="absolute bottom-1.5 right-2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-[9px] font-bold transition-colors shadow-sm"
+          className="absolute bottom-2 right-2.5 w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-[9px] font-bold transition-colors"
           title={isExpanded ? "Colapsar" : "Ver subordinados"}
         >
           {isExpanded ? "▲" : "▼"}
@@ -216,40 +238,27 @@ function SucRow({ entry }: { entry: SucEntry }) {
   const rShort = r ? (RSHORT[r] ?? r) : null;
   const rColor = r ? (RCOLOR_BADGE[r] ?? "bg-gray-100 text-gray-500") : null;
 
-  if (entry.tipo === "validado") {
-    return (
-      <div className="flex items-center gap-1">
-        <span className="text-[11px] text-gray-900 flex-1 truncate font-medium leading-none">{nombreCorto(entry.nombre)}</span>
-        {rShort && <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none ${rColor}`}>{rShort}</span>}
-      </div>
-    );
-  }
+  const nameClass =
+    entry.tipo === "validado"   ? "text-gray-900 font-medium" :
+    entry.tipo === "borrador"   ? "text-gray-700" :
+    entry.tipo === "externo"    ? "text-gray-500 italic" :
+    /* aspiracion */              "text-gray-400";
 
-  if (entry.tipo === "borrador") {
-    return (
-      <div className="flex items-center gap-1">
-        <span className="text-[11px] text-gray-700 flex-1 truncate leading-none">{nombreCorto(entry.nombre)}</span>
-        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-amber-50 text-amber-600 border border-amber-300">
-          {rShort ?? "Pend."}
-        </span>
-      </div>
-    );
-  }
+  const badge =
+    entry.tipo === "validado" && rShort
+      ? <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none ${rColor}`}>{rShort}</span>
+    : entry.tipo === "borrador"
+      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-amber-50 text-amber-600 border border-amber-300">{rShort ?? "Pend."}</span>
+    : entry.tipo === "externo"
+      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-gray-100 text-gray-500">Ext.</span>
+    : <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none border border-gray-300 text-gray-400">Asp.</span>;
 
-  if (entry.tipo === "externo") {
-    return (
-      <div className="flex items-center gap-1">
-        <span className="text-[11px] text-gray-500 italic flex-1 truncate leading-none">{entry.nombre}</span>
-        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-gray-100 text-gray-500">Ext.</span>
-      </div>
-    );
-  }
-
-  // aspiracion
   return (
     <div className="flex items-center gap-1">
-      <span className="text-[11px] text-gray-400 flex-1 truncate leading-none">{nombreCorto(entry.nombre)}</span>
-      <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none border border-gray-300 text-gray-400">Asp.</span>
+      <span className={`text-[11px] flex-1 truncate leading-none ${nameClass}`}>
+        {entry.tipo === "externo" ? entry.nombre : nombreCorto(entry.nombre)}
+      </span>
+      {badge}
     </div>
   );
 }
@@ -709,7 +718,7 @@ function Legend() {
       <span>● <span className="text-red-500 font-medium">En riesgo</span> — Sin sucesor o todos externos</span>
       <span>⚫ <span className="text-gray-600 font-medium">Ya asignado</span> — En proceso de sucesión</span>
       <span className="ml-2">⭐ Talento Clave · ⚠️ Concentración</span>
-      <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-orange-500 inline-block" /> <span className="font-medium text-orange-700">Puesto Crítico</span></span>
+      <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> <span className="font-medium text-orange-700">Puesto Crítico</span></span>
     </div>
   );
 }
@@ -972,6 +981,7 @@ export default function CartasClient({
                   talentoClave={tc?.es_talento_clave ?? false}
                   concentracion={conc >= 2}
                   esCritico={cat?.es_critico ?? false}
+                  isYaAsignado={isYa}
                   entries={entries}
                   isSelected={selectedId === id}
                   hasKids={(childrenMap.get(id)?.length ?? 0) > 0}

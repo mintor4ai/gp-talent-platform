@@ -42,7 +42,7 @@ export default async function CartasReemplazoPage() {
     fetchAllRows((from, to) => {
       let q = supabase
         .from("colaboradores")
-        .select("id, id_empleado, nombre_completo, puesto, nivel, organización, area, jefe_inmediato_id, puesto_catalogo_id")
+        .select("id, id_empleado, nombre_completo, puesto, nivel, organización, area, jefe_inmediato_id, puesto_catalogo_id, fecha_baja")
         .eq("activo", true)
         .order("nombre_completo")
         .range(from, to);

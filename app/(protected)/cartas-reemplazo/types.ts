@@ -8,6 +8,7 @@ export type CartaNode = {
   area: string | null;
   jefe_inmediato_id: string | null;
   puesto_catalogo_id: string | null;
+  fecha_baja: string | null;
 };
 
 export type CartaEip = {
