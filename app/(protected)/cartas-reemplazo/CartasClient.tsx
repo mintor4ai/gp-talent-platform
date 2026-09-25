@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import EmpleadoAvatar from "@/components/ui/EmpleadoAvatar";
 import type {
   CartaNode, CartaEip, CartaTalentoClave, CartaSucesor, CartaPicd, CartaCatalogoPuesto,
@@ -566,14 +566,19 @@ function buildEntries(
 // ── Root selector ─────────────────────────────────────────────────────────────
 
 function RootSelector({
-  colabs, childrenMap, onSelect,
+  colabs, childrenMap, initialLabel, onSelect, onClear,
 }: {
   colabs: CartaNode[];
   childrenMap: Map<string, string[]>;
+  initialLabel: string;
   onSelect: (id: string) => void;
+  onClear: () => void;
 }) {
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialLabel);
   const [open, setOpen] = useState(false);
+
+  // Sync if initialLabel changes (e.g. on mount with restored value)
+  useEffect(() => { setQ(initialLabel); }, [initialLabel]);
 
   const hits = useMemo(() => {
     if (q.trim().length < 2) return [];
@@ -594,17 +599,26 @@ function RootSelector({
   return (
     <div className="relative max-w-lg">
       <label className="block text-sm font-medium text-gray-700 mb-1">
-        Seleccionar posición de inicio
+        Posición de inicio
       </label>
-      <input
-        type="text"
-        value={q}
-        onChange={e => { setQ(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 160)}
-        placeholder="Nombre, puesto, ID de empleado o UEN…"
-        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]"
-      />
+      <div className="relative">
+        <input
+          type="text"
+          value={q}
+          onChange={e => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 160)}
+          placeholder="Nombre, puesto, ID de empleado o UEN…"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]"
+        />
+        {q && (
+          <button
+            onMouseDown={() => { setQ(""); onClear(); }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+            title="Limpiar selección"
+          >×</button>
+        )}
+      </div>
       {open && hits.length > 0 && (
         <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
           {hits.map(c => (
@@ -708,12 +722,27 @@ export default function CartasClient({
   jefeColabId: string | null;
 }) {
   const isAdmin = rol === "capital_humano" || rol === "superadmin";
+  const STORAGE_KEY = "cartas-rootId";
 
-  const [rootId, setRootId]       = useState<string | null>(jefeColabId ?? null);
+  // Restore persisted rootId for admins; jefes always start from their own position
+  const [rootId, setRootId] = useState<string | null>(() => {
+    if (!isAdmin) return jefeColabId ?? null;
+    try { return localStorage.getItem(STORAGE_KEY) ?? jefeColabId ?? null; } catch { return jefeColabId ?? null; }
+  });
+
   const [selectedId, setSelected] = useState<string | null>(null);
   const [expanded, setExpanded]   = useState<Set<string>>(
-    () => new Set(jefeColabId ? [jefeColabId] : [])
+    () => new Set(rootId ? [rootId] : [])
   );
+
+  // Persist rootId whenever it changes
+  useEffect(() => {
+    if (!isAdmin) return;
+    try {
+      if (rootId) localStorage.setItem(STORAGE_KEY, rootId);
+      else localStorage.removeItem(STORAGE_KEY);
+    } catch { /* storage unavailable */ }
+  }, [rootId, isAdmin]);
 
   // Lookup maps (all keyed by colaboradores.id UUID)
   const colabMap     = useMemo(() => new Map(colabs.map(c => [c.id, c])), [colabs]);
@@ -846,7 +875,15 @@ export default function CartasClient({
         <p className="text-sm text-gray-500 mt-1">Cobertura de sucesión · Reportes directos · {new Date().getFullYear()}</p>
       </div>
 
-      {isAdmin && <RootSelector colabs={colabs} childrenMap={childrenMap} onSelect={handleSetRoot} />}
+      {isAdmin && (
+        <RootSelector
+          colabs={colabs}
+          childrenMap={childrenMap}
+          initialLabel={rootId ? (colabMap.get(rootId)?.nombre_completo ?? "") : ""}
+          onSelect={handleSetRoot}
+          onClear={() => { setRootId(null); setSelected(null); setExpanded(new Set()); }}
+        />
+      )}
 
       {rootId && (
         <>
