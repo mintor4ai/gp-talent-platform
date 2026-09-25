@@ -534,7 +534,15 @@ function DetailPanel({
               <p className="text-xs text-gray-400 italic">Sin sucesores identificados</p>
             ) : (
               <div className="space-y-2">
-                {entries.map((e, i) => <DetailSucRow key={i} entry={e} colabMap={colabMap} />)}
+                {entries.map((e, i) => (
+                  <DetailSucRow
+                    key={i}
+                    entry={e}
+                    colabMap={colabMap}
+                    titularCatId={catId}
+                    picdByEmpleado={picdByEmpleado}
+                  />
+                ))}
               </div>
             )}
           </section>
@@ -586,50 +594,76 @@ function DetailPanel({
   );
 }
 
-function DetailSucRow({ entry, colabMap }: { entry: SucEntry; colabMap: Map<string, CartaNode> }) {
+function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado }: {
+  entry: SucEntry;
+  colabMap: Map<string, CartaNode>;
+  titularCatId: string | null | undefined;
+  picdByEmpleado: Map<string, CartaPicd>;
+}) {
+  const [photoOpen, setPhotoOpen] = useState(false);
+
   const r = entry.readiness;
   const rShort = r ? (RSHORT[r] ?? r) : null;
   const rColor = r ? (RCOLOR_BADGE[r] ?? "bg-gray-100 text-gray-500") : null;
 
-  const tipoLabel: Record<SucEntry["tipo"], string> = {
-    validado: "Validado", borrador: "Propuesto", externo: "Externo", aspiracion: "Aspiración",
-  };
   const tipoBadge: Record<SucEntry["tipo"], string> = {
-    validado: "bg-green-50 text-green-700 border-green-200",
-    borrador: "bg-amber-50 text-amber-700 border-amber-200",
-    externo:  "bg-gray-100 text-gray-500 border-gray-200",
+    validado:   "bg-green-50 text-green-700 border-green-200",
+    borrador:   "bg-amber-50 text-amber-700 border-amber-200",
+    externo:    "bg-gray-100 text-gray-500 border-gray-200",
     aspiracion: "bg-blue-50 text-blue-600 border-blue-200",
+  };
+  const tipoLabel: Record<SucEntry["tipo"], string> = {
+    validado: "✓ Validado", borrador: "Propuesto", externo: "Externo", aspiracion: "Aspiración",
   };
 
   const colab = entry.id ? colabMap.get(entry.id) : null;
-  const displayName = entry.tipo === "externo"
-    ? entry.nombre
-    : nombreCorto(entry.nombre);
+  const displayName = entry.tipo === "externo" ? entry.nombre : nombreCorto(entry.nombre);
   const hasCareerPlan = entry.tipo === "validado";
 
+  // Bidireccional: sucesor also aspires to this same position in their PICD
+  const sucPicd = entry.id ? picdByEmpleado.get(entry.id) : null;
+  const isBidireccional = !!(titularCatId && sucPicd &&
+    (sucPicd.puesto_futuro_id1 === titularCatId || sucPicd.puesto_futuro_id2 === titularCatId));
+
   return (
-    <div className="p-2.5 bg-gray-50 rounded-xl space-y-2">
+    <div className="p-2.5 bg-gray-50 rounded-xl space-y-1.5">
+      {/* Photo lightbox */}
+      {photoOpen && colab && (
+        <div className="fixed inset-0 bg-black/80 z-[90] flex items-center justify-center" onClick={() => setPhotoOpen(false)}>
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <EmpleadoAvatar idEmpleado={colab.id_empleado} nombre={colab.nombre_completo} size={200} rounded="full" />
+            <button onClick={() => setPhotoOpen(false)}
+              className="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-white text-gray-700 shadow-lg flex items-center justify-center text-sm font-bold hover:bg-gray-100">✕</button>
+          </div>
+        </div>
+      )}
+
       {/* Name + avatar row */}
       <div className="flex items-center gap-2">
         {entry.tipo !== "externo" && (
-          <EmpleadoAvatar
-            idEmpleado={colab?.id_empleado ?? null}
-            nombre={entry.nombre}
-            size={28}
-            rounded="full"
-            className="flex-shrink-0"
-          />
+          <button
+            onClick={e => { e.stopPropagation(); if (colab) setPhotoOpen(true); }}
+            className="flex-shrink-0 rounded-full overflow-hidden hover:ring-2 hover:ring-[#1a3a5c] transition-all"
+            title="Ver foto"
+          >
+            <EmpleadoAvatar idEmpleado={colab?.id_empleado ?? null} nombre={entry.nombre} size={28} rounded="full" />
+          </button>
         )}
         <div className="flex-1 min-w-0">
-          <p className={`text-[12px] font-semibold truncate leading-tight ${
+          <p className={`text-[11.5px] font-semibold truncate leading-tight ${
             entry.tipo === "externo"    ? "italic text-gray-500" :
             entry.tipo === "aspiracion" ? "text-gray-600" : "text-gray-800"
           }`}>{displayName}</p>
           {colab?.puesto && (
-            <p className="text-[10px] text-gray-400 truncate leading-tight">{colab.puesto}</p>
+            <p className="text-[9.5px] text-gray-400 truncate leading-tight">{colab.puesto}</p>
           )}
         </div>
-        <div className="flex gap-1 flex-shrink-0">
+        <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
+          {isBidireccional && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold leading-none bg-teal-50 text-teal-700 border-teal-200">
+              ⇄ Bidireccional
+            </span>
+          )}
           <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold leading-none ${tipoBadge[entry.tipo]}`}>
             {tipoLabel[entry.tipo]}
           </span>
@@ -639,13 +673,13 @@ function DetailSucRow({ entry, colabMap }: { entry: SucEntry; colabMap: Map<stri
 
       {/* Quick links */}
       {entry.id && (
-        <div className="flex gap-1.5 pl-9">
+        <div className="flex gap-1 pl-9">
           <a href={`/carpeta/${entry.id}`} onClick={e => e.stopPropagation()}
-            className="text-[10px] px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-600 font-medium hover:bg-gray-100 transition-colors">
+            className="text-[9px] px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-500 font-medium hover:bg-gray-100 transition-colors leading-none">
             📁 Carpeta
           </a>
           <a href={`/plan-carrera/${entry.id}`} onClick={e => e.stopPropagation()}
-            className={`text-[10px] px-2 py-1 rounded-md border font-medium transition-colors ${
+            className={`text-[9px] px-1.5 py-0.5 rounded border font-medium transition-colors leading-none ${
               hasCareerPlan
                 ? "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
                 : "bg-white border-dashed border-gray-300 text-gray-400 hover:bg-gray-50"
