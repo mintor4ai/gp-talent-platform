@@ -122,7 +122,7 @@ type SucEntry = {
 // ── OrgCard ───────────────────────────────────────────────────────────────────
 
 function OrgCard({
-  node, pos, cob, talentoClave, concentracion,
+  node, pos, cob, talentoClave, concentracion, esCritico,
   entries, isSelected, hasKids, isExpanded, onSelect, onToggle,
 }: {
   node: CartaNode;
@@ -130,6 +130,7 @@ function OrgCard({
   cob: Cob;
   talentoClave: boolean;
   concentracion: boolean;
+  esCritico: boolean;
   entries: SucEntry[];
   isSelected: boolean;
   hasKids: boolean;
@@ -148,8 +149,15 @@ function OrgCard({
       style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
       onClick={onSelect}
     >
+      {/* Critical position banner */}
+      {esCritico && (
+        <div className="bg-orange-500 px-3 py-0.5 flex items-center gap-1">
+          <span className="text-white text-[9.5px] font-bold uppercase tracking-wide">⚠ Puesto Crítico</span>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="px-3 pt-3 pb-2">
+      <div className="px-3 pt-2.5 pb-2">
         <div className="flex items-start gap-1">
           <div className="flex-1 min-w-0">
             <p className="font-bold text-gray-900 text-[13.5px] leading-snug truncate">
@@ -700,7 +708,8 @@ function Legend() {
       <span>● <span className="text-amber-500 font-medium">En desarrollo</span> — Propuesto o solo Largo Plazo</span>
       <span>● <span className="text-red-500 font-medium">En riesgo</span> — Sin sucesor o todos externos</span>
       <span>⚫ <span className="text-gray-600 font-medium">Ya asignado</span> — En proceso de sucesión</span>
-      <span className="ml-2">⭐ Talento Clave · ⚠️ Concentración de riesgo</span>
+      <span className="ml-2">⭐ Talento Clave · ⚠️ Concentración</span>
+      <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-orange-500 inline-block" /> <span className="font-medium text-orange-700">Puesto Crítico</span></span>
     </div>
   );
 }
@@ -945,6 +954,7 @@ export default function CartasClient({
               const cob       = getCob(node.id, isYa, sucesores);
               const tc        = tcMap.get(node.id);
               const catId     = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
+              const cat       = catId ? catalogoById.get(catId) : undefined;
               const mySuc     = sucesores.filter(s => s.id_empleado_titular === node.id);
               const sucIds    = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
               const aspirantes = catId
@@ -961,6 +971,7 @@ export default function CartasClient({
                   cob={cob}
                   talentoClave={tc?.es_talento_clave ?? false}
                   concentracion={conc >= 2}
+                  esCritico={cat?.es_critico ?? false}
                   entries={entries}
                   isSelected={selectedId === id}
                   hasKids={(childrenMap.get(id)?.length ?? 0) > 0}
