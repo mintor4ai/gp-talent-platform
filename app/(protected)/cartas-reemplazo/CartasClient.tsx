@@ -166,38 +166,41 @@ function OrgCard({
       onClick={onSelect}
     >
       {/* Header */}
-      <div className="px-3.5 pt-3 pb-2.5">
-        {/* Name row */}
-        <div className="flex items-start justify-between gap-1">
-          <p className="font-bold text-gray-900 leading-snug" style={{ fontSize: 13.5 }}>
-            {talentoClave && <span className="text-amber-400 mr-0.5">⭐</span>}
-            {nombre}
-          </p>
-          {concentracion && (
-            <span className="text-orange-500 text-base flex-shrink-0 mt-0.5" title="Riesgo de concentración: sucesor en 2+ planes">⚠️</span>
-          )}
-        </div>
+      <div className="px-3 pt-2.5 pb-2">
+        <div className="flex items-start gap-2">
+          {/* Avatar */}
+          <div className="flex-shrink-0 mt-0.5">
+            <EmpleadoAvatar idEmpleado={node.id_empleado} nombre={node.nombre_completo} size={34} rounded="full" />
+          </div>
 
-        {/* Position + critical dot */}
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <p className="text-[11px] text-gray-500 leading-tight truncate flex-1">{node.puesto ?? "—"}</p>
-          {esCritico && (
-            <span
-              className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0"
-              title="Puesto crítico"
-            />
-          )}
-        </div>
+          {/* Name / position / ID */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-1">
+              <p className="font-bold text-gray-900 leading-snug text-[12.5px]">
+                {talentoClave && <span className="text-amber-400 mr-0.5">⭐</span>}
+                {nombre}
+              </p>
+              {concentracion && (
+                <span className="text-orange-500 text-sm flex-shrink-0" title="Riesgo de concentración: sucesor en 2+ planes">⚠️</span>
+              )}
+            </div>
 
-        {/* ID */}
-        <p className="text-[10px] text-gray-400 mt-0.5">
-          {node.id_empleado ? `#${node.id_empleado}` : ""}
-        </p>
+            {/* Position + critical dot */}
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <p className="text-[10px] text-gray-500 leading-tight truncate flex-1">{node.puesto ?? "—"}</p>
+              {esCritico && (
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" title="Puesto crítico" />
+              )}
+            </div>
 
-        {/* Hire Status */}
-        <div className="flex items-center gap-2 mt-2">
-          <span className="text-[10px] text-gray-400 font-medium flex-shrink-0">Hire Status:</span>
-          <span className={`text-[9.5px] px-2 py-0.5 rounded-md font-semibold leading-none ${hb.cls}`}>{hb.label}</span>
+            {/* ID + Hire Status inline */}
+            <div className="flex items-center gap-1.5 mt-1">
+              {node.id_empleado && (
+                <span className="text-[9.5px] text-gray-400">#{node.id_empleado}</span>
+              )}
+              <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold leading-none ${hb.cls}`}>{hb.label}</span>
+            </div>
+          </div>
         </div>
       </div>
 
