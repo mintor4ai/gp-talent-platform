@@ -336,11 +336,11 @@ function HoverTooltip({ label, cls, children }: {
 // ── Detail panel ──────────────────────────────────────────────────────────────
 
 const ZONA_STYLE: Record<string, string> = {
-  Sobresaliente: "bg-purple-100 text-purple-800",
-  Desarrollo:    "bg-blue-100 text-blue-800",
-  Estabilidad:   "bg-green-100 text-green-800",
-  "Revisión":    "bg-yellow-100 text-yellow-800",
-  Inicio:        "bg-red-100 text-red-800",
+  Sobresaliente: "bg-purple-50 text-purple-700 border-purple-200",
+  Desarrollo:    "bg-blue-50 text-blue-700 border-blue-200",
+  Estabilidad:   "bg-green-50 text-green-700 border-green-200",
+  "Revisión":    "bg-yellow-50 text-yellow-700 border-yellow-200",
+  Inicio:        "bg-red-50 text-red-700 border-red-200",
 };
 
 function DetailPanel({
@@ -435,7 +435,7 @@ function DetailPanel({
           {/* Status chips */}
           <div className="flex gap-2 flex-wrap">
             {cob === "negro" && plansDondeEsSucesor.length > 0 ? (
-              <HoverTooltip label="⚫ Ya asignado" cls="bg-gray-200 text-gray-800">
+              <HoverTooltip label="⚫ Ya asignado" cls="bg-gray-100 text-gray-700 border border-gray-300 text-[10px] px-2 py-0.5 rounded-full font-semibold leading-none">
                 <p className="font-semibold text-gray-300 uppercase tracking-wider text-[9px] mb-1">Designado sucesor de:</p>
                 {plansDondeEsSucesor.map((p, i) => (
                   <div key={i} className="flex items-start gap-2">
@@ -450,11 +450,11 @@ function DetailPanel({
                 ))}
               </HoverTooltip>
             ) : (
-              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                cob === "verde"    ? "bg-green-100 text-green-800" :
-                cob === "amarillo" ? "bg-amber-100 text-amber-800" :
-                cob === "negro"    ? "bg-gray-200 text-gray-800" :
-                "bg-red-100 text-red-800"
+              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold leading-none ${
+                cob === "verde"    ? "bg-green-50 text-green-700 border-green-200" :
+                cob === "amarillo" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                cob === "negro"    ? "bg-gray-100 text-gray-700 border-gray-300" :
+                "bg-red-50 text-red-700 border-red-200"
               }`}>
                 {cob === "verde" ? "🟢 Cubierto" :
                  cob === "amarillo" ? "🟡 En desarrollo" :
@@ -463,19 +463,19 @@ function DetailPanel({
               </span>
             )}
             {tc?.es_talento_clave && (
-              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 cursor-help"
+              <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold leading-none bg-amber-50 text-amber-700 border-amber-200 cursor-help"
                 title={`Fuente: ${tc.fuente} · Ciclo ${tc.ciclo_año}`}>
                 ⭐ Talento Clave
               </span>
             )}
             {cat?.es_critico && (
-              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800 cursor-help"
+              <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold leading-none bg-orange-50 text-orange-700 border-orange-200 cursor-help"
                 title="Puesto marcado como crítico en el catálogo">
                 ⚠ Puesto Crítico
               </span>
             )}
             {conc >= 2 && plansDondeEsSucesor.length > 0 && (
-              <HoverTooltip label={`⚠️ Concentración (${plansDondeEsSucesor.length} planes)`} cls="bg-orange-100 text-orange-800">
+              <HoverTooltip label={`⚠️ Concentración (${plansDondeEsSucesor.length} planes)`} cls="bg-orange-50 text-orange-700 border border-orange-200 text-[10px] px-2 py-0.5 rounded-full font-semibold leading-none">
                 <p className="font-semibold text-gray-300 uppercase tracking-wider text-[9px] mb-1">Sucesor en {plansDondeEsSucesor.length} planes:</p>
                 {plansDondeEsSucesor.map((p, i) => (
                   <div key={i} className="flex items-start gap-2">
@@ -500,7 +500,7 @@ function DetailPanel({
               </h3>
               {eip.zona_evaluacion && (
                 <div className="mb-2">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${ZONA_STYLE[eip.zona_evaluacion] ?? "bg-gray-100 text-gray-700"}`}>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold leading-none ${ZONA_STYLE[eip.zona_evaluacion] ?? "bg-gray-100 text-gray-700 border-gray-200"}`}>
                     {eip.zona_evaluacion}
                   </span>
                 </div>
