@@ -8,11 +8,11 @@ import type {
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 
-const CARD_W = 240;
-const CARD_H = 200;
-const H_GAP  = 24;   // gap between sibling subtrees
-const V_GAP  = 72;   // vertical gap: bottom of parent → top of child
-const PAD    = 32;   // canvas padding
+const CARD_W = 272;
+const CARD_H = 236;
+const H_GAP  = 24;
+const V_GAP  = 80;
+const PAD    = 32;
 
 // ── Tree layout (pure calculation) ───────────────────────────────────────────
 
@@ -44,147 +44,150 @@ function treeH(id: string, cm: Map<string, string[]>, ex: Set<string>): number {
   return CARD_H + V_GAP + Math.max(...kids.map(k => treeH(k, cm, ex)));
 }
 
-function allVisible(id: string, cm: Map<string, string[]>, ex: Set<string>): string[] {
+// Prevent duplicates (circular refs or data anomalies)
+function allVisible(id: string, cm: Map<string, string[]>, ex: Set<string>, visited = new Set<string>()): string[] {
+  if (visited.has(id)) return [];
+  visited.add(id);
   const r = [id];
-  if (ex.has(id)) for (const k of cm.get(id) ?? []) r.push(...allVisible(k, cm, ex));
+  if (ex.has(id)) for (const k of cm.get(id) ?? []) r.push(...allVisible(k, cm, ex, visited));
   return r;
+}
+
+// ── Name shortener: primer nombre + primer apellido ───────────────────────────
+
+function nombreCorto(nombre: string): string {
+  const parts = nombre.trim().split(/\s+/);
+  const toTitle = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  if (parts.length <= 2) return parts.map(toTitle).join(" ");
+  // Mexican format: nombre1 [nombre2] apellido1 [apellido2]
+  // second-to-last = primer apellido
+  return `${toTitle(parts[0])} ${toTitle(parts[parts.length - 2])}`;
 }
 
 // ── Cobertura ─────────────────────────────────────────────────────────────────
 
-type Cob = "verde" | "amarillo" | "rojo";
+type Cob = "verde" | "amarillo" | "rojo" | "negro";
 
-// idColabUuid = colaboradores.id (UUID) — plan_sucesion.id_empleado is UUID FK to colaboradores.id
-function getCob(idColabUuid: string | null, suc: CartaSucesor[]): Cob {
-  if (!idColabUuid) return "rojo";
-  const mine = suc.filter(s => s.id_empleado_titular === idColabUuid);
+// plan_sucesion.id_empleado_titular = colaboradores.id (UUID)
+// verde   = ≥1 aprobado con readiness inmediato/mediano
+// amarillo= tiene sucesores pero solo borrador o solo largo plazo
+// rojo    = sin sucesor declarado o todos externos (sucesor_id null)
+// negro   = this person is already assigned as sucesor in another plan (yaAsignado)
+function getCob(colabUuid: string, isYaAsignado: boolean, suc: CartaSucesor[]): Cob {
+  if (isYaAsignado) return "negro";
+  const mine = suc.filter(s => s.id_empleado_titular === colabUuid);
   if (!mine.length) return "rojo";
-  return mine.some(s => {
-    const r = s.readiness ?? s.tiempo_estimado ?? "";
-    return r === "listo_ahora" || r === "uno_dos_anios" || r === "corto" || r === "mediano";
-  }) ? "verde" : "amarillo";
+  // All external (no link to a colaborador)?
+  const hasInternal = mine.some(s => s.sucesor_id !== null);
+  if (!hasInternal) return "rojo";
+  // Has validado (aprobado) with corto/inmediato/mediano readiness?
+  const hasValidado = mine.some(s =>
+    s.estado === "aprobado" &&
+    (s.readiness === "listo_ahora" || s.readiness === "uno_dos_anios" ||
+     s.tiempo_estimado === "corto" || s.tiempo_estimado === "mediano")
+  );
+  if (hasValidado) return "verde";
+  return "amarillo";
 }
+
+const COB_LEFT: Record<Cob, string> = {
+  verde:    "border-l-green-500",
+  amarillo: "border-l-amber-400",
+  rojo:     "border-l-red-500",
+  negro:    "border-l-gray-700",
+};
 
 const RSHORT: Record<string, string> = {
   listo_ahora: "Inm.", uno_dos_anios: "Med.", tres_mas_anios: "Lrg.",
+  corto: "Inm.", mediano: "Med.", largo: "Lrg.",
 };
-const RCOLOR: Record<string, string> = {
+const RCOLOR_BADGE: Record<string, string> = {
   listo_ahora: "bg-green-100 text-green-700",
   uno_dos_anios: "bg-blue-100 text-blue-700",
   tres_mas_anios: "bg-gray-100 text-gray-500",
+  corto: "bg-green-100 text-green-700",
+  mediano: "bg-blue-100 text-blue-700",
+  largo: "bg-gray-100 text-gray-500",
+};
+
+// ── Unified successor entry type ──────────────────────────────────────────────
+
+type SucEntry = {
+  nombre: string;
+  tipo: "validado" | "borrador" | "externo" | "aspiracion";
+  readiness: string | null;
+  id: string | null; // colaboradores.id for carpeta link
 };
 
 // ── OrgCard ───────────────────────────────────────────────────────────────────
 
-const COB_LEFT: Record<Cob, string> = {
-  verde: "border-l-green-500", amarillo: "border-l-amber-400", rojo: "border-l-red-500",
-};
-
 function OrgCard({
-  node, pos, cob, yaAsignado, talentoClave, esCritico,
-  mySuc, aspirantes, isSelected, hasKids, isExpanded, onSelect, onToggle,
+  node, pos, cob, talentoClave, concentracion,
+  entries, isSelected, hasKids, isExpanded, onSelect, onToggle,
 }: {
   node: CartaNode;
   pos: { x: number; y: number };
   cob: Cob;
-  yaAsignado: boolean;
   talentoClave: boolean;
-  esCritico: boolean;
-  mySuc: CartaSucesor[];
-  aspirantes: string[];
+  concentracion: boolean;
+  entries: SucEntry[];
   isSelected: boolean;
   hasKids: boolean;
   isExpanded: boolean;
   onSelect: () => void;
   onToggle: (e: React.MouseEvent) => void;
 }) {
-  const nombre = node.nombre_completo;
-  const shortNombre = nombre.length > 26 ? nombre.slice(0, 25) + "…" : nombre;
-  const shortPuesto = (node.puesto ?? "—").length > 30
-    ? (node.puesto ?? "").slice(0, 29) + "…"
-    : (node.puesto ?? "—");
+  const nombre = nombreCorto(node.nombre_completo);
 
   return (
     <div
       className={`absolute bg-white rounded-xl shadow-md border border-gray-200 border-l-4 overflow-hidden cursor-pointer transition-shadow hover:shadow-lg
-        ${yaAsignado ? "border-l-gray-700" : COB_LEFT[cob]}
+        ${COB_LEFT[cob]}
         ${isSelected ? "ring-2 ring-offset-1 ring-[#1a3a5c] shadow-lg" : ""}
       `}
       style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
       onClick={onSelect}
     >
-      {/* Header: name / position / ID */}
+      {/* Header */}
       <div className="px-3 pt-3 pb-2">
-        <p className="font-bold text-gray-900 text-[13px] leading-snug">{shortNombre}</p>
-        <p className="text-[11.5px] text-gray-500 mt-0.5 leading-tight">{shortPuesto}</p>
-        <p className="text-[10.5px] text-gray-400 mt-0.5">
-          {node.id_empleado ? `#${node.id_empleado}` : ""}
-          {node.id_empleado && node.organización ? " · " : ""}
-          {node.organización ?? ""}
-        </p>
-        {/* Chips row */}
-        {(talentoClave || esCritico || yaAsignado) && (
-          <div className="flex gap-1 mt-1.5 flex-wrap">
-            {talentoClave && (
-              <span className="text-[9px] px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full font-semibold leading-none">★ Talento Clave</span>
-            )}
-            {esCritico && (
-              <span className="text-[9px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full font-semibold leading-none">⚠ Crítico</span>
-            )}
-            {yaAsignado && (
-              <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-full font-semibold leading-none">⚫ Ya asig.</span>
-            )}
+        <div className="flex items-start gap-1">
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-gray-900 text-[13.5px] leading-snug truncate">
+              {nombre}
+              {talentoClave && <span className="ml-1 text-amber-400" title="Talento Clave">⭐</span>}
+              {concentracion && (
+                <span className="ml-1 text-orange-500" title="Riesgo de concentración: sucesor en 2+ puestos críticos">⚠️</span>
+              )}
+            </p>
+            <p className="text-[11px] text-gray-500 mt-0.5 leading-tight truncate">{node.puesto ?? "—"}</p>
+            <p className="text-[10px] text-gray-400 mt-0.5 truncate">
+              {node.id_empleado ? `#${node.id_empleado}` : ""}
+              {node.id_empleado && node.organización ? " · " : ""}
+              {node.organización ?? ""}
+            </p>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Divider */}
       <div className="border-t border-gray-100 mx-3" />
 
-      {/* Backups */}
-      <div className="px-3 pt-2">
-        <p className="text-[8.5px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-1">Backups</p>
-        {mySuc.length === 0 ? (
-          <p className="text-[10.5px] text-red-400 italic">Sin backup declarado</p>
+      {/* Unified successor list */}
+      <div className="px-3 pt-2 pb-1">
+        <p className="text-[8.5px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-1.5">Sucesión</p>
+        {entries.length === 0 ? (
+          <p className="text-[10.5px] text-red-400 italic">Sin sucesor declarado</p>
         ) : (
-          <div className="space-y-0.5">
-            {mySuc.slice(0, 2).map((s, i) => {
-              const r = s.readiness ?? s.tiempo_estimado ?? null;
-              return (
-                <div key={i} className="flex items-center gap-1">
-                  <span className="text-[11px] text-gray-800 flex-1 truncate leading-none">{s.sucesor_nombre}</span>
-                  {r && (
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none ${RCOLOR[r] ?? "bg-gray-100 text-gray-500"}`}>
-                      {RSHORT[r] ?? r}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-            {mySuc.length > 2 && (
-              <p className="text-[9.5px] text-gray-400">+{mySuc.length - 2} más</p>
+          <div className="space-y-1">
+            {entries.slice(0, 4).map((e, i) => (
+              <SucRow key={i} entry={e} />
+            ))}
+            {entries.length > 4 && (
+              <p className="text-[9.5px] text-gray-400">+{entries.length - 4} más</p>
             )}
           </div>
         )}
       </div>
-
-      {/* Aspiraciones (if any) */}
-      {aspirantes.length > 0 && (
-        <>
-          <div className="border-t border-gray-100 mx-3 mt-2" />
-          <div className="px-3 pt-1.5">
-            <p className="text-[8.5px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-1">Aspiraciones</p>
-            <div className="space-y-0.5">
-              {aspirantes.slice(0, 2).map((n, i) => (
-                <p key={i} className="text-[11px] text-gray-600 truncate leading-none">{n}</p>
-              ))}
-              {aspirantes.length > 2 && (
-                <p className="text-[9.5px] text-gray-400">+{aspirantes.length - 2} más</p>
-              )}
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Expand / collapse button */}
       {hasKids && (
@@ -196,6 +199,49 @@ function OrgCard({
           {isExpanded ? "▲" : "▼"}
         </button>
       )}
+    </div>
+  );
+}
+
+function SucRow({ entry }: { entry: SucEntry }) {
+  const r = entry.readiness;
+  const rShort = r ? (RSHORT[r] ?? r) : null;
+  const rColor = r ? (RCOLOR_BADGE[r] ?? "bg-gray-100 text-gray-500") : null;
+
+  if (entry.tipo === "validado") {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-[11px] text-gray-900 flex-1 truncate font-medium leading-none">{nombreCorto(entry.nombre)}</span>
+        {rShort && <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none ${rColor}`}>{rShort}</span>}
+      </div>
+    );
+  }
+
+  if (entry.tipo === "borrador") {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-[11px] text-gray-700 flex-1 truncate leading-none">{nombreCorto(entry.nombre)}</span>
+        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-amber-50 text-amber-600 border border-amber-300">
+          {rShort ?? "Pend."}
+        </span>
+      </div>
+    );
+  }
+
+  if (entry.tipo === "externo") {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-[11px] text-gray-500 italic flex-1 truncate leading-none">{entry.nombre}</span>
+        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-gray-100 text-gray-500">Ext.</span>
+      </div>
+    );
+  }
+
+  // aspiracion
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-[11px] text-gray-400 flex-1 truncate leading-none">{nombreCorto(entry.nombre)}</span>
+      <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none border border-gray-300 text-gray-400">Asp.</span>
     </div>
   );
 }
@@ -253,7 +299,8 @@ const ZONA_STYLE: Record<string, string> = {
 
 function DetailPanel({
   nodeId, colabMap, sucesores, tcByColab, eipByEmpleado, picdByEmpleado,
-  catalogoById, colabToCatalog, aspirantesByPuesto, yaAsignadoIds, onClose,
+  catalogoById, colabToCatalog, aspirantesByPuesto, yaAsignadoIds,
+  concentracionMap, onClose,
 }: {
   nodeId: string;
   colabMap: Map<string, CartaNode>;
@@ -263,22 +310,26 @@ function DetailPanel({
   picdByEmpleado: Map<string, CartaPicd>;
   catalogoById: Map<string, CartaCatalogoPuesto>;
   colabToCatalog: Map<string, string>;
-  aspirantesByPuesto: Map<string, string[]>;
+  aspirantesByPuesto: Map<string, { nombre: string; id: string }[]>;
   yaAsignadoIds: Set<string>;
+  concentracionMap: Map<string, number>;
   onClose: () => void;
 }) {
   const node = colabMap.get(nodeId);
   if (!node) return null;
 
-  // eip/picd/sucesores.id_empleado_titular are all UUID (colaboradores.id)
   const eip        = eipByEmpleado.get(node.id);
   const tc         = tcByColab.get(node.id);
   const picd       = picdByEmpleado.get(node.id);
   const catId      = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
   const cat        = catId ? catalogoById.get(catId) : undefined;
-  const cob        = getCob(node.id, sucesores);
+  const isYa       = yaAsignadoIds.has(node.id);
+  const cob        = getCob(node.id, isYa, sucesores);
   const mySuc      = sucesores.filter(s => s.id_empleado_titular === node.id);
   const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []) : [];
+  const sucIds     = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
+  const entries    = buildEntries(mySuc, aspirantes.filter(a => !sucIds.has(a.id)));
+  const conc       = concentracionMap.get(node.id) ?? 0;
 
   return (
     <>
@@ -301,16 +352,20 @@ function DetailPanel({
           {/* Status chips */}
           <div className="flex gap-2 flex-wrap">
             <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-              cob === "verde" ? "bg-green-100 text-green-800" :
+              cob === "verde"  ? "bg-green-100 text-green-800" :
               cob === "amarillo" ? "bg-amber-100 text-amber-800" :
+              cob === "negro" ? "bg-gray-200 text-gray-800" :
               "bg-red-100 text-red-800"
             }`}>
-              {cob === "verde" ? "🟢 Cubierto" : cob === "amarillo" ? "🟡 En desarrollo" : "🔴 En riesgo"}
+              {cob === "verde" ? "🟢 Cubierto" :
+               cob === "amarillo" ? "🟡 En desarrollo" :
+               cob === "negro" ? "⚫ Ya asignado" :
+               "🔴 En riesgo"}
             </span>
             {tc?.es_talento_clave && (
-              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-100 text-violet-800 cursor-help"
-                title={`Fuente: ${tc.fuente === "auto" ? "EIP automático" : tc.fuente === "manual_ch" ? "Capital Humano" : "Persona Clave"} · Ciclo ${tc.ciclo_año}`}>
-                ✦ Talento Clave
+              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 cursor-help"
+                title={`Fuente: ${tc.fuente} · Ciclo ${tc.ciclo_año}`}>
+                ⭐ Talento Clave
               </span>
             )}
             {cat?.es_critico && (
@@ -319,10 +374,16 @@ function DetailPanel({
                 ⚠ Puesto Crítico
               </span>
             )}
-            {yaAsignadoIds.has(node.id) && (
+            {conc >= 2 && (
+              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800 cursor-help"
+                title={`Está asignado como sucesor en ${conc} planes simultáneamente`}>
+                ⚠️ Concentración ({conc} planes)
+              </span>
+            )}
+            {isYa && (
               <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700 cursor-help"
-                title="Ya está asignado como sucesor en otro plan">
-                ⚫ Ya asignado
+                title="Está asignado como sucesor en otro plan">
+                ⚫ En proceso de sucesión
               </span>
             )}
           </div>
@@ -363,59 +424,19 @@ function DetailPanel({
             </section>
           )}
 
-          {/* Backups (sucesores) */}
+          {/* Unified succession list */}
           <section>
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-              Backups ({mySuc.length})
+              Sucesión ({entries.length})
             </h3>
-            {mySuc.length === 0 ? (
-              <p className="text-sm text-gray-400 italic">Sin backup identificado</p>
+            {entries.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">Sin sucesores identificados</p>
             ) : (
               <div className="space-y-2">
-                {mySuc.map((s, i) => {
-                  const r = s.readiness ?? s.tiempo_estimado ?? null;
-                  return (
-                    <div key={i} className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{s.sucesor_nombre}</p>
-                        <p className="text-[11px] text-gray-400">Ciclo {s.ciclo_año}</p>
-                      </div>
-                      {r && (
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${RCOLOR[r] ?? "bg-gray-100 text-gray-500"}`}>
-                          {RSHORT[r] ?? r}
-                        </span>
-                      )}
-                      {s.sucesor_id && (
-                        <a href={`/carpeta/${s.sucesor_id}`} onClick={e => e.stopPropagation()}
-                          className="text-[11px] text-[#1a3a5c] font-medium hover:underline flex-shrink-0">
-                          Carpeta →
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
+                {entries.map((e, i) => <DetailSucRow key={i} entry={e} />)}
               </div>
             )}
           </section>
-
-          {/* Aspiraciones */}
-          {aspirantes.length > 0 && (
-            <section>
-              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-                Aspiraciones al puesto ({aspirantes.length})
-              </h3>
-              <p className="text-[11px] text-gray-400 mb-2 italic">
-                Personas que declaran este puesto como su objetivo de carrera en PICD
-              </p>
-              <div className="space-y-1.5">
-                {aspirantes.map((nombre, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2.5 bg-blue-50 rounded-xl">
-                    <span className="text-sm text-gray-800 flex-1 truncate">{nombre}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
 
           {/* PICD */}
           {picd && (picd.puesto_futuro_opcion1 || picd.puesto_futuro_opcion2) && (
@@ -432,8 +453,7 @@ function DetailPanel({
                     <span className="text-[10px] font-bold text-gray-400 w-9 flex-shrink-0">{o.label}</span>
                     <span className="flex-1 text-sm text-gray-800">{o.texto}</span>
                     {o.vinc && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full cursor-help flex-shrink-0"
-                        title="Vinculado al catálogo de puestos">Vinculado</span>
+                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full flex-shrink-0">Vinculado</span>
                     )}
                   </div>
                 ))}
@@ -447,7 +467,7 @@ function DetailPanel({
             <div className="flex flex-wrap gap-2">
               <a href={`/carpeta/${node.id}`}
                 className="px-3 py-2 bg-[#1a3a5c] text-white rounded-lg text-sm font-medium hover:bg-[#14304d] transition-colors">
-                📁 Carpeta Individual
+                📁 Carpeta
               </a>
               <a href={`/plan-carrera/${node.id}`}
                 className="px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
@@ -455,7 +475,7 @@ function DetailPanel({
               </a>
               <a href={`/carpeta/${node.id}?tab=sucesion`}
                 className="px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
-                🔄 Plan de Sucesión
+                🔄 Sucesión
               </a>
             </div>
           </section>
@@ -463,6 +483,71 @@ function DetailPanel({
       </aside>
     </>
   );
+}
+
+function DetailSucRow({ entry }: { entry: SucEntry }) {
+  const r = entry.readiness;
+  const rShort = r ? (RSHORT[r] ?? r) : null;
+  const rColor = r ? (RCOLOR_BADGE[r] ?? "bg-gray-100 text-gray-500") : null;
+
+  const tipoLabel: Record<SucEntry["tipo"], string> = {
+    validado: "Validado", borrador: "Propuesto", externo: "Externo", aspiracion: "Aspiración",
+  };
+  const tipoBadge: Record<SucEntry["tipo"], string> = {
+    validado: "bg-green-50 text-green-700 border-green-200",
+    borrador: "bg-amber-50 text-amber-700 border-amber-200",
+    externo:  "bg-gray-100 text-gray-500 border-gray-200",
+    aspiracion: "bg-blue-50 text-blue-600 border-blue-200",
+  };
+
+  return (
+    <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl">
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm font-medium truncate ${
+          entry.tipo === "externo" ? "italic text-gray-500" :
+          entry.tipo === "aspiracion" ? "text-gray-500" :
+          "text-gray-800"
+        }`}>{entry.tipo === "externo" ? entry.nombre : entry.nombre}</p>
+        <div className="flex gap-1.5 mt-0.5">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${tipoBadge[entry.tipo]}`}>
+            {tipoLabel[entry.tipo]}
+          </span>
+          {rShort && <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${rColor}`}>{rShort}</span>}
+        </div>
+      </div>
+      {entry.id && (
+        <a href={`/carpeta/${entry.id}`} onClick={e => e.stopPropagation()}
+          className="text-[11px] text-[#1a3a5c] font-medium hover:underline flex-shrink-0">
+          Carpeta →
+        </a>
+      )}
+    </div>
+  );
+}
+
+// ── Build unified entries ─────────────────────────────────────────────────────
+
+function buildEntries(
+  mySuc: CartaSucesor[],
+  aspirantesFiltrados: { nombre: string; id: string }[]
+): SucEntry[] {
+  const entries: SucEntry[] = mySuc.map(s => {
+    const tipo: SucEntry["tipo"] =
+      s.sucesor_id === null ? "externo" :
+      s.estado === "aprobado" ? "validado" : "borrador";
+    return {
+      nombre: s.sucesor_nombre,
+      tipo,
+      readiness: s.readiness ?? s.tiempo_estimado ?? null,
+      id: s.sucesor_id,
+    };
+  });
+  for (const a of aspirantesFiltrados) {
+    entries.push({ nombre: a.nombre, tipo: "aspiracion", readiness: null, id: a.id });
+  }
+  // Sort: validado first, then borrador, then aspiracion, then externo
+  const order: Record<SucEntry["tipo"], number> = { validado: 0, borrador: 1, aspiracion: 2, externo: 3 };
+  return entries.sort((a, b) => order[a.tipo] - order[b.tipo]);
 }
 
 // ── Root selector ─────────────────────────────────────────────────────────────
@@ -540,11 +625,10 @@ function ExecSummary({
   yaAsignadoIds: Set<string>;
 }) {
   const directKids = childrenMap.get(rootId) ?? [];
-  const counts = { verde: 0, amarillo: 0, rojo: 0, ya: 0 };
+  const counts = { verde: 0, amarillo: 0, rojo: 0, negro: 0 };
   for (const id of directKids) {
     const n = colabMap.get(id);
-    if (n) counts[getCob(n.id, sucesores)]++;
-    if (yaAsignadoIds.has(id)) counts.ya++;
+    if (n) counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores)]++;
   }
 
   if (directKids.length === 0) return null;
@@ -570,10 +654,10 @@ function ExecSummary({
           {counts.rojo} En riesgo
         </span>
       )}
-      {counts.ya > 0 && (
+      {counts.negro > 0 && (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 text-gray-700 font-semibold border border-gray-200">
           <span className="w-2 h-2 rounded-full bg-gray-600 flex-shrink-0" />
-          {counts.ya} Ya asignados
+          {counts.negro} Ya asignados
         </span>
       )}
     </div>
@@ -585,10 +669,11 @@ function ExecSummary({
 function Legend() {
   return (
     <div className="flex items-center gap-x-5 gap-y-1 flex-wrap text-xs text-gray-500">
-      <span title="Backup validado con readiness Inmediato o Mediano plazo">● <span className="text-green-600 font-medium">Cubierto</span> (Inmediato / Mediano Plazo)</span>
-      <span title="Sucesor identificado pero solo Largo plazo o sin validar">● <span className="text-amber-500 font-medium">En desarrollo</span> (solo Largo Plazo)</span>
-      <span title="No hay planes de sucesión activos">● <span className="text-red-500 font-medium">En riesgo</span> (sin sucesor)</span>
-      <span title="Aparece como sucesor asignado en otro plan">⚫ Ya asignado</span>
+      <span>● <span className="text-green-600 font-medium">Cubierto</span> — Backup validado Inm./Med.</span>
+      <span>● <span className="text-amber-500 font-medium">En desarrollo</span> — Propuesto o solo Largo Plazo</span>
+      <span>● <span className="text-red-500 font-medium">En riesgo</span> — Sin sucesor o todos externos</span>
+      <span>⚫ <span className="text-gray-600 font-medium">Ya asignado</span> — En proceso de sucesión</span>
+      <span className="ml-2">⭐ Talento Clave · ⚠️ Concentración de riesgo</span>
     </div>
   );
 }
@@ -611,19 +696,17 @@ export default function CartasClient({
 }) {
   const isAdmin = rol === "capital_humano" || rol === "superadmin";
 
-  const [rootId, setRootId]     = useState<string | null>(jefeColabId ?? null);
+  const [rootId, setRootId]       = useState<string | null>(jefeColabId ?? null);
   const [selectedId, setSelected] = useState<string | null>(null);
-  const [expanded, setExpanded]  = useState<Set<string>>(
+  const [expanded, setExpanded]   = useState<Set<string>>(
     () => new Set(jefeColabId ? [jefeColabId] : [])
   );
 
-  // Lookup maps
-  // eip/picd/sucesores all use UUID FK to colaboradores.id — key maps by UUID
+  // Lookup maps (all keyed by colaboradores.id UUID)
   const colabMap     = useMemo(() => new Map(colabs.map(c => [c.id, c])), [colabs]);
   const eipMap       = useMemo(() => new Map(eipLatest.map(e => [e.id_empleado, e])), [eipLatest]);
   const tcMap        = useMemo(() => new Map(talentoClaveLatest.map(t => [t.colaborador_id, t])), [talentoClaveLatest]);
   const picdMap      = useMemo(() => new Map(picdLatest.map(p => [p.id_empleado, p])), [picdLatest]);
-  // All three maps are keyed by UUID (colaboradores.id) — use node.id for all lookups
   const catalogoById = useMemo(() => new Map(catalogo.map(c => [c.id, c])), [catalogo]);
   const yaIds        = useMemo(() => new Set(yaArr), [yaArr]);
 
@@ -649,26 +732,35 @@ export default function CartasClient({
     return m;
   }, [colabs, catalogo]);
 
-  // Build aspirantes map: puestoCatalogId → [nombre, ...] of people who declared it as puesto futuro in PICD
-  // picd.id_empleado is UUID FK to colaboradores.id — key by UUID
+  // Aspirantes: puestoCatalogId → [{nombre, id}] — keyed by UUID
   const aspirantesByPuesto = useMemo(() => {
-    const uuidToNombre = new Map<string, string>();
-    for (const c of colabs) uuidToNombre.set(c.id, c.nombre_completo);
+    const uuidToColab = new Map<string, CartaNode>();
+    for (const c of colabs) uuidToColab.set(c.id, c);
 
-    const m = new Map<string, string[]>();
+    const m = new Map<string, { nombre: string; id: string }[]>();
     for (const p of picdLatest) {
-      const nombre = uuidToNombre.get(p.id_empleado);
-      if (!nombre) continue;
+      const colab = uuidToColab.get(p.id_empleado);
+      if (!colab) continue;
       for (const catId of [p.puesto_futuro_id1, p.puesto_futuro_id2]) {
         if (!catId) continue;
         if (!m.has(catId)) m.set(catId, []);
-        m.get(catId)!.push(nombre);
+        m.get(catId)!.push({ nombre: colab.nombre_completo, id: colab.id });
       }
     }
     return m;
   }, [colabs, picdLatest]);
 
-  // Layout calculation (recomputed on expand/collapse)
+  // Concentración: sucesor UUID → count of plans they appear in as sucesor_id
+  const concentracionMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of sucesores) {
+      if (!s.sucesor_id) continue;
+      m.set(s.sucesor_id, (m.get(s.sucesor_id) ?? 0) + 1);
+    }
+    return m;
+  }, [sucesores]);
+
+  // Layout calculation
   const { positions, canvasW, canvasH } = useMemo(() => {
     if (!rootId) return { positions: new Map<string, {x:number;y:number}>(), canvasW: 0, canvasH: 0 };
     const pos = new Map<string, { x: number; y: number }>();
@@ -678,7 +770,6 @@ export default function CartasClient({
     return { positions: pos, canvasW: totalW + PAD * 2, canvasH: totalH + PAD * 2 };
   }, [rootId, childrenMap, expanded]);
 
-  // Shifted positions (add padding)
   const shiftedPos = useMemo(() => {
     const m = new Map<string, { x: number; y: number }>();
     for (const [id, p] of positions) m.set(id, { x: p.x + PAD, y: p.y + PAD });
@@ -705,36 +796,23 @@ export default function CartasClient({
 
   return (
     <div className="space-y-4">
-      {/* Page title */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Cartas de Reemplazo</h1>
         <p className="text-sm text-gray-500 mt-1">Cobertura de sucesión · Reportes directos · {new Date().getFullYear()}</p>
       </div>
 
-      {/* Root selector (admin) */}
       {isAdmin && <RootSelector colabs={colabs} childrenMap={childrenMap} onSelect={handleSetRoot} />}
 
       {rootId && (
         <>
-          {/* Executive summary */}
-          <ExecSummary
-            rootId={rootId}
-            childrenMap={childrenMap}
-            colabMap={colabMap}
-            sucesores={sucesores}
-            yaAsignadoIds={yaIds}
-          />
-
-          {/* Legend */}
+          <ExecSummary rootId={rootId} childrenMap={childrenMap} colabMap={colabMap} sucesores={sucesores} yaAsignadoIds={yaIds} />
           <Legend />
         </>
       )}
 
-      {/* Tree canvas */}
       {rootId ? (
         <div className="overflow-auto rounded-xl border border-gray-200 bg-gray-50">
           <div className="relative" style={{ width: canvasW, height: canvasH, minWidth: "100%" }}>
-            {/* SVG connector lines */}
             <svg
               className="absolute inset-0 pointer-events-none"
               width={canvasW}
@@ -749,18 +827,22 @@ export default function CartasClient({
               />
             </svg>
 
-            {/* Cards */}
             {visibleNodes.map(id => {
               const node = colabMap.get(id);
               const pos  = shiftedPos.get(id);
               if (!node || !pos) return null;
 
-              const cob       = getCob(node.id, sucesores);
+              const isYa      = yaIds.has(id);
+              const cob       = getCob(node.id, isYa, sucesores);
               const tc        = tcMap.get(node.id);
               const catId     = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
-              const cat       = catId ? catalogoById.get(catId) : undefined;
               const mySuc     = sucesores.filter(s => s.id_empleado_titular === node.id);
-              const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []) : [];
+              const sucIds    = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
+              const aspirantes = catId
+                ? (aspirantesByPuesto.get(catId) ?? []).filter(a => !sucIds.has(a.id))
+                : [];
+              const entries   = buildEntries(mySuc, aspirantes);
+              const conc      = concentracionMap.get(node.id) ?? 0;
 
               return (
                 <OrgCard
@@ -768,11 +850,9 @@ export default function CartasClient({
                   node={node}
                   pos={pos}
                   cob={cob}
-                  yaAsignado={yaIds.has(id)}
                   talentoClave={tc?.es_talento_clave ?? false}
-                  esCritico={cat?.es_critico ?? false}
-                  mySuc={mySuc}
-                  aspirantes={aspirantes}
+                  concentracion={conc >= 2}
+                  entries={entries}
                   isSelected={selectedId === id}
                   hasKids={(childrenMap.get(id)?.length ?? 0) > 0}
                   isExpanded={expanded.has(id)}
@@ -793,7 +873,6 @@ export default function CartasClient({
         </div>
       )}
 
-      {/* Detail panel */}
       {selectedId && (
         <DetailPanel
           nodeId={selectedId}
@@ -806,6 +885,7 @@ export default function CartasClient({
           colabToCatalog={colabToCatalog}
           aspirantesByPuesto={aspirantesByPuesto}
           yaAsignadoIds={yaIds}
+          concentracionMap={concentracionMap}
           onClose={() => setSelected(null)}
         />
       )}
