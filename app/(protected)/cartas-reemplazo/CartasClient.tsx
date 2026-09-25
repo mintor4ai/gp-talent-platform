@@ -948,17 +948,21 @@ export default function CartasClient({
   }, [colabs, catalogo]);
 
   // Aspirantes: puestoCatalogId → [{nombre, id}] — keyed by UUID
+  // Deduplicate: a person with the same catId in both PICD slots must appear only once
   const aspirantesByPuesto = useMemo(() => {
     const uuidToColab = new Map<string, CartaNode>();
     for (const c of colabs) uuidToColab.set(c.id, c);
 
     const m = new Map<string, { nombre: string; id: string }[]>();
+    const seenPerCat = new Map<string, Set<string>>();
     for (const p of picdLatest) {
       const colab = uuidToColab.get(p.id_empleado);
       if (!colab) continue;
       for (const catId of [p.puesto_futuro_id1, p.puesto_futuro_id2]) {
         if (!catId) continue;
-        if (!m.has(catId)) m.set(catId, []);
+        if (!m.has(catId)) { m.set(catId, []); seenPerCat.set(catId, new Set()); }
+        if (seenPerCat.get(catId)!.has(colab.id)) continue;
+        seenPerCat.get(catId)!.add(colab.id);
         m.get(catId)!.push({ nombre: colab.nombre_completo, id: colab.id });
       }
     }
