@@ -866,6 +866,16 @@ export default function CartasClient({
   const zoomIn  = () => setVp(prev => ({ ...prev, scale: Math.min(2.5, prev.scale * 1.2) }));
   const zoomOut = () => setVp(prev => ({ ...prev, scale: Math.max(0.25, prev.scale / 1.2) }));
 
+  const [fullscreen, setFullscreen] = useState(false);
+
+  // Close fullscreen on Escape
+  useEffect(() => {
+    if (!fullscreen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [fullscreen]);
+
   const toggle = (id: string) =>
     setExpanded(prev => {
       const next = new Set(prev);
@@ -906,22 +916,31 @@ export default function CartasClient({
 
       {rootId ? (
         <div
-          className="relative rounded-xl border border-gray-200 bg-gray-50 overflow-hidden"
-          style={{ height: 600, cursor: dragging.current ? "grabbing" : "grab" }}
+          className={fullscreen
+            ? "fixed inset-0 z-50 bg-gray-50 overflow-hidden"
+            : "relative rounded-xl border border-gray-200 bg-gray-50 overflow-hidden"}
+          style={{ height: fullscreen ? "100dvh" : 600, cursor: dragging.current ? "grabbing" : "grab" }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseUp}
           onWheel={onWheel}
         >
-          {/* Zoom controls */}
+          {/* Zoom + fullscreen controls */}
           <div className="absolute top-3 right-3 z-10 flex flex-col gap-1 select-none">
             <button onClick={zoomIn}  className="w-8 h-8 rounded-lg bg-white border border-gray-200 shadow text-gray-600 hover:bg-gray-50 text-lg font-light flex items-center justify-center">+</button>
             <button onClick={zoomOut} className="w-8 h-8 rounded-lg bg-white border border-gray-200 shadow text-gray-600 hover:bg-gray-50 text-lg font-light flex items-center justify-center">−</button>
             <button onClick={resetVp} className="w-8 h-8 rounded-lg bg-white border border-gray-200 shadow text-gray-600 hover:bg-gray-50 text-[10px] font-medium flex items-center justify-center" title="Restablecer vista">⊙</button>
+            <button
+              onClick={e => { e.stopPropagation(); setFullscreen(f => !f); }}
+              className="w-8 h-8 rounded-lg bg-white border border-gray-200 shadow text-gray-600 hover:bg-gray-50 text-[13px] flex items-center justify-center"
+              title={fullscreen ? "Salir de pantalla completa (Esc)" : "Pantalla completa"}
+            >
+              {fullscreen ? "✕" : "⛶"}
+            </button>
           </div>
           <div className="absolute bottom-3 left-3 z-10 text-[10px] text-gray-400 select-none">
-            {Math.round(vp.scale * 100)}% · Arrastra para mover · Scroll para zoom
+            {Math.round(vp.scale * 100)}% · Arrastra para mover · Scroll para zoom{fullscreen ? " · Esc para salir" : ""}
           </div>
 
           {/* Transformable canvas */}
