@@ -8,10 +8,10 @@ import type {
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 
-const CARD_W = 256;
-const CARD_H = 192;
-const H_GAP  = 20;   // gap between sibling subtrees
-const V_GAP  = 68;   // vertical gap: bottom of parent → top of child
+const CARD_W = 240;
+const CARD_H = 200;
+const H_GAP  = 24;   // gap between sibling subtrees
+const V_GAP  = 72;   // vertical gap: bottom of parent → top of child
 const PAD    = 32;   // canvas padding
 
 // ── Tree layout (pure calculation) ───────────────────────────────────────────
@@ -64,12 +64,6 @@ function getCob(idEmp: string | null, suc: CartaSucesor[]): Cob {
   }) ? "verde" : "amarillo";
 }
 
-const COB_BORDER: Record<Cob, string> = {
-  verde: "border-green-500", amarillo: "border-amber-400", rojo: "border-red-500",
-};
-const COB_RING: Record<Cob, string> = {
-  verde: "ring-green-300", amarillo: "ring-amber-300", rojo: "ring-red-300",
-};
 const RSHORT: Record<string, string> = {
   listo_ahora: "Inm.", uno_dos_anios: "Med.", tres_mas_anios: "Lrg.",
 };
@@ -81,9 +75,13 @@ const RCOLOR: Record<string, string> = {
 
 // ── OrgCard ───────────────────────────────────────────────────────────────────
 
+const COB_LEFT: Record<Cob, string> = {
+  verde: "border-l-green-500", amarillo: "border-l-amber-400", rojo: "border-l-red-500",
+};
+
 function OrgCard({
   node, pos, cob, yaAsignado, talentoClave, esCritico,
-  mySuc, isSelected, hasKids, isExpanded, onSelect, onToggle,
+  mySuc, aspirantes, isSelected, hasKids, isExpanded, onSelect, onToggle,
 }: {
   node: CartaNode;
   pos: { x: number; y: number };
@@ -92,102 +90,106 @@ function OrgCard({
   talentoClave: boolean;
   esCritico: boolean;
   mySuc: CartaSucesor[];
+  aspirantes: string[];
   isSelected: boolean;
   hasKids: boolean;
   isExpanded: boolean;
   onSelect: () => void;
   onToggle: (e: React.MouseEvent) => void;
 }) {
+  const nombre = node.nombre_completo;
+  const shortNombre = nombre.length > 26 ? nombre.slice(0, 25) + "…" : nombre;
+  const shortPuesto = (node.puesto ?? "—").length > 30
+    ? (node.puesto ?? "").slice(0, 29) + "…"
+    : (node.puesto ?? "—");
+
   return (
     <div
-      className={`absolute bg-white rounded-xl shadow border-2 overflow-hidden cursor-pointer transition-shadow hover:shadow-lg
-        ${COB_BORDER[cob]}
-        ${isSelected ? `ring-2 ${COB_RING[cob]} ring-offset-1 shadow-lg` : ""}
+      className={`absolute bg-white rounded-xl shadow-md border border-gray-200 border-l-4 overflow-hidden cursor-pointer transition-shadow hover:shadow-lg
+        ${yaAsignado ? "border-l-gray-700" : COB_LEFT[cob]}
+        ${isSelected ? "ring-2 ring-offset-1 ring-[#1a3a5c] shadow-lg" : ""}
       `}
       style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
       onClick={onSelect}
     >
-      {/* Identity */}
-      <div className="px-3 pt-2.5 pb-2 border-b border-gray-100">
-        <div className="flex items-start gap-2">
-          <EmpleadoAvatar
-            idEmpleado={node.id_empleado}
-            nombre={node.nombre_completo}
-            size={34}
-            rounded="full"
-            className="flex-shrink-0 mt-0.5"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="font-bold text-gray-900 text-[12.5px] leading-snug" style={{ maxWidth: CARD_W - 80 }}>
-              {node.nombre_completo.length > 28
-                ? node.nombre_completo.slice(0, 27) + "…"
-                : node.nombre_completo}
-            </p>
-            <p className="text-[11px] text-gray-600 mt-0.5 leading-tight truncate" style={{ maxWidth: CARD_W - 80 }}>
-              {node.puesto ?? "—"}
-            </p>
-            <p className="text-[10px] text-gray-400 mt-0.5 truncate">
-              {[node.id_empleado ? `#${node.id_empleado}` : null, node.organización]
-                .filter(Boolean).join(" · ")}
-            </p>
-          </div>
-        </div>
-        {/* Chips */}
+      {/* Header: name / position / ID */}
+      <div className="px-3 pt-3 pb-2">
+        <p className="font-bold text-gray-900 text-[13px] leading-snug">{shortNombre}</p>
+        <p className="text-[11.5px] text-gray-500 mt-0.5 leading-tight">{shortPuesto}</p>
+        <p className="text-[10.5px] text-gray-400 mt-0.5">
+          {node.id_empleado ? `#${node.id_empleado}` : ""}
+          {node.id_empleado && node.organización ? " · " : ""}
+          {node.organización ?? ""}
+        </p>
+        {/* Chips row */}
         {(talentoClave || esCritico || yaAsignado) && (
           <div className="flex gap-1 mt-1.5 flex-wrap">
             {talentoClave && (
-              <span className="text-[9.5px] px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full font-semibold leading-none">
-                ★ Talento Clave
-              </span>
+              <span className="text-[9px] px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full font-semibold leading-none">★ Talento Clave</span>
             )}
             {esCritico && (
-              <span className="text-[9.5px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full font-semibold leading-none">
-                ⚠ Crítico
-              </span>
+              <span className="text-[9px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full font-semibold leading-none">⚠ Crítico</span>
             )}
             {yaAsignado && (
-              <span className="text-[9.5px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-full font-semibold leading-none">
-                ⚫ Ya asig.
-              </span>
+              <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-full font-semibold leading-none">⚫ Ya asig.</span>
             )}
           </div>
         )}
       </div>
 
-      {/* Succession */}
-      <div className="px-3 py-2 flex-1">
-        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.1em] mb-1.5">Sucesión</p>
+      {/* Divider */}
+      <div className="border-t border-gray-100 mx-3" />
+
+      {/* Backups */}
+      <div className="px-3 pt-2">
+        <p className="text-[8.5px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-1">Backups</p>
         {mySuc.length === 0 ? (
-          <p className="text-[11px] text-red-400 italic">Sin sucesor declarado</p>
+          <p className="text-[10.5px] text-red-400 italic">Sin backup declarado</p>
         ) : (
-          <div className="space-y-1">
-            {mySuc.slice(0, 3).map((s, i) => {
+          <div className="space-y-0.5">
+            {mySuc.slice(0, 2).map((s, i) => {
               const r = s.readiness ?? s.tiempo_estimado ?? null;
               return (
                 <div key={i} className="flex items-center gap-1">
-                  <span className="text-[11px] text-gray-800 leading-none flex-1 truncate">
-                    {s.sucesor_nombre}
-                  </span>
+                  <span className="text-[11px] text-gray-800 flex-1 truncate leading-none">{s.sucesor_nombre}</span>
                   {r && (
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full leading-none font-semibold flex-shrink-0 ${RCOLOR[r] ?? "bg-gray-100 text-gray-500"}`}>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none ${RCOLOR[r] ?? "bg-gray-100 text-gray-500"}`}>
                       {RSHORT[r] ?? r}
                     </span>
                   )}
                 </div>
               );
             })}
-            {mySuc.length > 3 && (
-              <p className="text-[10px] text-gray-400">+{mySuc.length - 3} más</p>
+            {mySuc.length > 2 && (
+              <p className="text-[9.5px] text-gray-400">+{mySuc.length - 2} más</p>
             )}
           </div>
         )}
       </div>
 
+      {/* Aspiraciones (if any) */}
+      {aspirantes.length > 0 && (
+        <>
+          <div className="border-t border-gray-100 mx-3 mt-2" />
+          <div className="px-3 pt-1.5">
+            <p className="text-[8.5px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-1">Aspiraciones</p>
+            <div className="space-y-0.5">
+              {aspirantes.slice(0, 2).map((n, i) => (
+                <p key={i} className="text-[11px] text-gray-600 truncate leading-none">{n}</p>
+              ))}
+              {aspirantes.length > 2 && (
+                <p className="text-[9.5px] text-gray-400">+{aspirantes.length - 2} más</p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Expand / collapse button */}
       {hasKids && (
         <button
           onClick={onToggle}
-          className="absolute bottom-2 right-2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-[9px] font-bold transition-colors shadow-sm"
+          className="absolute bottom-1.5 right-2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-[9px] font-bold transition-colors shadow-sm"
           title={isExpanded ? "Colapsar" : "Ver subordinados"}
         >
           {isExpanded ? "▲" : "▼"}
@@ -250,7 +252,7 @@ const ZONA_STYLE: Record<string, string> = {
 
 function DetailPanel({
   nodeId, colabMap, sucesores, tcByColab, eipByEmpleado, picdByEmpleado,
-  catalogoById, colabToCatalog, yaAsignadoIds, onClose,
+  catalogoById, colabToCatalog, aspirantesByPuesto, yaAsignadoIds, onClose,
 }: {
   nodeId: string;
   colabMap: Map<string, CartaNode>;
@@ -260,21 +262,23 @@ function DetailPanel({
   picdByEmpleado: Map<string, CartaPicd>;
   catalogoById: Map<string, CartaCatalogoPuesto>;
   colabToCatalog: Map<string, string>;
+  aspirantesByPuesto: Map<string, string[]>;
   yaAsignadoIds: Set<string>;
   onClose: () => void;
 }) {
   const node = colabMap.get(nodeId);
   if (!node) return null;
 
-  const eip     = node.id_empleado ? eipByEmpleado.get(node.id_empleado) : undefined;
-  const tc      = tcByColab.get(node.id);
-  const picd    = node.id_empleado ? picdByEmpleado.get(node.id_empleado) : undefined;
-  const catId   = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
-  const cat     = catId ? catalogoById.get(catId) : undefined;
-  const cob     = getCob(node.id_empleado, sucesores);
-  const mySuc   = node.id_empleado
+  const eip        = node.id_empleado ? eipByEmpleado.get(node.id_empleado) : undefined;
+  const tc         = tcByColab.get(node.id);
+  const picd       = node.id_empleado ? picdByEmpleado.get(node.id_empleado) : undefined;
+  const catId      = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
+  const cat        = catId ? catalogoById.get(catId) : undefined;
+  const cob        = getCob(node.id_empleado, sucesores);
+  const mySuc      = node.id_empleado
     ? sucesores.filter(s => s.id_empleado_titular === node.id_empleado)
     : [];
+  const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []) : [];
 
   return (
     <>
@@ -359,13 +363,13 @@ function DetailPanel({
             </section>
           )}
 
-          {/* Sucesores */}
+          {/* Backups (sucesores) */}
           <section>
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-              Sucesores ({mySuc.length})
+              Backups ({mySuc.length})
             </h3>
             {mySuc.length === 0 ? (
-              <p className="text-sm text-gray-400 italic">Sin sucesores identificados</p>
+              <p className="text-sm text-gray-400 italic">Sin backup identificado</p>
             ) : (
               <div className="space-y-2">
                 {mySuc.map((s, i) => {
@@ -393,6 +397,25 @@ function DetailPanel({
               </div>
             )}
           </section>
+
+          {/* Aspiraciones */}
+          {aspirantes.length > 0 && (
+            <section>
+              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                Aspiraciones al puesto ({aspirantes.length})
+              </h3>
+              <p className="text-[11px] text-gray-400 mb-2 italic">
+                Personas que declaran este puesto como su objetivo de carrera en PICD
+              </p>
+              <div className="space-y-1.5">
+                {aspirantes.map((nombre, i) => (
+                  <div key={i} className="flex items-center gap-2 p-2.5 bg-blue-50 rounded-xl">
+                    <span className="text-sm text-gray-800 flex-1 truncate">{nombre}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* PICD */}
           {picd && (picd.puesto_futuro_opcion1 || picd.puesto_futuro_opcion2) && (
@@ -624,6 +647,25 @@ export default function CartasClient({
     return m;
   }, [colabs, catalogo]);
 
+  // Build aspirantes map: puestoCatalogId → [nombre, ...] of people who declared it as puesto futuro in PICD
+  const aspirantesByPuesto = useMemo(() => {
+    // id_empleado (numeric) → nombre_completo
+    const empToNombre = new Map<string, string>();
+    for (const c of colabs) if (c.id_empleado) empToNombre.set(c.id_empleado, c.nombre_completo);
+
+    const m = new Map<string, string[]>();
+    for (const p of picdLatest) {
+      const nombre = empToNombre.get(p.id_empleado);
+      if (!nombre) continue;
+      for (const catId of [p.puesto_futuro_id1, p.puesto_futuro_id2]) {
+        if (!catId) continue;
+        if (!m.has(catId)) m.set(catId, []);
+        m.get(catId)!.push(nombre);
+      }
+    }
+    return m;
+  }, [colabs, picdLatest]);
+
   // Layout calculation (recomputed on expand/collapse)
   const { positions, canvasW, canvasH } = useMemo(() => {
     if (!rootId) return { positions: new Map<string, {x:number;y:number}>(), canvasW: 0, canvasH: 0 };
@@ -718,6 +760,7 @@ export default function CartasClient({
               const mySuc     = node.id_empleado
                 ? sucesores.filter(s => s.id_empleado_titular === node.id_empleado)
                 : [];
+              const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []) : [];
 
               return (
                 <OrgCard
@@ -729,6 +772,7 @@ export default function CartasClient({
                   talentoClave={tc?.es_talento_clave ?? false}
                   esCritico={cat?.es_critico ?? false}
                   mySuc={mySuc}
+                  aspirantes={aspirantes}
                   isSelected={selectedId === id}
                   hasKids={(childrenMap.get(id)?.length ?? 0) > 0}
                   isExpanded={expanded.has(id)}
@@ -760,6 +804,7 @@ export default function CartasClient({
           picdByEmpleado={picdMap}
           catalogoById={catalogoById}
           colabToCatalog={colabToCatalog}
+          aspirantesByPuesto={aspirantesByPuesto}
           yaAsignadoIds={yaIds}
           onClose={() => setSelected(null)}
         />
