@@ -74,19 +74,19 @@ type Cob = "verde" | "amarillo" | "rojo" | "negro";
 // rojo    = sin sucesor declarado o todos externos (sucesor_id null)
 // negro   = this person is already assigned as sucesor in another plan (yaAsignado)
 function getCob(colabUuid: string, isYaAsignado: boolean, suc: CartaSucesor[]): Cob {
-  if (isYaAsignado) return "negro";
   const mine = suc.filter(s => s.id_empleado_titular === colabUuid);
-  if (!mine.length) return "rojo";
-  // All external (no link to a colaborador)?
   const hasInternal = mine.some(s => s.sucesor_id !== null);
-  if (!hasInternal) return "rojo";
   // Has validado (aprobado) with corto/inmediato/mediano readiness?
   const hasValidado = mine.some(s =>
     s.estado === "aprobado" &&
     (s.readiness === "listo_ahora" || s.readiness === "uno_dos_anios" ||
      s.tiempo_estimado === "corto" || s.tiempo_estimado === "mediano")
   );
+  // Verde takes priority: a covered position is green regardless of ya-asignado
   if (hasValidado) return "verde";
+  // Negro: no validated coverage + this person is themselves a successor elsewhere
+  if (isYaAsignado) return "negro";
+  if (!mine.length || !hasInternal) return "rojo";
   return "amarillo";
 }
 
