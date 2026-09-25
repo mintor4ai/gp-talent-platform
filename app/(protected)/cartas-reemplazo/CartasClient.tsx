@@ -397,12 +397,6 @@ function DetailPanel({
                 ⚠️ Concentración ({conc} planes)
               </span>
             )}
-            {isYa && (
-              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700 cursor-help"
-                title="Está asignado como sucesor en otro plan">
-                ⚫ En proceso de sucesión
-              </span>
-            )}
           </div>
 
           {/* EIP */}
