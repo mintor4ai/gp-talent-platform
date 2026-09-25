@@ -389,22 +389,44 @@ function DetailPanel({
     }))
     .filter(p => p.titular != null) as { titular: CartaNode; tipo: string }[];
 
+  const [photoOpen, setPhotoOpen] = useState(false);
+
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-[60]" onClick={onClose} />
       <aside className="fixed right-0 top-0 h-full w-[460px] max-w-[96vw] bg-white shadow-2xl z-[70] flex flex-col">
         {/* Header */}
-        <div className="flex items-start gap-3 p-5 border-b border-gray-100 flex-shrink-0">
-          <EmpleadoAvatar idEmpleado={node.id_empleado} nombre={node.nombre_completo} size={48} rounded="full" className="mt-0.5" />
+        <div className="flex items-start gap-3 p-4 border-b border-gray-100 flex-shrink-0">
+          <button
+            onClick={() => setPhotoOpen(true)}
+            className="flex-shrink-0 rounded-full overflow-hidden hover:ring-2 hover:ring-[#1a3a5c] transition-all mt-0.5"
+            title="Ver foto"
+          >
+            <EmpleadoAvatar idEmpleado={node.id_empleado} nombre={node.nombre_completo} size={44} rounded="full" />
+          </button>
           <div className="flex-1 min-w-0">
-            <h2 className="font-bold text-gray-900 leading-tight">{node.nombre_completo}</h2>
-            <p className="text-sm text-gray-600 mt-0.5">{node.puesto ?? "—"}</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {[node.organización, node.area, node.nivel].filter(Boolean).join(" · ")}
+            <h2 className="font-semibold text-[13px] text-gray-900 leading-tight">{nombreCorto(node.nombre_completo)}</h2>
+            <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">{node.puesto ?? "—"}</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">
+              {[node.organización, node.area].filter(Boolean).join(" · ")}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 mt-0.5 flex-shrink-0">✕</button>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 flex-shrink-0">✕</button>
         </div>
+
+        {/* Photo lightbox */}
+        {photoOpen && (
+          <div className="fixed inset-0 bg-black/80 z-[90] flex items-center justify-center" onClick={() => setPhotoOpen(false)}>
+            <div className="relative" onClick={e => e.stopPropagation()}>
+              <EmpleadoAvatar idEmpleado={node.id_empleado} nombre={node.nombre_completo} size={240} rounded="full" />
+              <button onClick={() => setPhotoOpen(false)}
+                className="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-white text-gray-700 shadow-lg flex items-center justify-center text-sm font-bold hover:bg-gray-100">
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Status chips */}
@@ -509,10 +531,10 @@ function DetailPanel({
               Sucesión ({entries.length})
             </h3>
             {entries.length === 0 ? (
-              <p className="text-sm text-gray-400 italic">Sin sucesores identificados</p>
+              <p className="text-xs text-gray-400 italic">Sin sucesores identificados</p>
             ) : (
               <div className="space-y-2">
-                {entries.map((e, i) => <DetailSucRow key={i} entry={e} />)}
+                {entries.map((e, i) => <DetailSucRow key={i} entry={e} colabMap={colabMap} />)}
               </div>
             )}
           </section>
@@ -564,7 +586,7 @@ function DetailPanel({
   );
 }
 
-function DetailSucRow({ entry }: { entry: SucEntry }) {
+function DetailSucRow({ entry, colabMap }: { entry: SucEntry; colabMap: Map<string, CartaNode> }) {
   const r = entry.readiness;
   const rShort = r ? (RSHORT[r] ?? r) : null;
   const rColor = r ? (RCOLOR_BADGE[r] ?? "bg-gray-100 text-gray-500") : null;
@@ -579,26 +601,58 @@ function DetailSucRow({ entry }: { entry: SucEntry }) {
     aspiracion: "bg-blue-50 text-blue-600 border-blue-200",
   };
 
+  const colab = entry.id ? colabMap.get(entry.id) : null;
+  const displayName = entry.tipo === "externo"
+    ? entry.nombre
+    : nombreCorto(entry.nombre);
+  const hasCareerPlan = entry.tipo === "validado";
+
   return (
-    <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl">
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium truncate ${
-          entry.tipo === "externo" ? "italic text-gray-500" :
-          entry.tipo === "aspiracion" ? "text-gray-500" :
-          "text-gray-800"
-        }`}>{entry.tipo === "externo" ? entry.nombre : entry.nombre}</p>
-        <div className="flex gap-1.5 mt-0.5">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${tipoBadge[entry.tipo]}`}>
+    <div className="p-2.5 bg-gray-50 rounded-xl space-y-2">
+      {/* Name + avatar row */}
+      <div className="flex items-center gap-2">
+        {entry.tipo !== "externo" && (
+          <EmpleadoAvatar
+            idEmpleado={colab?.id_empleado ?? null}
+            nombre={entry.nombre}
+            size={28}
+            rounded="full"
+            className="flex-shrink-0"
+          />
+        )}
+        <div className="flex-1 min-w-0">
+          <p className={`text-[12px] font-semibold truncate leading-tight ${
+            entry.tipo === "externo"    ? "italic text-gray-500" :
+            entry.tipo === "aspiracion" ? "text-gray-600" : "text-gray-800"
+          }`}>{displayName}</p>
+          {colab?.puesto && (
+            <p className="text-[10px] text-gray-400 truncate leading-tight">{colab.puesto}</p>
+          )}
+        </div>
+        <div className="flex gap-1 flex-shrink-0">
+          <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold leading-none ${tipoBadge[entry.tipo]}`}>
             {tipoLabel[entry.tipo]}
           </span>
-          {rShort && <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${rColor}`}>{rShort}</span>}
+          {rShort && <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold leading-none ${rColor}`}>{rShort}</span>}
         </div>
       </div>
+
+      {/* Quick links */}
       {entry.id && (
-        <a href={`/carpeta/${entry.id}`} onClick={e => e.stopPropagation()}
-          className="text-[11px] text-[#1a3a5c] font-medium hover:underline flex-shrink-0">
-          Carpeta →
-        </a>
+        <div className="flex gap-1.5 pl-9">
+          <a href={`/carpeta/${entry.id}`} onClick={e => e.stopPropagation()}
+            className="text-[10px] px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-600 font-medium hover:bg-gray-100 transition-colors">
+            📁 Carpeta
+          </a>
+          <a href={`/plan-carrera/${entry.id}`} onClick={e => e.stopPropagation()}
+            className={`text-[10px] px-2 py-1 rounded-md border font-medium transition-colors ${
+              hasCareerPlan
+                ? "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
+                : "bg-white border-dashed border-gray-300 text-gray-400 hover:bg-gray-50"
+            }`}>
+            {hasCareerPlan ? "📐 Plano de Carrera" : "＋ Crear Plano"}
+          </a>
+        </div>
       )}
     </div>
   );
