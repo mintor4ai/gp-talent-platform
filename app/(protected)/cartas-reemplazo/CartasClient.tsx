@@ -346,7 +346,7 @@ const ZONA_STYLE: Record<string, string> = {
 function DetailPanel({
   nodeId, colabMap, sucesores, tcByColab, eipByEmpleado, picdByEmpleado,
   catalogoById, colabToCatalog, aspirantesByPuesto, yaAsignadoIds,
-  concentracionMap, onClose,
+  planCarreraIds, concentracionMap, onClose,
 }: {
   nodeId: string;
   colabMap: Map<string, CartaNode>;
@@ -358,6 +358,7 @@ function DetailPanel({
   colabToCatalog: Map<string, string>;
   aspirantesByPuesto: Map<string, { nombre: string; id: string }[]>;
   yaAsignadoIds: Set<string>;
+  planCarreraIds: Set<string>;
   concentracionMap: Map<string, number>;
   onClose: () => void;
 }) {
@@ -544,6 +545,7 @@ function DetailPanel({
                     colabMap={colabMap}
                     titularCatId={catId}
                     picdByEmpleado={picdByEmpleado}
+                    planCarreraIds={planCarreraIds}
                   />
                 ))}
               </div>
@@ -597,11 +599,12 @@ function DetailPanel({
   );
 }
 
-function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado }: {
+function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarreraIds }: {
   entry: SucEntry;
   colabMap: Map<string, CartaNode>;
   titularCatId: string | null | undefined;
   picdByEmpleado: Map<string, CartaPicd>;
+  planCarreraIds: Set<string>;
 }) {
   const [photoOpen, setPhotoOpen] = useState(false);
 
@@ -626,7 +629,7 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado }: {
                      isBidireccional             ? "bg-teal-50 text-teal-700 border-teal-200" :
                                                    "bg-amber-50 text-amber-700 border-amber-200";
 
-  const hasCareerPlan = entry.tipo === "validado" || (entry.tipo === "borrador" && isBidireccional);
+  const hasCareerPlan = !!(entry.id && planCarreraIds.has(entry.id));
 
   return (
     <div className="p-2.5 bg-gray-50 rounded-xl space-y-1.5">
@@ -877,7 +880,7 @@ function Legend() {
 
 export default function CartasClient({
   colabs, eipLatest, talentoClaveLatest, sucesores, picdLatest,
-  catalogo, yaAsignadoIds: yaArr, rol, jefeColabId,
+  catalogo, yaAsignadoIds: yaArr, planCarreraIds: pcArr, rol, jefeColabId,
 }: {
   colabs: CartaNode[];
   eipLatest: CartaEip[];
@@ -886,6 +889,7 @@ export default function CartasClient({
   picdLatest: CartaPicd[];
   catalogo: CartaCatalogoPuesto[];
   yaAsignadoIds: string[];
+  planCarreraIds: string[];
   rol: string;
   jefeColabId: string | null;
 }) {
@@ -918,7 +922,8 @@ export default function CartasClient({
   const tcMap        = useMemo(() => new Map(talentoClaveLatest.map(t => [t.colaborador_id, t])), [talentoClaveLatest]);
   const picdMap      = useMemo(() => new Map(picdLatest.map(p => [p.id_empleado, p])), [picdLatest]);
   const catalogoById = useMemo(() => new Map(catalogo.map(c => [c.id, c])), [catalogo]);
-  const yaIds        = useMemo(() => new Set(yaArr), [yaArr]);
+  const yaIds           = useMemo(() => new Set(yaArr), [yaArr]);
+  const planCarreraSet  = useMemo(() => new Set(pcArr), [pcArr]);
 
   const childrenMap = useMemo(() => {
     const m = new Map<string, string[]>();
@@ -1186,6 +1191,7 @@ export default function CartasClient({
           colabToCatalog={colabToCatalog}
           aspirantesByPuesto={aspirantesByPuesto}
           yaAsignadoIds={yaIds}
+          planCarreraIds={planCarreraSet}
           concentracionMap={concentracionMap}
           onClose={() => setSelected(null)}
         />

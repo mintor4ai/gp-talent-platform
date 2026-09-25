@@ -38,7 +38,7 @@ export default async function CartasReemplazoPage() {
     return results;
   }
 
-  const [colabsRaw, sucesoresRaw, eipRaw, talentoClaveRaw, picdRaw, catalogoRaw] = await Promise.all([
+  const [colabsRaw, sucesoresRaw, eipRaw, talentoClaveRaw, picdRaw, catalogoRaw, planCarreraRaw] = await Promise.all([
     fetchAllRows((from, to) => {
       let q = supabase
         .from("colaboradores")
@@ -76,6 +76,9 @@ export default async function CartasReemplazoPage() {
       .from("catalogo_puestos")
       .select("id, nombre, es_critico, organización")
       .eq("activo", true),
+    supabase
+      .from("plan_carrera")
+      .select("colaborador_id"),
   ]);
 
   const colabs = (colabsRaw ?? []) as unknown as CartaNode[];
@@ -115,6 +118,10 @@ export default async function CartasReemplazoPage() {
 
   const catalogo = ((catalogoRaw.data ?? []) as unknown as CartaCatalogoPuesto[]);
 
+  const planCarreraIds = new Set<string>(
+    ((planCarreraRaw.data ?? []) as Array<{ colaborador_id: string }>).map((r) => r.colaborador_id)
+  );
+
   // ya asignado: UUIDs that appear as sucesor_id
   const yaAsignadoIds = sucesores.filter((s) => s.sucesor_id).map((s) => s.sucesor_id!);
 
@@ -134,6 +141,7 @@ export default async function CartasReemplazoPage() {
       picdLatest={picdLatest}
       catalogo={catalogo}
       yaAsignadoIds={yaAsignadoIds}
+      planCarreraIds={[...planCarreraIds]}
       rol={rol}
       jefeColabId={jefeColabId}
     />
