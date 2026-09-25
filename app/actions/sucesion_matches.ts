@@ -85,6 +85,17 @@ export async function validarMatch(matchId: string): Promise<{ ok: boolean; plan
 
     if (error) throw error;
 
+    // Sync plan_sucesion.estado → "aprobado" (mirrors what descartarMatch does in reverse)
+    if (match?.colaborador_id && match?.puesto_catalogo_id) {
+      await supabase
+        .from("plan_sucesion")
+        .update({ estado: "aprobado" })
+        .eq("sucesor_id", match.colaborador_id)
+        .eq("puesto_catalogo_id", match.puesto_catalogo_id)
+        .eq("ciclo_año", match.ciclo_año)
+        .neq("estado", "descartado");
+    }
+
     // Auto-create Plano de Carrera if the match has a collaborator
     let planCreado = false;
     if (match?.colaborador_id && match?.puesto_catalogo_id) {
