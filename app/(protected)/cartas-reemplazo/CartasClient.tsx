@@ -359,8 +359,8 @@ function DetailPanel({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/20 z-30" onClick={onClose} />
-      <aside className="fixed right-0 top-0 h-full w-[460px] max-w-[96vw] bg-white shadow-2xl z-40 flex flex-col">
+      <div className="fixed inset-0 bg-black/20 z-[60]" onClick={onClose} />
+      <aside className="fixed right-0 top-0 h-full w-[460px] max-w-[96vw] bg-white shadow-2xl z-[70] flex flex-col">
         {/* Header */}
         <div className="flex items-start gap-3 p-5 border-b border-gray-100 flex-shrink-0">
           <EmpleadoAvatar idEmpleado={node.id_empleado} nombre={node.nombre_completo} size={48} rounded="full" className="mt-0.5" />
