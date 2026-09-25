@@ -348,6 +348,15 @@ function DetailPanel({
   const entries    = buildEntries(mySuc, aspirantes.filter(a => !sucIds.has(a.id)));
   const conc       = concentracionMap.get(node.id) ?? 0;
 
+  // Who has this person listed as their successor?
+  const plansDondeEsSucesor = sucesores.filter(s => s.sucesor_id === node.id);
+  const titularesTooltip = plansDondeEsSucesor.length
+    ? plansDondeEsSucesor.map(s => {
+        const t = colabMap.get(s.id_empleado_titular);
+        return t ? `${t.nombre_completo}\n${t.puesto ?? "—"}` : "—";
+      }).join("\n\n")
+    : "";
+
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-30" onClick={onClose} />
@@ -368,12 +377,17 @@ function DetailPanel({
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Status chips */}
           <div className="flex gap-2 flex-wrap">
-            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-              cob === "verde"  ? "bg-green-100 text-green-800" :
-              cob === "amarillo" ? "bg-amber-100 text-amber-800" :
-              cob === "negro" ? "bg-gray-200 text-gray-800" :
-              "bg-red-100 text-red-800"
-            }`}>
+            <span
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                cob === "verde"    ? "bg-green-100 text-green-800" :
+                cob === "amarillo" ? "bg-amber-100 text-amber-800" :
+                cob === "negro"    ? "bg-gray-200 text-gray-800 cursor-help" :
+                "bg-red-100 text-red-800"
+              }`}
+              title={cob === "negro" && titularesTooltip
+                ? `Designado como sucesor de:\n\n${titularesTooltip}`
+                : undefined}
+            >
               {cob === "verde" ? "🟢 Cubierto" :
                cob === "amarillo" ? "🟡 En desarrollo" :
                cob === "negro" ? "⚫ Ya asignado" :
@@ -393,7 +407,9 @@ function DetailPanel({
             )}
             {conc >= 2 && (
               <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800 cursor-help"
-                title={`Está asignado como sucesor en ${conc} planes simultáneamente`}>
+                title={titularesTooltip
+                  ? `Designado como sucesor en ${conc} planes:\n\n${titularesTooltip}`
+                  : `Está asignado como sucesor en ${conc} planes simultáneamente`}>
                 ⚠️ Concentración ({conc} planes)
               </span>
             )}
