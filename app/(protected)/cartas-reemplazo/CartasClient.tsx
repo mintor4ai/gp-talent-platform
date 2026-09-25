@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import EmpleadoAvatar from "@/components/ui/EmpleadoAvatar";
 import type {
   CartaNode, CartaEip, CartaTalentoClave, CartaSucesor, CartaPicd, CartaCatalogoPuesto,
@@ -531,7 +531,17 @@ function buildEntries(
   mySuc: CartaSucesor[],
   aspirantesFiltrados: { nombre: string; id: string }[]
 ): SucEntry[] {
-  const entries: SucEntry[] = mySuc.map(s => {
+  // Deduplicate plan_sucesion rows by sucesor_id (or name for externals)
+  // Rows arrive ordered desc by ciclo_año — keep the first (most recent) per person
+  const seen = new Set<string>();
+  const dedupedSuc = mySuc.filter(s => {
+    const key = s.sucesor_id ?? `ext:${s.sucesor_nombre.trim().toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const entries: SucEntry[] = dedupedSuc.map(s => {
     const tipo: SucEntry["tipo"] =
       s.sucesor_id === null ? "externo" :
       s.estado === "aprobado" ? "validado" : "borrador";
@@ -542,10 +552,13 @@ function buildEntries(
       id: s.sucesor_id,
     };
   });
+
+  // Aspiraciones: skip if already a sucesor (covered by sucIds filter before calling this)
   for (const a of aspirantesFiltrados) {
     entries.push({ nombre: a.nombre, tipo: "aspiracion", readiness: null, id: a.id });
   }
-  // Sort: validado first, then borrador, then aspiracion, then externo
+
+  // Sort: validado, borrador, aspiracion, externo
   const order: Record<SucEntry["tipo"], number> = { validado: 0, borrador: 1, aspiracion: 2, externo: 3 };
   return entries.sort((a, b) => order[a.tipo] - order[b.tipo]);
 }
@@ -781,6 +794,37 @@ export default function CartasClient({
     [rootId, childrenMap, expanded]
   );
 
+  // Pan / zoom state
+  const [vp, setVp] = useState({ x: 0, y: 0, scale: 1 });
+  const dragging = useRef(false);
+  const lastMouse = useRef({ x: 0, y: 0 });
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    dragging.current = true;
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+  }, []);
+
+  const onMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!dragging.current) return;
+    const dx = e.clientX - lastMouse.current.x;
+    const dy = e.clientY - lastMouse.current.y;
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+    setVp(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+  }, []);
+
+  const onMouseUp = useCallback(() => { dragging.current = false; }, []);
+
+  const onWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    setVp(prev => ({ ...prev, scale: Math.max(0.25, Math.min(2.5, prev.scale * factor)) }));
+  }, []);
+
+  const resetVp = () => setVp({ x: 0, y: 0, scale: 1 });
+  const zoomIn  = () => setVp(prev => ({ ...prev, scale: Math.min(2.5, prev.scale * 1.2) }));
+  const zoomOut = () => setVp(prev => ({ ...prev, scale: Math.max(0.25, prev.scale / 1.2) }));
+
   const toggle = (id: string) =>
     setExpanded(prev => {
       const next = new Set(prev);
@@ -792,6 +836,7 @@ export default function CartasClient({
     setRootId(id);
     setSelected(null);
     setExpanded(new Set([id]));
+    setVp({ x: 0, y: 0, scale: 1 });
   };
 
   return (
@@ -811,8 +856,35 @@ export default function CartasClient({
       )}
 
       {rootId ? (
-        <div className="overflow-auto rounded-xl border border-gray-200 bg-gray-50">
-          <div className="relative" style={{ width: canvasW, height: canvasH, minWidth: "100%" }}>
+        <div
+          className="relative rounded-xl border border-gray-200 bg-gray-50 overflow-hidden"
+          style={{ height: 600, cursor: dragging.current ? "grabbing" : "grab" }}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+          onWheel={onWheel}
+        >
+          {/* Zoom controls */}
+          <div className="absolute top-3 right-3 z-10 flex flex-col gap-1 select-none">
+            <button onClick={zoomIn}  className="w-8 h-8 rounded-lg bg-white border border-gray-200 shadow text-gray-600 hover:bg-gray-50 text-lg font-light flex items-center justify-center">+</button>
+            <button onClick={zoomOut} className="w-8 h-8 rounded-lg bg-white border border-gray-200 shadow text-gray-600 hover:bg-gray-50 text-lg font-light flex items-center justify-center">−</button>
+            <button onClick={resetVp} className="w-8 h-8 rounded-lg bg-white border border-gray-200 shadow text-gray-600 hover:bg-gray-50 text-[10px] font-medium flex items-center justify-center" title="Restablecer vista">⊙</button>
+          </div>
+          <div className="absolute bottom-3 left-3 z-10 text-[10px] text-gray-400 select-none">
+            {Math.round(vp.scale * 100)}% · Arrastra para mover · Scroll para zoom
+          </div>
+
+          {/* Transformable canvas */}
+          <div
+            style={{
+              transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.scale})`,
+              transformOrigin: "0 0",
+              position: "absolute",
+              width: canvasW,
+              height: canvasH,
+            }}
+          >
             <svg
               className="absolute inset-0 pointer-events-none"
               width={canvasW}
@@ -862,7 +934,9 @@ export default function CartasClient({
               );
             })}
           </div>
+          {/* end transformable canvas */}
         </div>
+        /* end viewport */
       ) : (
         <div className="rounded-xl border-2 border-dashed border-gray-200 p-20 text-center bg-gray-50">
           <p className="text-gray-400 text-base">
