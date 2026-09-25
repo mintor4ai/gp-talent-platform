@@ -550,19 +550,19 @@ function DetailPanel({
           {/* PICD */}
           {picd && (picd.puesto_futuro_opcion1 || picd.puesto_futuro_opcion2) && (
             <section>
-              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
                 Puestos Futuros PICD · Ciclo {picd.ciclo_año}
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {[
                   { label: "Op. 1", texto: picd.puesto_futuro_opcion1, vinc: picd.puesto_futuro_id1 },
                   { label: "Op. 2", texto: picd.puesto_futuro_opcion2, vinc: picd.puesto_futuro_id2 },
                 ].filter(o => o.texto).map((o, i) => (
-                  <div key={i} className="flex items-center gap-2.5 p-2.5 bg-gray-50 rounded-xl">
-                    <span className="text-[10px] font-bold text-gray-400 w-9 flex-shrink-0">{o.label}</span>
-                    <span className="flex-1 text-sm text-gray-800">{o.texto}</span>
+                  <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 rounded-lg">
+                    <span className="text-[9px] font-bold text-gray-400 w-8 flex-shrink-0">{o.label}</span>
+                    <span className="flex-1 text-[11px] text-gray-700 leading-tight">{o.texto}</span>
                     {o.vinc && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full flex-shrink-0">Vinculado</span>
+                      <span className="text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-full font-semibold flex-shrink-0 leading-none">Vinculado</span>
                     )}
                   </div>
                 ))}
@@ -572,18 +572,18 @@ function DetailPanel({
 
           {/* Links */}
           <section>
-            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Accesos rápidos</h3>
-            <div className="flex flex-wrap gap-2">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Accesos rápidos</h3>
+            <div className="flex flex-wrap gap-1.5">
               <a href={`/carpeta/${node.id}`}
-                className="px-3 py-2 bg-[#1a3a5c] text-white rounded-lg text-sm font-medium hover:bg-[#14304d] transition-colors">
+                className="text-[10px] px-2.5 py-1 bg-[#1a3a5c] text-white rounded-lg font-medium hover:bg-[#14304d] transition-colors leading-none">
                 📁 Carpeta
               </a>
               <a href={`/plan-carrera/${node.id}`}
-                className="px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+                className="text-[10px] px-2.5 py-1 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors leading-none">
                 📐 Plano de Carrera
               </a>
               <a href={`/carpeta/${node.id}?tab=sucesion`}
-                className="px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+                className="text-[10px] px-2.5 py-1 bg-white border border-gray-200 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors leading-none">
                 🔄 Sucesión
               </a>
             </div>
@@ -606,24 +606,24 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado }: {
   const rShort = r ? (RSHORT[r] ?? r) : null;
   const rColor = r ? (RCOLOR_BADGE[r] ?? "bg-gray-100 text-gray-500") : null;
 
-  const tipoBadge: Record<SucEntry["tipo"], string> = {
-    validado:   "bg-green-50 text-green-700 border-green-200",
-    borrador:   "bg-amber-50 text-amber-700 border-amber-200",
-    externo:    "bg-gray-100 text-gray-500 border-gray-200",
-    aspiracion: "bg-blue-50 text-blue-600 border-blue-200",
-  };
-  const tipoLabel: Record<SucEntry["tipo"], string> = {
-    validado: "✓ Validado", borrador: "Propuesto", externo: "Externo", aspiracion: "Aspiración",
-  };
-
   const colab = entry.id ? colabMap.get(entry.id) : null;
   const displayName = entry.tipo === "externo" ? entry.nombre : nombreCorto(entry.nombre);
-  const hasCareerPlan = entry.tipo === "validado";
 
-  // Bidireccional: sucesor also aspires to this same position in their PICD
+  // Match type: Bidireccional > Propuesto > Aspiración (engine rules)
   const sucPicd = entry.id ? picdByEmpleado.get(entry.id) : null;
   const isBidireccional = !!(titularCatId && sucPicd &&
     (sucPicd.puesto_futuro_id1 === titularCatId || sucPicd.puesto_futuro_id2 === titularCatId));
+
+  const matchLabel = entry.tipo === "externo"    ? "Externo" :
+                     entry.tipo === "aspiracion" ? "Aspiración" :
+                     isBidireccional             ? "⇄ Bidireccional" :
+                                                   "Propuesto";
+  const matchCls   = entry.tipo === "externo"    ? "bg-gray-100 text-gray-500 border-gray-200" :
+                     entry.tipo === "aspiracion" ? "bg-blue-50 text-blue-600 border-blue-200" :
+                     isBidireccional             ? "bg-teal-50 text-teal-700 border-teal-200" :
+                                                   "bg-amber-50 text-amber-700 border-amber-200";
+
+  const hasCareerPlan = entry.tipo === "validado" || (entry.tipo === "borrador" && isBidireccional);
 
   return (
     <div className="p-2.5 bg-gray-50 rounded-xl space-y-1.5">
@@ -659,15 +659,12 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado }: {
           )}
         </div>
         <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
-          {isBidireccional && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold leading-none bg-teal-50 text-teal-700 border-teal-200">
-              ⇄ Bidireccional
-            </span>
-          )}
-          <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold leading-none ${tipoBadge[entry.tipo]}`}>
-            {tipoLabel[entry.tipo]}
+          <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold leading-none ${matchCls}`}>
+            {matchLabel}
           </span>
-          {rShort && <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold leading-none ${rColor}`}>{rShort}</span>}
+          {rShort && entry.tipo !== "aspiracion" && (
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold leading-none ${rColor}`}>{rShort}</span>
+          )}
         </div>
       </div>
 
