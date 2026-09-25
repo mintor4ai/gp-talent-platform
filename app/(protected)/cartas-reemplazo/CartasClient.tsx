@@ -304,6 +304,32 @@ function ConnectorLines({
   );
 }
 
+// ── Hover tooltip ────────────────────────────────────────────────────────────
+
+function HoverTooltip({ label, cls, children }: {
+  label: React.ReactNode;
+  cls: string;
+  children: React.ReactNode;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="relative inline-block">
+      <span
+        className={`px-2.5 py-1 rounded-full text-xs font-semibold cursor-help ${cls}`}
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+      >
+        {label}
+      </span>
+      {show && (
+        <div className="absolute left-0 top-full mt-1.5 z-[80] w-64 bg-gray-900 text-white text-[11px] rounded-xl shadow-2xl p-3 space-y-2.5 pointer-events-none">
+          {children}
+        </div>
+      )}
+    </span>
+  );
+}
+
 // ── Detail panel ──────────────────────────────────────────────────────────────
 
 const ZONA_STYLE: Record<string, string> = {
@@ -348,14 +374,20 @@ function DetailPanel({
   const entries    = buildEntries(mySuc, aspirantes.filter(a => !sucIds.has(a.id)));
   const conc       = concentracionMap.get(node.id) ?? 0;
 
-  // Who has this person listed as their successor?
-  const plansDondeEsSucesor = sucesores.filter(s => s.sucesor_id === node.id);
-  const titularesTooltip = plansDondeEsSucesor.length
-    ? plansDondeEsSucesor.map(s => {
-        const t = colabMap.get(s.id_empleado_titular);
-        return t ? `${t.nombre_completo}\n${t.puesto ?? "—"}` : "—";
-      }).join("\n\n")
-    : "";
+  // Who has this person listed as their successor? (deduplicated by titular, most recent ciclo first)
+  const seenTitulares = new Set<string>();
+  const plansDondeEsSucesor = sucesores
+    .filter(s => s.sucesor_id === node.id)
+    .filter(s => {
+      if (seenTitulares.has(s.id_empleado_titular)) return false;
+      seenTitulares.add(s.id_empleado_titular);
+      return true;
+    })
+    .map(s => ({
+      titular: colabMap.get(s.id_empleado_titular),
+      tipo: s.estado === "aprobado" ? "Validado" : "Propuesto",
+    }))
+    .filter(p => p.titular != null) as { titular: CartaNode; tipo: string }[];
 
   return (
     <>
@@ -377,22 +409,34 @@ function DetailPanel({
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Status chips */}
           <div className="flex gap-2 flex-wrap">
-            <span
-              className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+            {cob === "negro" && plansDondeEsSucesor.length > 0 ? (
+              <HoverTooltip label="⚫ Ya asignado" cls="bg-gray-200 text-gray-800">
+                <p className="font-semibold text-gray-300 uppercase tracking-wider text-[9px] mb-1">Designado sucesor de:</p>
+                {plansDondeEsSucesor.map((p, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold leading-tight truncate">{p.titular.nombre_completo}</p>
+                      <p className="text-gray-400 text-[10px] leading-tight truncate">{p.titular.puesto ?? "—"}</p>
+                    </div>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 mt-0.5 ${
+                      p.tipo === "Validado" ? "bg-green-700 text-green-100" : "bg-amber-700 text-amber-100"
+                    }`}>{p.tipo}</span>
+                  </div>
+                ))}
+              </HoverTooltip>
+            ) : (
+              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                 cob === "verde"    ? "bg-green-100 text-green-800" :
                 cob === "amarillo" ? "bg-amber-100 text-amber-800" :
-                cob === "negro"    ? "bg-gray-200 text-gray-800 cursor-help" :
+                cob === "negro"    ? "bg-gray-200 text-gray-800" :
                 "bg-red-100 text-red-800"
-              }`}
-              title={cob === "negro" && titularesTooltip
-                ? `Designado como sucesor de:\n\n${titularesTooltip}`
-                : undefined}
-            >
-              {cob === "verde" ? "🟢 Cubierto" :
-               cob === "amarillo" ? "🟡 En desarrollo" :
-               cob === "negro" ? "⚫ Ya asignado" :
-               "🔴 En riesgo"}
-            </span>
+              }`}>
+                {cob === "verde" ? "🟢 Cubierto" :
+                 cob === "amarillo" ? "🟡 En desarrollo" :
+                 cob === "negro" ? "⚫ Ya asignado" :
+                 "🔴 En riesgo"}
+              </span>
+            )}
             {tc?.es_talento_clave && (
               <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 cursor-help"
                 title={`Fuente: ${tc.fuente} · Ciclo ${tc.ciclo_año}`}>
@@ -405,13 +449,21 @@ function DetailPanel({
                 ⚠ Puesto Crítico
               </span>
             )}
-            {conc >= 2 && (
-              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800 cursor-help"
-                title={titularesTooltip
-                  ? `Designado como sucesor en ${conc} planes:\n\n${titularesTooltip}`
-                  : `Está asignado como sucesor en ${conc} planes simultáneamente`}>
-                ⚠️ Concentración ({conc} planes)
-              </span>
+            {conc >= 2 && plansDondeEsSucesor.length > 0 && (
+              <HoverTooltip label={`⚠️ Concentración (${plansDondeEsSucesor.length} planes)`} cls="bg-orange-100 text-orange-800">
+                <p className="font-semibold text-gray-300 uppercase tracking-wider text-[9px] mb-1">Sucesor en {plansDondeEsSucesor.length} planes:</p>
+                {plansDondeEsSucesor.map((p, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold leading-tight truncate">{p.titular.nombre_completo}</p>
+                      <p className="text-gray-400 text-[10px] leading-tight truncate">{p.titular.puesto ?? "—"}</p>
+                    </div>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 mt-0.5 ${
+                      p.tipo === "Validado" ? "bg-green-700 text-green-100" : "bg-amber-700 text-amber-100"
+                    }`}>{p.tipo}</span>
+                  </div>
+                ))}
+              </HoverTooltip>
             )}
           </div>
 
