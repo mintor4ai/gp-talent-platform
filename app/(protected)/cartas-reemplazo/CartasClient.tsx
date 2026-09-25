@@ -54,13 +54,14 @@ function allVisible(id: string, cm: Map<string, string[]>, ex: Set<string>): str
 
 type Cob = "verde" | "amarillo" | "rojo";
 
-function getCob(idEmp: string | null, suc: CartaSucesor[]): Cob {
-  if (!idEmp) return "rojo";
-  const mine = suc.filter(s => s.id_empleado_titular === idEmp);
+// idColabUuid = colaboradores.id (UUID) — plan_sucesion.id_empleado is UUID FK to colaboradores.id
+function getCob(idColabUuid: string | null, suc: CartaSucesor[]): Cob {
+  if (!idColabUuid) return "rojo";
+  const mine = suc.filter(s => s.id_empleado_titular === idColabUuid);
   if (!mine.length) return "rojo";
   return mine.some(s => {
     const r = s.readiness ?? s.tiempo_estimado ?? "";
-    return r === "listo_ahora" || r === "uno_dos_anios";
+    return r === "listo_ahora" || r === "uno_dos_anios" || r === "corto" || r === "mediano";
   }) ? "verde" : "amarillo";
 }
 
@@ -269,15 +270,14 @@ function DetailPanel({
   const node = colabMap.get(nodeId);
   if (!node) return null;
 
-  const eip        = node.id_empleado ? eipByEmpleado.get(node.id_empleado) : undefined;
+  // eip/picd/sucesores.id_empleado_titular are all UUID (colaboradores.id)
+  const eip        = eipByEmpleado.get(node.id);
   const tc         = tcByColab.get(node.id);
-  const picd       = node.id_empleado ? picdByEmpleado.get(node.id_empleado) : undefined;
+  const picd       = picdByEmpleado.get(node.id);
   const catId      = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
   const cat        = catId ? catalogoById.get(catId) : undefined;
-  const cob        = getCob(node.id_empleado, sucesores);
-  const mySuc      = node.id_empleado
-    ? sucesores.filter(s => s.id_empleado_titular === node.id_empleado)
-    : [];
+  const cob        = getCob(node.id, sucesores);
+  const mySuc      = sucesores.filter(s => s.id_empleado_titular === node.id);
   const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []) : [];
 
   return (
@@ -543,7 +543,7 @@ function ExecSummary({
   const counts = { verde: 0, amarillo: 0, rojo: 0, ya: 0 };
   for (const id of directKids) {
     const n = colabMap.get(id);
-    if (n) counts[getCob(n.id_empleado, sucesores)]++;
+    if (n) counts[getCob(n.id, sucesores)]++;
     if (yaAsignadoIds.has(id)) counts.ya++;
   }
 
@@ -618,10 +618,12 @@ export default function CartasClient({
   );
 
   // Lookup maps
+  // eip/picd/sucesores all use UUID FK to colaboradores.id — key maps by UUID
   const colabMap     = useMemo(() => new Map(colabs.map(c => [c.id, c])), [colabs]);
   const eipMap       = useMemo(() => new Map(eipLatest.map(e => [e.id_empleado, e])), [eipLatest]);
   const tcMap        = useMemo(() => new Map(talentoClaveLatest.map(t => [t.colaborador_id, t])), [talentoClaveLatest]);
   const picdMap      = useMemo(() => new Map(picdLatest.map(p => [p.id_empleado, p])), [picdLatest]);
+  // All three maps are keyed by UUID (colaboradores.id) — use node.id for all lookups
   const catalogoById = useMemo(() => new Map(catalogo.map(c => [c.id, c])), [catalogo]);
   const yaIds        = useMemo(() => new Set(yaArr), [yaArr]);
 
@@ -648,14 +650,14 @@ export default function CartasClient({
   }, [colabs, catalogo]);
 
   // Build aspirantes map: puestoCatalogId → [nombre, ...] of people who declared it as puesto futuro in PICD
+  // picd.id_empleado is UUID FK to colaboradores.id — key by UUID
   const aspirantesByPuesto = useMemo(() => {
-    // id_empleado (numeric) → nombre_completo
-    const empToNombre = new Map<string, string>();
-    for (const c of colabs) if (c.id_empleado) empToNombre.set(c.id_empleado, c.nombre_completo);
+    const uuidToNombre = new Map<string, string>();
+    for (const c of colabs) uuidToNombre.set(c.id, c.nombre_completo);
 
     const m = new Map<string, string[]>();
     for (const p of picdLatest) {
-      const nombre = empToNombre.get(p.id_empleado);
+      const nombre = uuidToNombre.get(p.id_empleado);
       if (!nombre) continue;
       for (const catId of [p.puesto_futuro_id1, p.puesto_futuro_id2]) {
         if (!catId) continue;
@@ -753,13 +755,11 @@ export default function CartasClient({
               const pos  = shiftedPos.get(id);
               if (!node || !pos) return null;
 
-              const cob       = getCob(node.id_empleado, sucesores);
+              const cob       = getCob(node.id, sucesores);
               const tc        = tcMap.get(node.id);
               const catId     = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
               const cat       = catId ? catalogoById.get(catId) : undefined;
-              const mySuc     = node.id_empleado
-                ? sucesores.filter(s => s.id_empleado_titular === node.id_empleado)
-                : [];
+              const mySuc     = sucesores.filter(s => s.id_empleado_titular === node.id);
               const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []) : [];
 
               return (
