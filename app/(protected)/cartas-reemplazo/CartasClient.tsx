@@ -701,10 +701,17 @@ function buildEntries(
   mySuc: CartaSucesor[],
   aspirantesFiltrados: { nombre: string; id: string }[]
 ): SucEntry[] {
-  // Deduplicate plan_sucesion rows by sucesor_id (or name for externals)
-  // Rows arrive ordered desc by ciclo_año — keep the first (most recent) per person
+  // Deduplicate by sucesor_id: prefer aprobado over borrador regardless of ciclo_año,
+  // then prefer more recent ciclo_año. This prevents a 2026 borrador from overriding
+  // a 2025 aprobado.
+  const sorted = [...mySuc].sort((a, b) => {
+    const estadoScore = (s: CartaSucesor) => s.estado === "aprobado" ? 0 : 1;
+    const esDiff = estadoScore(a) - estadoScore(b);
+    if (esDiff !== 0) return esDiff;
+    return (b.ciclo_año ?? 0) - (a.ciclo_año ?? 0);
+  });
   const seen = new Set<string>();
-  const dedupedSuc = mySuc.filter(s => {
+  const dedupedSuc = sorted.filter(s => {
     const key = s.sucesor_id ?? `ext:${s.sucesor_nombre.trim().toLowerCase()}`;
     if (seen.has(key)) return false;
     seen.add(key);
