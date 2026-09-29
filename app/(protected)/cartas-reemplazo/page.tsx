@@ -38,7 +38,7 @@ export default async function CartasReemplazoPage() {
     return results;
   }
 
-  const [colabsRaw, sucesoresRaw, eipRaw, talentoClaveRaw, picdRaw, catalogoRaw, planCarreraRaw] = await Promise.all([
+  const [colabsRaw, sucesoresRaw, eipRaw, talentoClaveRaw, picdRaw, catalogoRaw, planCarreraRaw, validatedMatchesRaw] = await Promise.all([
     fetchAllRows((from, to) => {
       let q = supabase
         .from("colaboradores")
@@ -79,6 +79,11 @@ export default async function CartasReemplazoPage() {
     supabase
       .from("plan_carrera")
       .select("colaborador_id"),
+    supabase
+      .from("sucesion_matches")
+      .select("colaborador_id, puesto_catalogo_id, ciclo_año")
+      .eq("validado_ch", true)
+      .eq("descartado", false),
   ]);
 
   const colabs = (colabsRaw ?? []) as unknown as CartaNode[];
@@ -122,6 +127,10 @@ export default async function CartasReemplazoPage() {
     ((planCarreraRaw.data ?? []) as Array<{ colaborador_id: string }>).map((r) => r.colaborador_id)
   );
 
+  // validatedMatches: flat array of {colaborador_id, puesto_catalogo_id, ciclo_año} where validado_ch=true
+  type ValidatedMatch = { colaborador_id: string; puesto_catalogo_id: string; ciclo_año: number };
+  const validatedMatches: ValidatedMatch[] = (validatedMatchesRaw.data ?? []) as unknown as ValidatedMatch[];
+
   // ya asignado: UUIDs that appear as sucesor_id
   const yaAsignadoIds = sucesores.filter((s) => s.sucesor_id).map((s) => s.sucesor_id!);
 
@@ -142,6 +151,7 @@ export default async function CartasReemplazoPage() {
       catalogo={catalogo}
       yaAsignadoIds={yaAsignadoIds}
       planCarreraIds={[...planCarreraIds]}
+      validatedMatches={validatedMatches}
       rol={rol}
       jefeColabId={jefeColabId}
     />

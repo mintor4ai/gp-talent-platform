@@ -118,6 +118,7 @@ type SucEntry = {
   readiness: string | null;
   id: string | null; // colaboradores.id for carpeta link
   ciclo: number | null;
+  motorValidated: boolean; // true if has a validated sucesion_match row
 };
 
 // ── OrgCard ───────────────────────────────────────────────────────────────────
@@ -347,7 +348,7 @@ const ZONA_STYLE: Record<string, string> = {
 function DetailPanel({
   nodeId, colabMap, sucesores, tcByColab, eipByEmpleado, picdByEmpleado,
   catalogoById, colabToCatalog, aspirantesByPuesto, yaAsignadoIds,
-  planCarreraIds, concentracionMap, onClose,
+  planCarreraIds, concentracionMap, validatedMatchMap, onClose,
 }: {
   nodeId: string;
   colabMap: Map<string, CartaNode>;
@@ -361,6 +362,7 @@ function DetailPanel({
   yaAsignadoIds: Set<string>;
   planCarreraIds: Set<string>;
   concentracionMap: Map<string, number>;
+  validatedMatchMap: Map<string, number>;
   onClose: () => void;
 }) {
   const node = colabMap.get(nodeId);
@@ -376,7 +378,7 @@ function DetailPanel({
   const mySuc      = sucesores.filter(s => s.id_empleado_titular === node.id);
   const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []) : [];
   const sucIds     = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
-  const entries    = buildEntries(mySuc, aspirantes.filter(a => !sucIds.has(a.id)));
+  const entries    = buildEntries(mySuc, aspirantes.filter(a => !sucIds.has(a.id)), validatedMatchMap, catId);
   const conc       = concentracionMap.get(node.id) ?? 0;
 
   // Who has this person listed as their successor? (deduplicated by titular, most recent ciclo first)
@@ -672,13 +674,9 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarre
           {rShort && entry.tipo !== "aspiracion" && (
             <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold leading-none ${rColor}`}>{rShort}</span>
           )}
-          {entry.ciclo && (
-            <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-bold leading-none tracking-wide ${
-              entry.tipo === "validado"
-                ? "bg-blue-50 text-blue-500 border border-blue-200"
-                : "bg-gray-100 text-gray-400 border border-gray-200"
-            }`}>
-              {String(entry.ciclo).slice(-2)}
+          {entry.ciclo && entry.motorValidated && (
+            <span className="text-[8.5px] px-1.5 py-0.5 rounded font-bold leading-none tracking-wide bg-green-100 text-green-700 border border-green-300">
+              ✓{String(entry.ciclo).slice(-2)}
             </span>
           )}
         </div>
@@ -707,9 +705,12 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarre
 
 // ── Build unified entries ─────────────────────────────────────────────────────
 
+// validatedMatchMap key: "colabId:catId" → ciclo_año of the validated match
 function buildEntries(
   mySuc: CartaSucesor[],
-  aspirantesFiltrados: { nombre: string; id: string }[]
+  aspirantesFiltrados: { nombre: string; id: string }[],
+  validatedMatchMap: Map<string, number>,
+  titularCatId: string | null | undefined
 ): SucEntry[] {
   // Deduplicate by sucesor_id: prefer aprobado over borrador regardless of ciclo_año,
   // then prefer more recent ciclo_año. This prevents a 2026 borrador from overriding
@@ -728,22 +729,44 @@ function buildEntries(
     return true;
   });
 
-  const entries: SucEntry[] = dedupedSuc.map(s => {
+  const entries: SucEntry[] = [];
+  for (const s of dedupedSuc) {
     const tipo: SucEntry["tipo"] =
       s.sucesor_id === null ? "externo" :
       s.estado === "aprobado" ? "validado" : "borrador";
-    return {
+
+    // For internal successors, check if there's a validated motor match
+    let motorValidated = false;
+    let matchCiclo: number | null = s.ciclo_año ?? null;
+    if (s.sucesor_id && titularCatId) {
+      const matchKey = `${s.sucesor_id}:${titularCatId}`;
+      const mc = validatedMatchMap.get(matchKey);
+      if (mc !== undefined) {
+        motorValidated = true;
+        matchCiclo = mc;
+      }
+    }
+
+    // Only include this entry if: it has a validated motor match, OR it's external (no ID to match against)
+    if (s.sucesor_id !== null && !motorValidated) continue;
+
+    entries.push({
       nombre: s.sucesor_nombre,
       tipo,
       readiness: s.readiness ?? s.tiempo_estimado ?? null,
       id: s.sucesor_id,
-      ciclo: s.ciclo_año ?? null,
-    };
-  });
+      ciclo: matchCiclo,
+      motorValidated,
+    });
+  }
 
-  // Aspiraciones: skip if already a sucesor (covered by sucIds filter before calling this)
+  // Aspiraciones: only include if they have a validated motor match for the titular's catId
   for (const a of aspirantesFiltrados) {
-    entries.push({ nombre: a.nombre, tipo: "aspiracion", readiness: null, id: a.id, ciclo: null });
+    if (!titularCatId) continue;
+    const matchKey = `${a.id}:${titularCatId}`;
+    const mc = validatedMatchMap.get(matchKey);
+    if (mc === undefined) continue; // no validated match → skip
+    entries.push({ nombre: a.nombre, tipo: "aspiracion", readiness: null, id: a.id, ciclo: mc, motorValidated: true });
   }
 
   // Sort: validado, borrador, aspiracion, externo
@@ -898,7 +921,7 @@ function Legend() {
 
 export default function CartasClient({
   colabs, eipLatest, talentoClaveLatest, sucesores, picdLatest,
-  catalogo, yaAsignadoIds: yaArr, planCarreraIds: pcArr, rol, jefeColabId,
+  catalogo, yaAsignadoIds: yaArr, planCarreraIds: pcArr, validatedMatches, rol, jefeColabId,
 }: {
   colabs: CartaNode[];
   eipLatest: CartaEip[];
@@ -908,6 +931,7 @@ export default function CartasClient({
   catalogo: CartaCatalogoPuesto[];
   yaAsignadoIds: string[];
   planCarreraIds: string[];
+  validatedMatches: { colaborador_id: string; puesto_catalogo_id: string; ciclo_año: number }[];
   rol: string;
   jefeColabId: string | null;
 }) {
@@ -942,6 +966,16 @@ export default function CartasClient({
   const catalogoById = useMemo(() => new Map(catalogo.map(c => [c.id, c])), [catalogo]);
   const yaIds           = useMemo(() => new Set(yaArr), [yaArr]);
   const planCarreraSet  = useMemo(() => new Set(pcArr), [pcArr]);
+  // validatedMatchMap: "colabId:catId" → ciclo_año (prefer most recent if duplicates)
+  const validatedMatchMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const vm of validatedMatches) {
+      const key = `${vm.colaborador_id}:${vm.puesto_catalogo_id}`;
+      const existing = m.get(key);
+      if (existing === undefined || vm.ciclo_año > existing) m.set(key, vm.ciclo_año);
+    }
+    return m;
+  }, [validatedMatches]);
 
   const childrenMap = useMemo(() => {
     const m = new Map<string, string[]>();
@@ -1165,7 +1199,7 @@ export default function CartasClient({
               const aspirantes = catId
                 ? (aspirantesByPuesto.get(catId) ?? []).filter(a => !sucIds.has(a.id))
                 : [];
-              const entries   = buildEntries(mySuc, aspirantes);
+              const entries   = buildEntries(mySuc, aspirantes, validatedMatchMap, catId);
               const conc      = concentracionMap.get(node.id) ?? 0;
 
               return (
@@ -1215,6 +1249,7 @@ export default function CartasClient({
           yaAsignadoIds={yaIds}
           planCarreraIds={planCarreraSet}
           concentracionMap={concentracionMap}
+          validatedMatchMap={validatedMatchMap}
           onClose={() => setSelected(null)}
         />
       )}
