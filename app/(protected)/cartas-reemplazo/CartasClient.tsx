@@ -927,13 +927,61 @@ function ExecSummary({
 
 function Legend() {
   return (
-    <div className="flex items-center gap-x-5 gap-y-1 flex-wrap text-xs text-gray-500">
-      <span>● <span className="text-green-600 font-medium">Cubierto</span> — Backup validado Inm./Med.</span>
-      <span>● <span className="text-amber-500 font-medium">En desarrollo</span> — Propuesto o solo Largo Plazo</span>
-      <span>● <span className="text-red-500 font-medium">En riesgo</span> — Sin sucesor o todos externos</span>
-      <span>⚫ <span className="text-gray-600 font-medium">Ya asignado</span> — En proceso de sucesión</span>
-      <span className="ml-2">⭐ Talento Clave · ⚠️ Concentración</span>
-      <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> <span className="font-medium text-orange-700">Puesto Crítico</span></span>
+    <div className="rounded-lg border border-gray-100 bg-white px-4 py-2.5 flex flex-wrap gap-x-6 gap-y-2 text-[11px]">
+      {/* Card border colors */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mr-1">Borde</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm bg-green-500 flex-shrink-0" />
+          <span className="font-semibold text-green-700">Cubierto</span>
+          <span className="text-gray-400">match validado + Inm./Med.</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 flex-shrink-0" />
+          <span className="font-semibold text-amber-700">En desarrollo</span>
+          <span className="text-gray-400">sucesor sin match validado</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm bg-red-500 flex-shrink-0" />
+          <span className="font-semibold text-red-700">En riesgo</span>
+          <span className="text-gray-400">sin sucesor interno</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm bg-gray-600 flex-shrink-0" />
+          <span className="font-semibold text-gray-600">Ya asignado</span>
+          <span className="text-gray-400">es sucesor en otro plan</span>
+        </span>
+      </div>
+
+      <div className="w-px bg-gray-200 self-stretch hidden sm:block" />
+
+      {/* Successor chips */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mr-1">Chips</span>
+        <span className="inline-flex items-center gap-1">
+          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-green-100 text-green-700 border border-green-300">✓25</span>
+          <span className="text-gray-500">Match validado</span>
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-700 border-amber-300">Propuesto</span>
+          <span className="text-gray-500">Plan sin validar</span>
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-blue-50 text-blue-600 border-blue-200">Aspiración</span>
+          <span className="text-gray-500">PICD vinculado</span>
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-red-100 text-red-600 border border-red-200">✗26</span>
+          <span className="text-gray-500">Match descartado</span>
+        </span>
+        <span className="inline-flex items-center gap-1 text-gray-400">
+          <span>⭐</span><span>Talento Clave</span>
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block" />
+          <span className="text-orange-700 font-medium">Puesto Crítico</span>
+        </span>
+      </div>
     </div>
   );
 }
