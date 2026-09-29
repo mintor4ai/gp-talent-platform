@@ -117,6 +117,7 @@ type SucEntry = {
   tipo: "validado" | "borrador" | "externo" | "aspiracion";
   readiness: string | null;
   id: string | null; // colaboradores.id for carpeta link
+  ciclo: number | null;
 };
 
 // ── OrgCard ───────────────────────────────────────────────────────────────────
@@ -664,12 +665,21 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarre
             <p className="text-[9.5px] text-gray-400 truncate leading-tight">{colab.puesto}</p>
           )}
         </div>
-        <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
+        <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end items-center">
           <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold leading-none ${matchCls}`}>
             {matchLabel}
           </span>
           {rShort && entry.tipo !== "aspiracion" && (
             <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold leading-none ${rColor}`}>{rShort}</span>
+          )}
+          {entry.ciclo && (
+            <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-bold leading-none tracking-wide ${
+              entry.tipo === "validado"
+                ? "bg-blue-50 text-blue-500 border border-blue-200"
+                : "bg-gray-100 text-gray-400 border border-gray-200"
+            }`}>
+              {String(entry.ciclo).slice(-2)}
+            </span>
           )}
         </div>
       </div>
@@ -727,12 +737,13 @@ function buildEntries(
       tipo,
       readiness: s.readiness ?? s.tiempo_estimado ?? null,
       id: s.sucesor_id,
+      ciclo: s.ciclo_año ?? null,
     };
   });
 
   // Aspiraciones: skip if already a sucesor (covered by sucIds filter before calling this)
   for (const a of aspirantesFiltrados) {
-    entries.push({ nombre: a.nombre, tipo: "aspiracion", readiness: null, id: a.id });
+    entries.push({ nombre: a.nombre, tipo: "aspiracion", readiness: null, id: a.id, ciclo: null });
   }
 
   // Sort: validado, borrador, aspiracion, externo
