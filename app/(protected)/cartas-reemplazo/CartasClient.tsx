@@ -73,17 +73,29 @@ type Cob = "verde" | "amarillo" | "rojo" | "negro";
 // amarillo= tiene sucesores pero sin match validado activo
 // rojo    = sin sucesor o todos descartados/externos
 // negro   = this person is already assigned as sucesor in another plan (yaAsignado)
-// coveredByValidatedMatch: pre-computed set of titular UUIDs with active validated matches
-function getCob(colabUuid: string, isYaAsignado: boolean, suc: CartaSucesor[], coveredByValidatedMatch: Set<string>): Cob {
+// coveredByValidatedMatch: titulares con ≥1 sucesor validado + readiness ok
+// validatedMatchMap + titularCatId: used to gate amarillo — only show yellow if at
+// least one sucesor has an active validated match (same gate as buildEntries display),
+// so the border always matches what is actually shown on the card.
+function getCob(
+  colabUuid: string,
+  isYaAsignado: boolean,
+  suc: CartaSucesor[],
+  coveredByValidatedMatch: Set<string>,
+  validatedMatchMap: Map<string, number>,
+  titularCatId: string | null | undefined
+): Cob {
   const mine = suc.filter(s => s.id_empleado_titular === colabUuid);
-  const hasInternal = mine.some(s => s.sucesor_id !== null);
-  // Verde only if there's an active (non-discarded) validated motor match with good readiness
-  const hasValidado = coveredByValidatedMatch.has(colabUuid);
-  // Verde takes priority: a covered position is green regardless of ya-asignado
-  if (hasValidado) return "verde";
-  // Negro: no validated coverage + this person is themselves a successor elsewhere
+  // Verde: validated match + good readiness
+  if (coveredByValidatedMatch.has(colabUuid)) return "verde";
+  // Negro: no coverage + is themselves a successor elsewhere
   if (isYaAsignado) return "negro";
-  if (!mine.length || !hasInternal) return "rojo";
+  // Amarillo only if ≥1 internal sucesor has an active validated motor match
+  // (ensures the border reflects what is actually displayed — not raw plan_sucesion)
+  const hasVisibleSuccessor = titularCatId
+    ? mine.some(s => s.sucesor_id !== null && validatedMatchMap.has(`${s.sucesor_id}:${titularCatId}`))
+    : false;
+  if (!hasVisibleSuccessor) return "rojo";
   return "amarillo";
 }
 
@@ -375,7 +387,7 @@ function DetailPanel({
   const catId      = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
   const cat        = catId ? catalogoById.get(catId) : undefined;
   const isYa       = yaAsignadoIds.has(node.id);
-  const cob        = getCob(node.id, isYa, sucesores, coveredByValidatedMatch);
+  const cob        = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId);
   const mySuc      = sucesores.filter(s => s.id_empleado_titular === node.id);
   const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []) : [];
   const sucIds     = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
@@ -875,6 +887,7 @@ function RootSelector({
 
 function ExecSummary({
   rootId, childrenMap, colabMap, sucesores, yaAsignadoIds, coveredByValidatedMatch,
+  validatedMatchMap, colabToCatalog,
 }: {
   rootId: string;
   childrenMap: Map<string, string[]>;
@@ -882,12 +895,17 @@ function ExecSummary({
   sucesores: CartaSucesor[];
   yaAsignadoIds: Set<string>;
   coveredByValidatedMatch: Set<string>;
+  validatedMatchMap: Map<string, number>;
+  colabToCatalog: Map<string, string>;
 }) {
   const directKids = childrenMap.get(rootId) ?? [];
   const counts = { verde: 0, amarillo: 0, rojo: 0, negro: 0 };
   for (const id of directKids) {
     const n = colabMap.get(id);
-    if (n) counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores, coveredByValidatedMatch)]++;
+    if (n) {
+      const catId = n.puesto_catalogo_id ?? colabToCatalog.get(n.id);
+      counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores, coveredByValidatedMatch, validatedMatchMap, catId)]++;
+    }
   }
 
   if (directKids.length === 0) return null;
@@ -1229,7 +1247,7 @@ export default function CartasClient({
 
       {rootId && (
         <>
-          <ExecSummary rootId={rootId} childrenMap={childrenMap} colabMap={colabMap} sucesores={sucesores} yaAsignadoIds={yaIds} coveredByValidatedMatch={coveredByValidatedMatch} />
+          <ExecSummary rootId={rootId} childrenMap={childrenMap} colabMap={colabMap} sucesores={sucesores} yaAsignadoIds={yaIds} coveredByValidatedMatch={coveredByValidatedMatch} validatedMatchMap={validatedMatchMap} colabToCatalog={colabToCatalog} />
           <Legend />
         </>
       )}
@@ -1293,9 +1311,9 @@ export default function CartasClient({
               if (!node || !pos) return null;
 
               const isYa      = yaIds.has(id);
-              const cob       = getCob(node.id, isYa, sucesores, coveredByValidatedMatch);
-              const tc        = tcMap.get(node.id);
               const catId     = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
+              const cob       = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId);
+              const tc        = tcMap.get(node.id);
               const cat       = catId ? catalogoById.get(catId) : undefined;
               const mySuc     = sucesores.filter(s => s.id_empleado_titular === node.id);
               const sucIds    = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
