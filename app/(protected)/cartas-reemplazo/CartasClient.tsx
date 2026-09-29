@@ -69,19 +69,16 @@ function nombreCorto(nombre: string): string {
 type Cob = "verde" | "amarillo" | "rojo" | "negro";
 
 // plan_sucesion.id_empleado_titular = colaboradores.id (UUID)
-// verde   = ≥1 aprobado con readiness inmediato/mediano
-// amarillo= tiene sucesores pero solo borrador o solo largo plazo
-// rojo    = sin sucesor declarado o todos externos (sucesor_id null)
+// verde   = ≥1 aprobado con readiness inmediato/mediano AND motor match validated
+// amarillo= tiene sucesores pero sin match validado activo
+// rojo    = sin sucesor o todos descartados/externos
 // negro   = this person is already assigned as sucesor in another plan (yaAsignado)
-function getCob(colabUuid: string, isYaAsignado: boolean, suc: CartaSucesor[]): Cob {
+// coveredByValidatedMatch: pre-computed set of titular UUIDs with active validated matches
+function getCob(colabUuid: string, isYaAsignado: boolean, suc: CartaSucesor[], coveredByValidatedMatch: Set<string>): Cob {
   const mine = suc.filter(s => s.id_empleado_titular === colabUuid);
   const hasInternal = mine.some(s => s.sucesor_id !== null);
-  // Has validado (aprobado) with corto/inmediato/mediano readiness?
-  const hasValidado = mine.some(s =>
-    s.estado === "aprobado" &&
-    (s.readiness === "listo_ahora" || s.readiness === "uno_dos_anios" ||
-     s.tiempo_estimado === "corto" || s.tiempo_estimado === "mediano")
-  );
+  // Verde only if there's an active (non-discarded) validated motor match with good readiness
+  const hasValidado = coveredByValidatedMatch.has(colabUuid);
   // Verde takes priority: a covered position is green regardless of ya-asignado
   if (hasValidado) return "verde";
   // Negro: no validated coverage + this person is themselves a successor elsewhere
@@ -114,7 +111,7 @@ const RCOLOR_BADGE: Record<string, string> = {
 
 type SucEntry = {
   nombre: string;
-  tipo: "validado" | "borrador" | "externo" | "aspiracion";
+  tipo: "validado" | "borrador" | "externo" | "aspiracion" | "descartado";
   readiness: string | null;
   id: string | null; // colaboradores.id for carpeta link
   ciclo: number | null;
@@ -256,6 +253,8 @@ function SucRow({ entry }: { entry: SucEntry }) {
       ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-amber-50 text-amber-600 border border-amber-300">{rShort ?? "Pend."}</span>
     : entry.tipo === "externo"
       ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-gray-100 text-gray-500">Ext.</span>
+    : entry.tipo === "descartado"
+      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-red-50 text-red-500 border border-red-200 line-through">✗</span>
     : <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none border border-gray-300 text-gray-400">Asp.</span>;
 
   return (
@@ -348,7 +347,7 @@ const ZONA_STYLE: Record<string, string> = {
 function DetailPanel({
   nodeId, colabMap, sucesores, tcByColab, eipByEmpleado, picdByEmpleado,
   catalogoById, colabToCatalog, aspirantesByPuesto, yaAsignadoIds,
-  planCarreraIds, concentracionMap, validatedMatchMap, onClose,
+  planCarreraIds, concentracionMap, validatedMatchMap, discardedByCatId, coveredByValidatedMatch, onClose,
 }: {
   nodeId: string;
   colabMap: Map<string, CartaNode>;
@@ -363,6 +362,8 @@ function DetailPanel({
   planCarreraIds: Set<string>;
   concentracionMap: Map<string, number>;
   validatedMatchMap: Map<string, number>;
+  discardedByCatId: Map<string, { id: string; nombre: string; ciclo: number }[]>;
+  coveredByValidatedMatch: Set<string>;
   onClose: () => void;
 }) {
   const node = colabMap.get(nodeId);
@@ -374,11 +375,12 @@ function DetailPanel({
   const catId      = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
   const cat        = catId ? catalogoById.get(catId) : undefined;
   const isYa       = yaAsignadoIds.has(node.id);
-  const cob        = getCob(node.id, isYa, sucesores);
+  const cob        = getCob(node.id, isYa, sucesores, coveredByValidatedMatch);
   const mySuc      = sucesores.filter(s => s.id_empleado_titular === node.id);
   const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []) : [];
   const sucIds     = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
-  const entries    = buildEntries(mySuc, aspirantes.filter(a => !sucIds.has(a.id)), validatedMatchMap, catId);
+  const discartados = catId ? (discardedByCatId.get(catId) ?? []) : [];
+  const entries    = buildEntries(mySuc, aspirantes.filter(a => !sucIds.has(a.id)), discartados, validatedMatchMap, catId);
   const conc       = concentracionMap.get(node.id) ?? 0;
 
   // Who has this person listed as their successor? (deduplicated by titular, most recent ciclo first)
@@ -623,14 +625,16 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarre
   const isBidireccional = !!(titularCatId && sucPicd &&
     (sucPicd.puesto_futuro_id1 === titularCatId || sucPicd.puesto_futuro_id2 === titularCatId));
 
-  const matchLabel = entry.tipo === "externo"    ? "Externo" :
-                     entry.tipo === "aspiracion" ? "Aspiración" :
-                     isBidireccional             ? "⇄ Bidireccional" :
-                                                   "Propuesto";
-  const matchCls   = entry.tipo === "externo"    ? "bg-gray-100 text-gray-500 border-gray-200" :
-                     entry.tipo === "aspiracion" ? "bg-blue-50 text-blue-600 border-blue-200" :
-                     isBidireccional             ? "bg-teal-50 text-teal-700 border-teal-200" :
-                                                   "bg-amber-50 text-amber-700 border-amber-200";
+  const matchLabel = entry.tipo === "externo"     ? "Externo" :
+                     entry.tipo === "aspiracion"  ? "Aspiración" :
+                     entry.tipo === "descartado"  ? "Descartado" :
+                     isBidireccional              ? "⇄ Bidireccional" :
+                                                    "Propuesto";
+  const matchCls   = entry.tipo === "externo"     ? "bg-gray-100 text-gray-500 border-gray-200" :
+                     entry.tipo === "aspiracion"  ? "bg-blue-50 text-blue-600 border-blue-200" :
+                     entry.tipo === "descartado"  ? "bg-red-50 text-red-500 border-red-200" :
+                     isBidireccional              ? "bg-teal-50 text-teal-700 border-teal-200" :
+                                                    "bg-amber-50 text-amber-700 border-amber-200";
 
   const hasCareerPlan = !!(entry.id && planCarreraIds.has(entry.id));
 
@@ -674,7 +678,12 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarre
           {rShort && entry.tipo !== "aspiracion" && (
             <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold leading-none ${rColor}`}>{rShort}</span>
           )}
-          {entry.ciclo && entry.motorValidated && (
+          {entry.ciclo && entry.tipo === "descartado" && (
+            <span className="text-[8.5px] px-1.5 py-0.5 rounded font-bold leading-none tracking-wide bg-red-100 text-red-600 border border-red-200">
+              ✗{String(entry.ciclo).slice(-2)}
+            </span>
+          )}
+          {entry.ciclo && entry.motorValidated && entry.tipo !== "descartado" && (
             <span className="text-[8.5px] px-1.5 py-0.5 rounded font-bold leading-none tracking-wide bg-green-100 text-green-700 border border-green-300">
               ✓{String(entry.ciclo).slice(-2)}
             </span>
@@ -709,6 +718,7 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarre
 function buildEntries(
   mySuc: CartaSucesor[],
   aspirantesFiltrados: { nombre: string; id: string }[],
+  discartadosFiltrados: { id: string; nombre: string; ciclo: number }[],
   validatedMatchMap: Map<string, number>,
   titularCatId: string | null | undefined
 ): SucEntry[] {
@@ -769,8 +779,18 @@ function buildEntries(
     entries.push({ nombre: a.nombre, tipo: "aspiracion", readiness: null, id: a.id, ciclo: mc, motorValidated: true });
   }
 
-  // Sort: validado, borrador, aspiracion, externo
-  const order: Record<SucEntry["tipo"], number> = { validado: 0, borrador: 1, aspiracion: 2, externo: 3 };
+  // Descartados: motor matches that were discarded — show even if no plan_sucesion row exists
+  // Skip if this person already has a validated entry (validated takes precedence)
+  const validatedIds = new Set(entries.filter(e => e.motorValidated).map(e => e.id).filter(Boolean) as string[]);
+  for (const d of discartadosFiltrados) {
+    if (validatedIds.has(d.id)) continue; // already showing as validated
+    const already = entries.find(e => e.id === d.id && e.ciclo === d.ciclo);
+    if (already) continue; // exact same ciclo already present
+    entries.push({ nombre: d.nombre, tipo: "descartado", readiness: null, id: d.id, ciclo: d.ciclo, motorValidated: false });
+  }
+
+  // Sort: validado, borrador, aspiracion, descartado, externo
+  const order: Record<SucEntry["tipo"], number> = { validado: 0, borrador: 1, aspiracion: 2, descartado: 3, externo: 4 };
   return entries.sort((a, b) => order[a.tipo] - order[b.tipo]);
 }
 
@@ -854,19 +874,20 @@ function RootSelector({
 // ── Executive summary bar ─────────────────────────────────────────────────────
 
 function ExecSummary({
-  rootId, childrenMap, colabMap, sucesores, yaAsignadoIds,
+  rootId, childrenMap, colabMap, sucesores, yaAsignadoIds, coveredByValidatedMatch,
 }: {
   rootId: string;
   childrenMap: Map<string, string[]>;
   colabMap: Map<string, CartaNode>;
   sucesores: CartaSucesor[];
   yaAsignadoIds: Set<string>;
+  coveredByValidatedMatch: Set<string>;
 }) {
   const directKids = childrenMap.get(rootId) ?? [];
   const counts = { verde: 0, amarillo: 0, rojo: 0, negro: 0 };
   for (const id of directKids) {
     const n = colabMap.get(id);
-    if (n) counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores)]++;
+    if (n) counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores, coveredByValidatedMatch)]++;
   }
 
   if (directKids.length === 0) return null;
@@ -921,7 +942,7 @@ function Legend() {
 
 export default function CartasClient({
   colabs, eipLatest, talentoClaveLatest, sucesores, picdLatest,
-  catalogo, yaAsignadoIds: yaArr, planCarreraIds: pcArr, validatedMatches, rol, jefeColabId,
+  catalogo, yaAsignadoIds: yaArr, planCarreraIds: pcArr, validatedMatches, discardedMatches, rol, jefeColabId,
 }: {
   colabs: CartaNode[];
   eipLatest: CartaEip[];
@@ -932,6 +953,7 @@ export default function CartasClient({
   yaAsignadoIds: string[];
   planCarreraIds: string[];
   validatedMatches: { colaborador_id: string; puesto_catalogo_id: string; ciclo_año: number }[];
+  discardedMatches: { colaborador_id: string; puesto_catalogo_id: string; ciclo_año: number }[];
   rol: string;
   jefeColabId: string | null;
 }) {
@@ -977,6 +999,23 @@ export default function CartasClient({
     return m;
   }, [validatedMatches]);
 
+  // discardedByCatId: catId → [{id, nombre, ciclo}] — discarded motor matches by catalog position
+  const discardedByCatId = useMemo(() => {
+    const m = new Map<string, { id: string; nombre: string; ciclo: number }[]>();
+    for (const dm of discardedMatches) {
+      const { colaborador_id, puesto_catalogo_id, ciclo_año } = dm;
+      if (!colaborador_id || !puesto_catalogo_id) continue;
+      const colab = colabMap.get(colaborador_id);
+      if (!colab) continue;
+      if (!m.has(puesto_catalogo_id)) m.set(puesto_catalogo_id, []);
+      const list = m.get(puesto_catalogo_id)!;
+      if (!list.find(e => e.id === colaborador_id && e.ciclo === ciclo_año)) {
+        list.push({ id: colaborador_id, nombre: colab.nombre_completo, ciclo: ciclo_año });
+      }
+    }
+    return m;
+  }, [discardedMatches, colabMap]);
+
   const childrenMap = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const c of colabs) {
@@ -998,6 +1037,22 @@ export default function CartasClient({
     }
     return m;
   }, [colabs, catalogo]);
+
+  // coveredByValidatedMatch: titular UUIDs where ≥1 sucesor has an active validated match with good readiness
+  const coveredByValidatedMatch = useMemo(() => {
+    const covered = new Set<string>();
+    for (const s of sucesores) {
+      if (s.estado !== "aprobado" || !s.sucesor_id) continue;
+      const readOk = s.readiness === "listo_ahora" || s.readiness === "uno_dos_anios" ||
+                     s.tiempo_estimado === "corto" || s.tiempo_estimado === "mediano";
+      if (!readOk) continue;
+      const titularNode = colabMap.get(s.id_empleado_titular);
+      const catId = titularNode?.puesto_catalogo_id ?? colabToCatalog.get(s.id_empleado_titular);
+      if (!catId) continue;
+      if (validatedMatchMap.has(`${s.sucesor_id}:${catId}`)) covered.add(s.id_empleado_titular);
+    }
+    return covered;
+  }, [sucesores, validatedMatchMap, colabMap, colabToCatalog]);
 
   // Aspirantes: puestoCatalogId → [{nombre, id}] — keyed by UUID
   // Deduplicate: a person with the same catId in both PICD slots must appear only once
@@ -1126,7 +1181,7 @@ export default function CartasClient({
 
       {rootId && (
         <>
-          <ExecSummary rootId={rootId} childrenMap={childrenMap} colabMap={colabMap} sucesores={sucesores} yaAsignadoIds={yaIds} />
+          <ExecSummary rootId={rootId} childrenMap={childrenMap} colabMap={colabMap} sucesores={sucesores} yaAsignadoIds={yaIds} coveredByValidatedMatch={coveredByValidatedMatch} />
           <Legend />
         </>
       )}
@@ -1190,7 +1245,7 @@ export default function CartasClient({
               if (!node || !pos) return null;
 
               const isYa      = yaIds.has(id);
-              const cob       = getCob(node.id, isYa, sucesores);
+              const cob       = getCob(node.id, isYa, sucesores, coveredByValidatedMatch);
               const tc        = tcMap.get(node.id);
               const catId     = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
               const cat       = catId ? catalogoById.get(catId) : undefined;
@@ -1199,7 +1254,8 @@ export default function CartasClient({
               const aspirantes = catId
                 ? (aspirantesByPuesto.get(catId) ?? []).filter(a => !sucIds.has(a.id))
                 : [];
-              const entries   = buildEntries(mySuc, aspirantes, validatedMatchMap, catId);
+              const discartados = catId ? (discardedByCatId.get(catId) ?? []) : [];
+              const entries   = buildEntries(mySuc, aspirantes, discartados, validatedMatchMap, catId);
               const conc      = concentracionMap.get(node.id) ?? 0;
 
               return (
@@ -1250,6 +1306,8 @@ export default function CartasClient({
           planCarreraIds={planCarreraSet}
           concentracionMap={concentracionMap}
           validatedMatchMap={validatedMatchMap}
+          discardedByCatId={discardedByCatId}
+          coveredByValidatedMatch={coveredByValidatedMatch}
           onClose={() => setSelected(null)}
         />
       )}
