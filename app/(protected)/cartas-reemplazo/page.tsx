@@ -38,7 +38,7 @@ export default async function CartasReemplazoPage() {
     return results;
   }
 
-  const [colabsRaw, sucesoresRaw, eipRaw, talentoClaveRaw, picdRaw, catalogoRaw, planCarreraRaw, validatedMatchesRaw, discardedMatchesRaw] = await Promise.all([
+  const [colabsRaw, sucesoresRaw, eipRaw, talentoClaveRaw, picdRaw, catalogoRaw, planCarreraRaw, validatedMatchesRaw, discardedMatchesRaw, pendingMatchesRaw] = await Promise.all([
     fetchAllRows((from, to) => {
       let q = supabase
         .from("colaboradores")
@@ -88,6 +88,11 @@ export default async function CartasReemplazoPage() {
       .from("sucesion_matches")
       .select("colaborador_id, puesto_catalogo_id, ciclo_año")
       .eq("descartado", true),
+    supabase
+      .from("sucesion_matches")
+      .select("colaborador_id, puesto_catalogo_id, ciclo_año")
+      .is("validado_ch", null)
+      .eq("descartado", false),
   ]);
 
   const colabs = (colabsRaw ?? []) as unknown as CartaNode[];
@@ -134,6 +139,7 @@ export default async function CartasReemplazoPage() {
   type MatchRow = { colaborador_id: string; puesto_catalogo_id: string; ciclo_año: number };
   const validatedMatches: MatchRow[] = (validatedMatchesRaw.data ?? []) as unknown as MatchRow[];
   const discardedMatches: MatchRow[] = (discardedMatchesRaw.data ?? []) as unknown as MatchRow[];
+  const pendingMatches: MatchRow[] = (pendingMatchesRaw.data ?? []) as unknown as MatchRow[];
 
   // ya asignado: UUIDs that appear as sucesor_id
   const yaAsignadoIds = sucesores.filter((s) => s.sucesor_id).map((s) => s.sucesor_id!);
@@ -157,6 +163,7 @@ export default async function CartasReemplazoPage() {
       planCarreraIds={[...planCarreraIds]}
       validatedMatches={validatedMatches}
       discardedMatches={discardedMatches}
+      pendingMatches={pendingMatches}
       rol={rol}
       jefeColabId={jefeColabId}
     />
