@@ -83,17 +83,16 @@ function getCob(
   suc: CartaSucesor[],
   coveredByValidatedMatch: Set<string>,
   validatedMatchMap: Map<string, number>,
-  titularCatId: string | null | undefined
+  titularCatId: string | null | undefined,
+  validatedMatchesByPuesto: Map<string, { id: string; nombre: string }[]>
 ): Cob {
   const mine = suc.filter(s => s.id_empleado_titular === colabUuid);
-  // Verde: validated match + good readiness
   if (coveredByValidatedMatch.has(colabUuid)) return "verde";
-  // Negro: no coverage + is themselves a successor elsewhere
   if (isYaAsignado) return "negro";
-  // Amarillo only if ≥1 internal sucesor has an active validated motor match
-  // (ensures the border reflects what is actually displayed — not raw plan_sucesion)
+  // Amarillo: ≥1 visible successor via plan_sucesion OR via motor match for the position
   const hasVisibleSuccessor = titularCatId
     ? mine.some(s => s.sucesor_id !== null && validatedMatchMap.has(`${s.sucesor_id}:${titularCatId}`))
+      || (validatedMatchesByPuesto.get(titularCatId) ?? []).length > 0
     : false;
   if (!hasVisibleSuccessor) return "rojo";
   return "amarillo";
@@ -104,6 +103,10 @@ const COB_LEFT: Record<Cob, string> = {
   amarillo: "border-l-amber-400",
   rojo:     "border-l-red-500",
   negro:    "border-l-gray-700",
+};
+
+const READINESS_PRIORITY: Record<string, number> = {
+  listo_ahora: 0, corto: 0, uno_dos_anios: 1, mediano: 1, tres_mas_anios: 2, largo: 2,
 };
 
 const RSHORT: Record<string, string> = {
@@ -360,7 +363,8 @@ const ZONA_STYLE: Record<string, string> = {
 function DetailPanel({
   nodeId, colabMap, sucesores, tcByColab, eipByEmpleado, picdByEmpleado,
   catalogoById, colabToCatalog, aspirantesByPuesto, yaAsignadoIds,
-  planCarreraIds, concentracionMap, validatedMatchMap, discardedByCatId, coveredByValidatedMatch, onClose,
+  planCarreraIds, concentracionMap, validatedMatchMap, discardedByCatId, coveredByValidatedMatch,
+  validatedMatchesByPuesto, bestReadinessBySuccesor, onClose,
 }: {
   nodeId: string;
   colabMap: Map<string, CartaNode>;
@@ -377,6 +381,8 @@ function DetailPanel({
   validatedMatchMap: Map<string, number>;
   discardedByCatId: Map<string, { id: string; nombre: string; ciclo: number }[]>;
   coveredByValidatedMatch: Set<string>;
+  validatedMatchesByPuesto: Map<string, { id: string; nombre: string }[]>;
+  bestReadinessBySuccesor: Map<string, string>;
   onClose: () => void;
 }) {
   const node = colabMap.get(nodeId);
@@ -388,12 +394,18 @@ function DetailPanel({
   const catId      = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
   const cat        = catId ? catalogoById.get(catId) : undefined;
   const isYa       = yaAsignadoIds.has(node.id);
-  const cob        = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId);
+  const cob        = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto);
   const mySuc      = sucesores.filter(s => s.id_empleado_titular === node.id);
   const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []) : [];
   const sucIds     = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
   const discartados = catId ? (discardedByCatId.get(catId) ?? []) : [];
-  const entries    = buildEntries(mySuc, aspirantes.filter(a => !sucIds.has(a.id)), discartados, validatedMatchMap, catId);
+  const motorMatches = catId
+    ? (validatedMatchesByPuesto.get(catId) ?? [])
+      .filter(m => !sucIds.has(m.id) && !aspirantes.some(a => a.id === m.id))
+      .map(m => ({ id: m.id, nombre: m.nombre, readiness: bestReadinessBySuccesor.get(m.id) ?? null }))
+    : [];
+  const allAspirantes = [...aspirantes.map(a => ({ ...a, readiness: undefined as string | null | undefined })), ...motorMatches];
+  const entries    = buildEntries(mySuc, allAspirantes.filter(a => !sucIds.has(a.id)), discartados, validatedMatchMap, catId);
   const conc       = concentracionMap.get(node.id) ?? 0;
 
   // Who has this person listed as their successor? (deduplicated by titular, most recent ciclo first)
@@ -730,7 +742,7 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarre
 // validatedMatchMap key: "colabId:catId" → ciclo_año of the validated match
 function buildEntries(
   mySuc: CartaSucesor[],
-  aspirantesFiltrados: { nombre: string; id: string }[],
+  aspirantesFiltrados: { nombre: string; id: string; readiness?: string | null }[],
   discartadosFiltrados: { id: string; nombre: string; ciclo: number }[],
   validatedMatchMap: Map<string, number>,
   titularCatId: string | null | undefined
@@ -789,7 +801,7 @@ function buildEntries(
     const matchKey = `${a.id}:${titularCatId}`;
     const mc = validatedMatchMap.get(matchKey);
     if (mc === undefined) continue; // no validated match → skip
-    entries.push({ nombre: a.nombre, tipo: "aspiracion", readiness: null, id: a.id, ciclo: mc, motorValidated: true });
+    entries.push({ nombre: a.nombre, tipo: "aspiracion", readiness: a.readiness ?? null, id: a.id, ciclo: mc, motorValidated: true });
   }
 
   // Descartados: motor matches that were discarded — show even if no plan_sucesion row exists
@@ -888,7 +900,7 @@ function RootSelector({
 
 function ExecSummary({
   rootId, childrenMap, colabMap, sucesores, yaAsignadoIds, coveredByValidatedMatch,
-  validatedMatchMap, colabToCatalog,
+  validatedMatchMap, colabToCatalog, validatedMatchesByPuesto,
 }: {
   rootId: string;
   childrenMap: Map<string, string[]>;
@@ -898,6 +910,7 @@ function ExecSummary({
   coveredByValidatedMatch: Set<string>;
   validatedMatchMap: Map<string, number>;
   colabToCatalog: Map<string, string>;
+  validatedMatchesByPuesto: Map<string, { id: string; nombre: string }[]>;
 }) {
   const directKids = childrenMap.get(rootId) ?? [];
   const counts = { verde: 0, amarillo: 0, rojo: 0, negro: 0 };
@@ -905,7 +918,7 @@ function ExecSummary({
     const n = colabMap.get(id);
     if (n) {
       const catId = n.puesto_catalogo_id ?? colabToCatalog.get(n.id);
-      counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores, coveredByValidatedMatch, validatedMatchMap, catId)]++;
+      counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto)]++;
     }
   }
 
@@ -1083,6 +1096,39 @@ export default function CartasClient({
     return m;
   }, [discardedMatches, colabMap]);
 
+  // validatedMatchesByPuesto: catId → [{id, nombre}] — motor match successors by position (position-based, survives titular changes)
+  const validatedMatchesByPuesto = useMemo(() => {
+    const m = new Map<string, { id: string; nombre: string }[]>();
+    const seen = new Map<string, Set<string>>();
+    for (const vm of validatedMatches) {
+      const { colaborador_id, puesto_catalogo_id } = vm;
+      if (!colaborador_id || !puesto_catalogo_id) continue;
+      const colab = colabMap.get(colaborador_id);
+      if (!colab) continue;
+      if (!m.has(puesto_catalogo_id)) { m.set(puesto_catalogo_id, []); seen.set(puesto_catalogo_id, new Set()); }
+      if (seen.get(puesto_catalogo_id)!.has(colaborador_id)) continue;
+      seen.get(puesto_catalogo_id)!.add(colaborador_id);
+      m.get(puesto_catalogo_id)!.push({ id: colaborador_id, nombre: colab.nombre_completo });
+    }
+    return m;
+  }, [validatedMatches, colabMap]);
+
+  // bestReadinessBySuccesor: sucesorId → best readiness across ALL plan_sucesion rows (not filtered by titular)
+  // Allows reusing a readiness assessment even after the original titular changed roles.
+  const bestReadinessBySuccesor = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of sucesores) {
+      if (!s.sucesor_id || s.estado === "descartado") continue;
+      const r = s.readiness ?? s.tiempo_estimado;
+      if (!r) continue;
+      const current = m.get(s.sucesor_id);
+      const rP = READINESS_PRIORITY[r] ?? 99;
+      const cP = current !== undefined ? (READINESS_PRIORITY[current] ?? 99) : 100;
+      if (rP < cP) m.set(s.sucesor_id, r);
+    }
+    return m;
+  }, [sucesores]);
+
   const childrenMap = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const c of colabs) {
@@ -1105,10 +1151,22 @@ export default function CartasClient({
     return m;
   }, [colabs, catalogo]);
 
-  // coveredByValidatedMatch: titular UUIDs where ≥1 sucesor has an active validated match with good readiness
-  // estado filter removed: verde fires on validated motor match + good readiness regardless of plan approval status
+  // currentHolderByCatId: catId → colaboradores.id of the person currently holding that catalog position
+  const currentHolderByCatId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of colabs) {
+      const catId = c.puesto_catalogo_id ?? colabToCatalog.get(c.id);
+      if (catId) m.set(catId, c.id);
+    }
+    return m;
+  }, [colabs, colabToCatalog]);
+
+  // coveredByValidatedMatch: titular UUIDs where ≥1 sucesor has a validated match + good readiness.
+  // Two sources: (1) plan_sucesion for the current titular, (2) position-based motor matches reusing
+  // readiness from any historical plan (survives titular role changes).
   const coveredByValidatedMatch = useMemo(() => {
     const covered = new Set<string>();
+    // Source 1: plan_sucesion for the current titular
     for (const s of sucesores) {
       if (s.estado === "descartado" || !s.sucesor_id) continue;
       const readOk = s.readiness === "listo_ahora" || s.readiness === "uno_dos_anios" ||
@@ -1119,8 +1177,19 @@ export default function CartasClient({
       if (!catId) continue;
       if (validatedMatchMap.has(`${s.sucesor_id}:${catId}`)) covered.add(s.id_empleado_titular);
     }
+    // Source 2: position-based motor matches — covers titulares whose predecessor had a plan
+    for (const [catId, matches] of validatedMatchesByPuesto) {
+      const currentHolder = currentHolderByCatId.get(catId);
+      if (!currentHolder || covered.has(currentHolder)) continue;
+      for (const match of matches) {
+        const r = bestReadinessBySuccesor.get(match.id);
+        if (!r) continue;
+        const readOk = r === "listo_ahora" || r === "uno_dos_anios" || r === "corto" || r === "mediano";
+        if (readOk) { covered.add(currentHolder); break; }
+      }
+    }
     return covered;
-  }, [sucesores, validatedMatchMap, colabMap, colabToCatalog]);
+  }, [sucesores, validatedMatchMap, colabMap, colabToCatalog, validatedMatchesByPuesto, currentHolderByCatId, bestReadinessBySuccesor]);
 
   // Aspirantes: puestoCatalogId → [{nombre, id}] — keyed by UUID
   // Deduplicate: a person with the same catId in both PICD slots must appear only once
@@ -1249,7 +1318,7 @@ export default function CartasClient({
 
       {rootId && (
         <>
-          <ExecSummary rootId={rootId} childrenMap={childrenMap} colabMap={colabMap} sucesores={sucesores} yaAsignadoIds={yaIds} coveredByValidatedMatch={coveredByValidatedMatch} validatedMatchMap={validatedMatchMap} colabToCatalog={colabToCatalog} />
+          <ExecSummary rootId={rootId} childrenMap={childrenMap} colabMap={colabMap} sucesores={sucesores} yaAsignadoIds={yaIds} coveredByValidatedMatch={coveredByValidatedMatch} validatedMatchMap={validatedMatchMap} colabToCatalog={colabToCatalog} validatedMatchesByPuesto={validatedMatchesByPuesto} />
           <Legend />
         </>
       )}
@@ -1314,7 +1383,7 @@ export default function CartasClient({
 
               const isYa      = yaIds.has(id);
               const catId     = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
-              const cob       = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId);
+              const cob       = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto);
               const tc        = tcMap.get(node.id);
               const cat       = catId ? catalogoById.get(catId) : undefined;
               const mySuc     = sucesores.filter(s => s.id_empleado_titular === node.id);
@@ -1322,8 +1391,14 @@ export default function CartasClient({
               const aspirantes = catId
                 ? (aspirantesByPuesto.get(catId) ?? []).filter(a => !sucIds.has(a.id))
                 : [];
+              const motorMatches = catId
+                ? (validatedMatchesByPuesto.get(catId) ?? [])
+                  .filter(m => !sucIds.has(m.id) && !aspirantes.some(a => a.id === m.id))
+                  .map(m => ({ id: m.id, nombre: m.nombre, readiness: bestReadinessBySuccesor.get(m.id) ?? null }))
+                : [];
+              const allAspirantes = [...aspirantes, ...motorMatches];
               const discartados = catId ? (discardedByCatId.get(catId) ?? []) : [];
-              const entries   = buildEntries(mySuc, aspirantes, discartados, validatedMatchMap, catId);
+              const entries   = buildEntries(mySuc, allAspirantes, discartados, validatedMatchMap, catId);
               const conc      = concentracionMap.get(node.id) ?? 0;
 
               return (
@@ -1376,6 +1451,8 @@ export default function CartasClient({
           validatedMatchMap={validatedMatchMap}
           discardedByCatId={discardedByCatId}
           coveredByValidatedMatch={coveredByValidatedMatch}
+          validatedMatchesByPuesto={validatedMatchesByPuesto}
+          bestReadinessBySuccesor={bestReadinessBySuccesor}
           onClose={() => setSelected(null)}
         />
       )}
