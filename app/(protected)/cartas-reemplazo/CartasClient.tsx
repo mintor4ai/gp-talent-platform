@@ -271,7 +271,7 @@ function SucRow({ entry }: { entry: SucEntry }) {
 
   const badge =
     entry.pendingMatchCiclo !== null
-      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-blue-50 text-blue-600 border border-blue-200">Match?</span>
+      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-blue-50 text-blue-600 border border-blue-200">Match:{String(entry.pendingMatchCiclo).slice(-2)}</span>
     : entry.isManual
       ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-gray-100 text-gray-500 border border-gray-300">Manual</span>
     : entry.tipo === "validado" && rShort
@@ -419,7 +419,7 @@ function DetailPanel({
       .filter(m => !sucIds.has(m.id) && !aspirantes.some(a => a.id === m.id))
       .map(m => ({ id: m.id, nombre: m.nombre, readiness: bestReadinessBySuccesor.get(m.id) ?? null, fromMotor: true as const }))
     : [];
-  const allAspirantes = [...aspirantes.map(a => ({ ...a, readiness: undefined as string | null | undefined })), ...motorMatches];
+  const allAspirantes = [...aspirantes.map(a => ({ ...a, readiness: bestReadinessBySuccesor.get(a.id) ?? null })), ...motorMatches];
   const pendingOnlyMatchesForPanel = catId
     ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => !sucIds.has(m.id))
     : [];
@@ -720,7 +720,7 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarre
           <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold leading-none ${matchCls}`}>
             {matchLabel}
           </span>
-          {rShort && entry.tipo !== "aspiracion" && (
+          {rShort && (
             <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold leading-none ${rColor}`}>{rShort}</span>
           )}
           {entry.ciclo && entry.tipo === "descartado" && (
@@ -741,7 +741,7 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarre
           {entry.pendingMatchCiclo !== null && (
             <>
               <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold leading-none bg-blue-50 text-blue-600 border-blue-200">
-                Match?
+                Match:{String(entry.pendingMatchCiclo).slice(-2)}
               </span>
               <button
                 disabled={pending}
@@ -823,6 +823,13 @@ function buildEntries(
     return true;
   });
 
+  // Most recent discarded ciclo per person — used to suppress older pending matches
+  const discardedCicloByPerson = new Map<string, number>();
+  for (const d of discartadosFiltrados) {
+    const existing = discardedCicloByPerson.get(d.id);
+    if (existing === undefined || d.ciclo > existing) discardedCicloByPerson.set(d.id, d.ciclo);
+  }
+
   const entries: SucEntry[] = [];
   for (const s of dedupedSuc) {
     const tipo: SucEntry["tipo"] =
@@ -843,6 +850,11 @@ function buildEntries(
         const pmc = pendingMatchMap.get(matchKey);
         if (pmc !== undefined) pendingMatchCiclo = pmc;
       }
+    }
+    // If the pending match is from an older cycle than a discarded one, suppress it
+    if (pendingMatchCiclo !== null && s.sucesor_id) {
+      const dCiclo = discardedCicloByPerson.get(s.sucesor_id);
+      if (dCiclo !== undefined && dCiclo >= pendingMatchCiclo) pendingMatchCiclo = null;
     }
     const isManual = s.sucesor_id !== null && !motorValidated && pendingMatchCiclo === null;
 
@@ -872,16 +884,18 @@ function buildEntries(
   // Pending-only motor matches: in pendingMatchMap for this catId but not already in a plan_sucesion row
   for (const p of pendingOnlyMatches) {
     if (entries.some(e => e.id === p.id)) continue; // already added via mySuc
+    // If a discarded entry for this person is from the same or a newer cycle, don't show the pending
+    const dCiclo = discardedCicloByPerson.get(p.id);
+    if (dCiclo !== undefined && dCiclo >= p.ciclo) continue;
     entries.push({ nombre: p.nombre, tipo: "aspiracion", readiness: null, id: p.id, ciclo: null, motorValidated: false, isManual: false, pendingMatchCiclo: p.ciclo });
   }
 
-  // Descartados: motor matches that were discarded — show even if no plan_sucesion row exists
-  // Skip if this person already has a validated entry (validated takes precedence)
-  const validatedIds = new Set(entries.filter(e => e.motorValidated).map(e => e.id).filter(Boolean) as string[]);
+  // Descartados: motor matches that were discarded — show only if person has no other entry yet
+  // Plan entries (mySuc) take display precedence; the plan already shows their match status (Manual/pending chip).
+  const alreadyShown = new Set(entries.filter(e => e.tipo !== "descartado").map(e => e.id).filter(Boolean) as string[]);
   for (const d of discartadosFiltrados) {
-    if (validatedIds.has(d.id)) continue; // already showing as validated
-    const already = entries.find(e => e.id === d.id && e.ciclo === d.ciclo);
-    if (already) continue; // exact same ciclo already present
+    if (alreadyShown.has(d.id)) continue; // plan or validated entry already covers this person
+    if (entries.some(e => e.id === d.id && e.ciclo === d.ciclo)) continue; // exact duplicate
     entries.push({ nombre: d.nombre, tipo: "descartado", readiness: null, id: d.id, ciclo: d.ciclo, motorValidated: false, isManual: false, pendingMatchCiclo: null });
   }
 
@@ -1500,7 +1514,7 @@ export default function CartasClient({
                   .filter(m => !sucIds.has(m.id) && !aspirantes.some(a => a.id === m.id))
                   .map(m => ({ id: m.id, nombre: m.nombre, readiness: bestReadinessBySuccesor.get(m.id) ?? null, fromMotor: true as const }))
                 : [];
-              const allAspirantes = [...aspirantes, ...motorMatches];
+              const allAspirantes = [...aspirantes.map(a => ({ ...a, readiness: bestReadinessBySuccesor.get(a.id) ?? null })), ...motorMatches];
               const discartados = catId ? (discardedByCatId.get(catId) ?? []) : [];
               const pendingOnly = catId ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => !sucIds.has(m.id)) : [];
               const entries   = buildEntries(mySuc, allAspirantes, discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnly);
