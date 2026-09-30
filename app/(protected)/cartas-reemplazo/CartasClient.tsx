@@ -172,6 +172,7 @@ function OrgCard({
       className={`absolute bg-white rounded-xl shadow-md border border-gray-200 border-l-[5px] overflow-hidden cursor-pointer transition-shadow hover:shadow-lg
         ${COB_LEFT[cob]}
         ${isSelected ? "ring-2 ring-offset-1 ring-[#1a3a5c] shadow-lg" : ""}
+        ${!esCritico ? "opacity-60 hover:opacity-90" : ""}
       `}
       style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
       onClick={onSelect}
