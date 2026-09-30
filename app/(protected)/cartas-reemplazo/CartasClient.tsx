@@ -69,7 +69,7 @@ function nombreCorto(nombre: string): string {
 type Cob = "verde" | "amarillo" | "rojo" | "negro";
 
 // plan_sucesion.id_empleado_titular = colaboradores.id (UUID)
-// verde   = ≥1 aprobado con readiness inmediato/mediano AND motor match validated
+// verde   = ≥1 sucesor (no descartado) con readiness inmediato/mediano AND motor match validated
 // amarillo= tiene sucesores pero sin match validado activo
 // rojo    = sin sucesor o todos descartados/externos
 // negro   = this person is already assigned as sucesor in another plan (yaAsignado)
@@ -1105,10 +1105,11 @@ export default function CartasClient({
   }, [colabs, catalogo]);
 
   // coveredByValidatedMatch: titular UUIDs where ≥1 sucesor has an active validated match with good readiness
+  // estado filter removed: verde fires on validated motor match + good readiness regardless of plan approval status
   const coveredByValidatedMatch = useMemo(() => {
     const covered = new Set<string>();
     for (const s of sucesores) {
-      if (s.estado !== "aprobado" || !s.sucesor_id) continue;
+      if (s.estado === "descartado" || !s.sucesor_id) continue;
       const readOk = s.readiness === "listo_ahora" || s.readiness === "uno_dos_anios" ||
                      s.tiempo_estimado === "corto" || s.tiempo_estimado === "mediano";
       if (!readOk) continue;
