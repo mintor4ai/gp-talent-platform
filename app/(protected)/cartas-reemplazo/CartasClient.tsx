@@ -1232,7 +1232,7 @@ export default function CartasClient({
   }, [validatedMatches, colabMap]);
 
   // bestReadinessBySuccesor: sucesorId → best readiness across ALL plan_sucesion rows (not filtered by titular)
-  // Allows reusing a readiness assessment even after the original titular changed roles.
+  // Used for DISPLAY of motor match successors where there is no plan for the current titular.
   const bestReadinessBySuccesor = useMemo(() => {
     const m = new Map<string, string>();
     for (const s of sucesores) {
@@ -1269,6 +1269,26 @@ export default function CartasClient({
     return m;
   }, [colabs, catalogo]);
 
+  // readinessBySucAndCat: "sucId:catId" → best readiness scoped to that specific position.
+  // Used for verde gate in coveredByValidatedMatch Source 2 so that a sucesor's good readiness
+  // in a DIFFERENT role cannot promote an unrelated catId to verde.
+  const readinessBySucAndCat = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of sucesores) {
+      if (!s.sucesor_id || s.estado === "descartado") continue;
+      const r = s.readiness ?? s.tiempo_estimado;
+      if (!r) continue;
+      const catId = colabMap.get(s.id_empleado_titular)?.puesto_catalogo_id ?? colabToCatalog.get(s.id_empleado_titular);
+      if (!catId) continue;
+      const key = `${s.sucesor_id}:${catId}`;
+      const current = m.get(key);
+      const rP = READINESS_PRIORITY[r] ?? 99;
+      const cP = current !== undefined ? (READINESS_PRIORITY[current] ?? 99) : 100;
+      if (rP < cP) m.set(key, r);
+    }
+    return m;
+  }, [sucesores, colabMap, colabToCatalog]);
+
   // currentHolderByCatId: catId → colaboradores.id of the person currently holding that catalog position
   const currentHolderByCatId = useMemo(() => {
     const m = new Map<string, string>();
@@ -1300,14 +1320,14 @@ export default function CartasClient({
       const currentHolder = currentHolderByCatId.get(catId);
       if (!currentHolder || covered.has(currentHolder)) continue;
       for (const match of matches) {
-        const r = bestReadinessBySuccesor.get(match.id);
+        const r = readinessBySucAndCat.get(`${match.id}:${catId}`);
         if (!r) continue;
         const readOk = r === "listo_ahora" || r === "uno_dos_anios" || r === "corto" || r === "mediano";
         if (readOk) { covered.add(currentHolder); break; }
       }
     }
     return covered;
-  }, [sucesores, validatedMatchMap, colabMap, colabToCatalog, validatedMatchesByPuesto, currentHolderByCatId, bestReadinessBySuccesor]);
+  }, [sucesores, validatedMatchMap, colabMap, colabToCatalog, validatedMatchesByPuesto, currentHolderByCatId, readinessBySucAndCat]);
 
   // Aspirantes: puestoCatalogId → [{nombre, id}] — keyed by UUID
   // Deduplicate: a person with the same catId in both PICD slots must appear only once
