@@ -402,7 +402,7 @@ function DetailPanel({
   const motorMatches = catId
     ? (validatedMatchesByPuesto.get(catId) ?? [])
       .filter(m => !sucIds.has(m.id) && !aspirantes.some(a => a.id === m.id))
-      .map(m => ({ id: m.id, nombre: m.nombre, readiness: bestReadinessBySuccesor.get(m.id) ?? null }))
+      .map(m => ({ id: m.id, nombre: m.nombre, readiness: bestReadinessBySuccesor.get(m.id) ?? null, fromMotor: true as const }))
     : [];
   const allAspirantes = [...aspirantes.map(a => ({ ...a, readiness: undefined as string | null | undefined })), ...motorMatches];
   const entries    = buildEntries(mySuc, allAspirantes.filter(a => !sucIds.has(a.id)), discartados, validatedMatchMap, catId);
@@ -742,7 +742,7 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarre
 // validatedMatchMap key: "colabId:catId" → ciclo_año of the validated match
 function buildEntries(
   mySuc: CartaSucesor[],
-  aspirantesFiltrados: { nombre: string; id: string; readiness?: string | null }[],
+  aspirantesFiltrados: { nombre: string; id: string; readiness?: string | null; fromMotor?: boolean }[],
   discartadosFiltrados: { id: string; nombre: string; ciclo: number }[],
   validatedMatchMap: Map<string, number>,
   titularCatId: string | null | undefined
@@ -801,7 +801,9 @@ function buildEntries(
     const matchKey = `${a.id}:${titularCatId}`;
     const mc = validatedMatchMap.get(matchKey);
     if (mc === undefined) continue; // no validated match → skip
-    entries.push({ nombre: a.nombre, tipo: "aspiracion", readiness: a.readiness ?? null, id: a.id, ciclo: mc, motorValidated: true });
+    // fromMotor = validated motor match for the position (no plan_sucesion for current titular) → show as "validado"
+    const tipoAsp: SucEntry["tipo"] = a.fromMotor ? "validado" : "aspiracion";
+    entries.push({ nombre: a.nombre, tipo: tipoAsp, readiness: a.readiness ?? null, id: a.id, ciclo: mc, motorValidated: true });
   }
 
   // Descartados: motor matches that were discarded — show even if no plan_sucesion row exists
@@ -1394,7 +1396,7 @@ export default function CartasClient({
               const motorMatches = catId
                 ? (validatedMatchesByPuesto.get(catId) ?? [])
                   .filter(m => !sucIds.has(m.id) && !aspirantes.some(a => a.id === m.id))
-                  .map(m => ({ id: m.id, nombre: m.nombre, readiness: bestReadinessBySuccesor.get(m.id) ?? null }))
+                  .map(m => ({ id: m.id, nombre: m.nombre, readiness: bestReadinessBySuccesor.get(m.id) ?? null, fromMotor: true as const }))
                 : [];
               const allAspirantes = [...aspirantes, ...motorMatches];
               const discartados = catId ? (discardedByCatId.get(catId) ?? []) : [];
