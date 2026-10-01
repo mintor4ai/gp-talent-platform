@@ -1,20 +1,15 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect, useMemo } from "react";
-import { upsertPlanSucesionManual } from "@/app/actions/plan_sucesion_manual";
+import { upsertPlanSucesionManual, descartarPlanSucesion, reactivarPlanSucesion } from "@/app/actions/plan_sucesion_manual";
 
 type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
 
+// Unified readiness options — maps to both readiness and tiempo_estimado columns
 const READINESS_OPTIONS = [
-  { value: "listo_ahora",    label: "Inmediato" },
-  { value: "uno_dos_anios",  label: "Mediano Plazo" },
-  { value: "tres_mas_anios", label: "Largo Plazo" },
-];
-
-const TIEMPO_OPTIONS = [
-  { value: "corto",   label: "Corto plazo" },
-  { value: "mediano", label: "Mediano plazo" },
-  { value: "largo",   label: "Largo plazo" },
+  { value: "listo_ahora",    label: "Inmediato",     tiempo: "corto"   },
+  { value: "uno_dos_anios",  label: "Mediano Plazo", tiempo: "mediano" },
+  { value: "tres_mas_anios", label: "Largo Plazo",   tiempo: "largo"   },
 ];
 
 function ColabSearch({
@@ -105,6 +100,7 @@ type InitialData = {
   readiness: string;
   tiempoEstimado: string;
   notas: string | null;
+  estado: string;
 };
 
 export default function AgregarSucesorModal({
@@ -124,6 +120,15 @@ export default function AgregarSucesorModal({
 }) {
   const isEdit = !!initialData;
   const isPrefilled = !isEdit && !!prefill?.titularId;
+  const isDescartado = initialData?.estado === "descartado";
+
+  // Normalize incoming readiness: map tiempo_estimado values to canonical readiness values
+  function normalizeReadiness(r: string): string {
+    if (r === "corto")   return "listo_ahora";
+    if (r === "mediano") return "uno_dos_anios";
+    if (r === "largo")   return "tres_mas_anios";
+    return r;
+  }
 
   const [ciclo, setCiclo]         = useState(initialData?.cicloAño ?? prefill?.cicloAño ?? cicloDefault);
   const [titular, setTitular]     = useState<ColabOption | null>(
@@ -136,16 +141,22 @@ export default function AgregarSucesorModal({
   const [sucesor, setSucesor]     = useState<ColabOption | null>(
     initialData ? (colabs.find((c) => c.id === initialData.sucesId) ?? null) : null
   );
-  const [readiness, setReadiness] = useState(initialData?.readiness ?? "tres_mas_anios");
-  const [tiempo, setTiempo]       = useState(initialData?.tiempoEstimado ?? "mediano");
+  const [readiness, setReadiness] = useState(
+    normalizeReadiness(initialData?.readiness ?? "tres_mas_anios")
+  );
   const [notas, setNotas]         = useState(initialData?.notas ?? "");
   const [error, setError]         = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Descartar flow
+  const [showDescartarForm, setShowDescartarForm] = useState(false);
+  const [motivoDescarte, setMotivoDescarte]       = useState("");
 
   function handleSubmit(validar: boolean) {
     if (!titular) { setError("Selecciona un titular."); return; }
     if (!sucesor) { setError("Selecciona un sucesor."); return; }
     setError(null);
+    const tiempoEquiv = READINESS_OPTIONS.find((o) => o.value === readiness)?.tiempo ?? "mediano";
     startTransition(async () => {
       const res = await upsertPlanSucesionManual({
         titularId:             titular.id,
@@ -153,12 +164,32 @@ export default function AgregarSucesorModal({
         sucesNombre:           sucesor.nombre_completo ?? "",
         cicloAño:              ciclo,
         readiness,
-        tiempoEstimado:        tiempo,
+        tiempoEstimado:        tiempoEquiv,
         notas:                 notas || null,
         validarInmediatamente: validar,
         planId:                initialData?.planId,
       });
       if (!res.ok) { setError(res.error ?? "Error al guardar."); return; }
+      onClose();
+    });
+  }
+
+  function handleDescartar() {
+    if (!initialData?.planId) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await descartarPlanSucesion(initialData.planId, motivoDescarte || null);
+      if (!res.ok) { setError(res.error ?? "Error al descartar."); return; }
+      onClose();
+    });
+  }
+
+  function handleReactivar() {
+    if (!initialData?.planId) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await reactivarPlanSucesion(initialData.planId);
+      if (!res.ok) { setError(res.error ?? "Error al reactivar."); return; }
       onClose();
     });
   }
@@ -174,7 +205,14 @@ export default function AgregarSucesorModal({
             <h2 className="text-base font-bold text-gray-900">
               {isEdit ? "Editar sucesor" : "Agregar sucesor"}
             </h2>
-            <p className="text-xs text-gray-400 mt-0.5">Captura directa · Capital Humano</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-gray-400">Captura directa · Capital Humano</p>
+              {isDescartado && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-500 font-medium">
+                  Descartado
+                </span>
+              )}
+            </div>
           </div>
           <button onClick={onClose}
             className="text-gray-400 hover:text-gray-700 text-lg leading-none flex-shrink-0">✕</button>
@@ -211,21 +249,13 @@ export default function AgregarSucesorModal({
         <ColabSearch label="Sucesor propuesto"
           colabs={colabs} value={sucesor} onChange={setSucesor} exclude={titular?.id} />
 
-        {/* Readiness */}
+        {/* Readiness — single unified field */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Readiness</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Disponibilidad</label>
           <select value={readiness} onChange={(e) => setReadiness(e.target.value)}
-            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]">
+            disabled={isDescartado}
+            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] disabled:bg-gray-50 disabled:text-gray-400">
             {READINESS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </div>
-
-        {/* Tiempo estimado */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Tiempo estimado</label>
-          <select value={tiempo} onChange={(e) => setTiempo(e.target.value)}
-            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]">
-            {TIEMPO_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
 
@@ -233,23 +263,71 @@ export default function AgregarSucesorModal({
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Notas <span className="text-gray-400 font-normal">(opcional)</span></label>
           <textarea value={notas} onChange={(e) => setNotas(e.target.value)}
+            disabled={isDescartado}
             rows={3} placeholder="Justificación, contexto, observaciones..."
-            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] resize-none" />
+            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] resize-none disabled:bg-gray-50 disabled:text-gray-400" />
         </div>
+
+        {/* Descartar form */}
+        {showDescartarForm && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 space-y-2">
+            <p className="text-xs font-medium text-red-700">Motivo del descarte (opcional)</p>
+            <textarea
+              value={motivoDescarte}
+              onChange={(e) => setMotivoDescarte(e.target.value)}
+              rows={2}
+              placeholder="Ej: Ya no aplica por cambio de puesto, duplicado, etc."
+              className="w-full text-sm border border-red-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-400 resize-none bg-white"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setShowDescartarForm(false)} disabled={isPending}
+                className="flex-1 text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={handleDescartar} disabled={isPending}
+                className="flex-1 text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium">
+                {isPending ? "Descartando..." : "Confirmar descarte"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
         {/* Actions */}
-        <div className="flex gap-2 pt-1">
-          <button onClick={() => handleSubmit(false)} disabled={isPending}
-            className="flex-1 text-sm border border-gray-300 text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors font-medium">
-            {isPending ? "Guardando..." : "Guardar borrador"}
-          </button>
-          <button onClick={() => handleSubmit(true)} disabled={isPending}
-            className="flex-1 text-sm bg-[#1a3a5c] text-white px-4 py-2.5 rounded-xl hover:bg-[#14304f] disabled:opacity-50 transition-colors font-medium">
-            {isPending ? "Guardando..." : "Guardar y validar"}
-          </button>
-        </div>
+        {isDescartado ? (
+          <div className="flex gap-2 pt-1">
+            <button onClick={onClose} disabled={isPending}
+              className="flex-1 text-sm border border-gray-300 text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors font-medium">
+              Cerrar
+            </button>
+            <button onClick={handleReactivar} disabled={isPending}
+              className="flex-1 text-sm bg-[#1a3a5c] text-white px-4 py-2.5 rounded-xl hover:bg-[#14304f] disabled:opacity-50 transition-colors font-medium">
+              {isPending ? "Reactivando..." : "↩ Reactivar"}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2 pt-1">
+            {/* Primary save actions */}
+            <div className="flex gap-2">
+              <button onClick={() => handleSubmit(false)} disabled={isPending}
+                className="flex-1 text-sm border border-gray-300 text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors font-medium">
+                {isPending ? "Guardando..." : isEdit ? "Guardar cambios" : "Guardar borrador"}
+              </button>
+              <button onClick={() => handleSubmit(true)} disabled={isPending}
+                className="flex-1 text-sm bg-[#1a3a5c] text-white px-4 py-2.5 rounded-xl hover:bg-[#14304f] disabled:opacity-50 transition-colors font-medium">
+                {isPending ? "Guardando..." : "Validar ✓"}
+              </button>
+            </div>
+            {/* Descartar — only in edit mode */}
+            {isEdit && !showDescartarForm && (
+              <button onClick={() => setShowDescartarForm(true)} disabled={isPending}
+                className="w-full text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-4 py-2 rounded-xl transition-colors border border-transparent hover:border-red-200">
+                Descartar este plan de sucesión
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

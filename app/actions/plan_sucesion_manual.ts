@@ -147,3 +147,71 @@ export async function upsertPlanSucesionManual(params: {
     return { ok: false, created: false, error: msg };
   }
 }
+
+export async function descartarPlanSucesion(
+  planId: string,
+  motivo: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { supabase, userId } = await getAdminUser();
+    const now = new Date().toISOString();
+
+    // Fetch the plan row to get ciclo_año, sucesor_id, and puesto_catalogo_id
+    const { data: plan, error: fetchErr } = await supabase
+      .from("plan_sucesion")
+      .select("id, ciclo_año, sucesor_id, puesto_catalogo_id, notas")
+      .eq("id", planId)
+      .single();
+    if (fetchErr || !plan) throw fetchErr ?? new Error("Plan no encontrado");
+
+    const notasActualizadas = [
+      (plan as any).notas,
+      motivo ? `[Descartado ${now.slice(0, 10)}] ${motivo}` : `[Descartado ${now.slice(0, 10)}]`,
+    ].filter(Boolean).join("\n\n");
+
+    // Mark plan_sucesion as descartado
+    const { error: updErr } = await supabase
+      .from("plan_sucesion")
+      .update({ estado: "descartado", notas: notasActualizadas })
+      .eq("id", planId);
+    if (updErr) throw updErr;
+
+    // Also discard the associated sucesion_match if it exists
+    const p = plan as any;
+    if (p.sucesor_id && p.puesto_catalogo_id) {
+      await supabase.from("sucesion_matches")
+        .update({ descartado: true, descartado_por: userId, fecha_descarte: now })
+        .eq("ciclo_año", p.ciclo_año)
+        .eq("colaborador_id", p.sucesor_id)
+        .eq("puesto_catalogo_id", p.puesto_catalogo_id)
+        .eq("descartado", false);
+    }
+
+    revalidatePath("/sucesion");
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : (err as any)?.message ?? String(err);
+    return { ok: false, error: msg };
+  }
+}
+
+export async function reactivarPlanSucesion(
+  planId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { supabase } = await getAdminUser();
+
+    const { error } = await supabase
+      .from("plan_sucesion")
+      .update({ estado: "borrador" })
+      .eq("id", planId)
+      .eq("estado", "descartado");
+    if (error) throw error;
+
+    revalidatePath("/sucesion");
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : (err as any)?.message ?? String(err);
+    return { ok: false, error: msg };
+  }
+}

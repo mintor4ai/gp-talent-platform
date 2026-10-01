@@ -121,6 +121,7 @@ export default function SucesionAdminView({
             readiness:      editTarget.readiness ?? "tres_mas_anios",
             tiempoEstimado: editTarget.tiempo_estimado ?? "mediano",
             notas:          editTarget.notas ?? null,
+            estado:         editTarget.estado,
           } : undefined}
           onClose={() => { setShowModal(false); setEditTarget(null); }}
         />
