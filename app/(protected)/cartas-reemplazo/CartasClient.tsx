@@ -376,7 +376,7 @@ function DetailPanel({
   catalogoById, colabToCatalog, aspirantesByPuesto, yaAsignadoIds,
   planCarreraIds, concentracionMap, validatedMatchMap, discardedByCatId, coveredByValidatedMatch,
   validatedMatchesByPuesto, bestReadinessBySuccesor, pendingMatchMap, pendingMatchesByPuesto,
-  pendingCatIds, sucByPositionAndSuc, onClose,
+  pendingCatIds, sucByPositionAndSuc, pendingMatchByPerson, onClose,
 }: {
   nodeId: string;
   colabMap: Map<string, CartaNode>;
@@ -399,6 +399,7 @@ function DetailPanel({
   pendingMatchesByPuesto: Map<string, { id: string; nombre: string; ciclo: number }[]>;
   pendingCatIds: Set<string>;
   sucByPositionAndSuc: Map<string, CartaSucesor>;
+  pendingMatchByPerson: Map<string, number>;
   onClose: () => void;
 }) {
   const node = colabMap.get(nodeId);
@@ -424,7 +425,7 @@ function DetailPanel({
   const pendingOnlyMatchesForPanel = catId
     ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => m.id !== node.id)
     : [];
-  const entries    = buildEntries(mySuc, allAspirantes.filter(a => !sucIds.has(a.id)), discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnlyMatchesForPanel, sucByPositionAndSuc);
+  const entries    = buildEntries(mySuc, allAspirantes.filter(a => !sucIds.has(a.id)), discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnlyMatchesForPanel, sucByPositionAndSuc, pendingMatchByPerson);
   const conc       = concentracionMap.get(node.id) ?? 0;
 
   // Who has this person listed as their successor? (deduplicated by titular, most recent ciclo first)
@@ -806,7 +807,8 @@ function buildEntries(
   titularCatId: string | null | undefined,
   pendingMatchMap: Map<string, number>,
   pendingOnlyMatches: { id: string; nombre: string; ciclo: number }[],
-  sucByPositionAndSuc: Map<string, CartaSucesor>
+  sucByPositionAndSuc: Map<string, CartaSucesor>,
+  pendingMatchByPerson: Map<string, number>
 ): SucEntry[] {
   // Deduplicate by sucesor_id: prefer aprobado over borrador regardless of ciclo_año,
   // then prefer more recent ciclo_año. This prevents a 2026 borrador from overriding
@@ -843,7 +845,7 @@ function buildEntries(
     let matchCiclo: number | null = s.ciclo_año ?? null;
     let pendingMatchCiclo: number | null = null;
     // Use the titular's catId when available; fall back to the plan's own puesto_catalogo_id
-    // (handles cases where the titular has no catalog mapping but the plan does)
+    // Use the titular's catId when available; fall back to the plan's own puesto_catalogo_id
     const effectiveCatId = titularCatId ?? s.puesto_catalogo_id;
     if (s.sucesor_id && effectiveCatId) {
       const matchKey = `${s.sucesor_id}:${effectiveCatId}`;
@@ -855,6 +857,11 @@ function buildEntries(
         const pmc = pendingMatchMap.get(matchKey);
         if (pmc !== undefined) pendingMatchCiclo = pmc;
       }
+    }
+    // Last-resort fallback: if no catId is available, check if this person has any pending match
+    if (s.sucesor_id && !motorValidated && pendingMatchCiclo === null && !effectiveCatId) {
+      const pmc = pendingMatchByPerson.get(s.sucesor_id);
+      if (pmc !== undefined) pendingMatchCiclo = pmc;
     }
     // If the pending match is from an older cycle than a discarded one, suppress it
     if (pendingMatchCiclo !== null && s.sucesor_id) {
@@ -1211,6 +1218,18 @@ export default function CartasClient({
       const key = `${pm.colaborador_id}:${pm.puesto_catalogo_id}`;
       const existing = m.get(key);
       if (existing === undefined || pm.ciclo_año > existing) m.set(key, pm.ciclo_año);
+    }
+    return m;
+  }, [pendingMatches]);
+
+  // pendingMatchByPerson: colabId → ciclo_año — most recent pending match for a person, regardless of position
+  // Used as a fallback when the titular has no catId mapping.
+  const pendingMatchByPerson = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const pm of pendingMatches) {
+      if (!pm.colaborador_id) continue;
+      const existing = m.get(pm.colaborador_id);
+      if (existing === undefined || pm.ciclo_año > existing) m.set(pm.colaborador_id, pm.ciclo_año);
     }
     return m;
   }, [pendingMatches]);
@@ -1576,7 +1595,7 @@ export default function CartasClient({
               const allAspirantes = [...aspirantes.map(a => ({ ...a, readiness: bestReadinessBySuccesor.get(a.id) ?? null })), ...motorMatches];
               const discartados = catId ? (discardedByCatId.get(catId) ?? []).filter(d => d.id !== node.id) : [];
               const pendingOnly = catId ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => m.id !== node.id) : [];
-              const entries   = buildEntries(mySuc, allAspirantes, discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnly, sucByPositionAndSuc);
+              const entries   = buildEntries(mySuc, allAspirantes, discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnly, sucByPositionAndSuc, pendingMatchByPerson);
               const conc      = concentracionMap.get(node.id) ?? 0;
 
               return (
@@ -1635,6 +1654,7 @@ export default function CartasClient({
           pendingMatchesByPuesto={pendingMatchesByPuesto}
           pendingCatIds={pendingCatIds}
           sucByPositionAndSuc={sucByPositionAndSuc}
+          pendingMatchByPerson={pendingMatchByPerson}
           onClose={() => setSelected(null)}
         />
       )}
