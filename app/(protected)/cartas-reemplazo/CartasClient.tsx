@@ -411,18 +411,18 @@ function DetailPanel({
   const cat        = catId ? catalogoById.get(catId) : undefined;
   const isYa       = yaAsignadoIds.has(node.id);
   const cob        = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds);
-  const mySuc      = sucesores.filter(s => s.id_empleado_titular === node.id);
-  const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []) : [];
+  const mySuc      = sucesores.filter(s => s.id_empleado_titular === node.id && s.sucesor_id !== node.id);
+  const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []).filter(a => a.id !== node.id) : [];
   const sucIds     = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
-  const discartados = catId ? (discardedByCatId.get(catId) ?? []) : [];
+  const discartados = catId ? (discardedByCatId.get(catId) ?? []).filter(d => d.id !== node.id) : [];
   const motorMatches = catId
     ? (validatedMatchesByPuesto.get(catId) ?? [])
-      .filter(m => !sucIds.has(m.id) && !aspirantes.some(a => a.id === m.id))
+      .filter(m => m.id !== node.id && !sucIds.has(m.id) && !aspirantes.some(a => a.id === m.id))
       .map(m => ({ id: m.id, nombre: m.nombre, readiness: bestReadinessBySuccesor.get(m.id) ?? null, fromMotor: true as const }))
     : [];
   const allAspirantes = [...aspirantes.map(a => ({ ...a, readiness: bestReadinessBySuccesor.get(a.id) ?? null })), ...motorMatches];
   const pendingOnlyMatchesForPanel = catId
-    ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => !sucIds.has(m.id))
+    ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => m.id !== node.id && !sucIds.has(m.id))
     : [];
   const entries    = buildEntries(mySuc, allAspirantes.filter(a => !sucIds.has(a.id)), discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnlyMatchesForPanel, sucByPositionAndSuc);
   const conc       = concentracionMap.get(node.id) ?? 0;
@@ -1553,19 +1553,19 @@ export default function CartasClient({
               const cob       = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds);
               const tc        = tcMap.get(node.id);
               const cat       = catId ? catalogoById.get(catId) : undefined;
-              const mySuc     = sucesores.filter(s => s.id_empleado_titular === node.id);
+              const mySuc     = sucesores.filter(s => s.id_empleado_titular === node.id && s.sucesor_id !== node.id);
               const sucIds    = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
               const aspirantes = catId
-                ? (aspirantesByPuesto.get(catId) ?? []).filter(a => !sucIds.has(a.id))
+                ? (aspirantesByPuesto.get(catId) ?? []).filter(a => !sucIds.has(a.id) && a.id !== node.id)
                 : [];
               const motorMatches = catId
                 ? (validatedMatchesByPuesto.get(catId) ?? [])
-                  .filter(m => !sucIds.has(m.id) && !aspirantes.some(a => a.id === m.id))
+                  .filter(m => m.id !== node.id && !sucIds.has(m.id) && !aspirantes.some(a => a.id === m.id))
                   .map(m => ({ id: m.id, nombre: m.nombre, readiness: bestReadinessBySuccesor.get(m.id) ?? null, fromMotor: true as const }))
                 : [];
               const allAspirantes = [...aspirantes.map(a => ({ ...a, readiness: bestReadinessBySuccesor.get(a.id) ?? null })), ...motorMatches];
-              const discartados = catId ? (discardedByCatId.get(catId) ?? []) : [];
-              const pendingOnly = catId ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => !sucIds.has(m.id)) : [];
+              const discartados = catId ? (discardedByCatId.get(catId) ?? []).filter(d => d.id !== node.id) : [];
+              const pendingOnly = catId ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => m.id !== node.id && !sucIds.has(m.id)) : [];
               const entries   = buildEntries(mySuc, allAspirantes, discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnly, sucByPositionAndSuc);
               const conc      = concentracionMap.get(node.id) ?? 0;
 
