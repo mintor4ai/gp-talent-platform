@@ -73,15 +73,28 @@ export async function deleteSucesor(id: string, id_empleado: string) {
   const isAdmin = perfil.rol === "capital_humano" || perfil.rol === "superadmin";
   if (!isAdmin && perfil.id_empleado !== id_empleado) throw new Error("Sin permisos");
 
-  if (!isAdmin) {
-    const { data: existing } = await supabase
-      .from("plan_sucesion").select("estado").eq("id", id).single();
-    if (existing && existing.estado !== "borrador")
-      throw new Error("Solo se pueden eliminar borradores");
-  }
+  // Fetch plan details before deleting so we can clean up sucesion_matches
+  const { data: planRaw } = await supabase
+    .from("plan_sucesion")
+    .select("estado, sucesor_id, puesto_catalogo_id, ciclo_año")
+    .eq("id", id)
+    .single();
+  const plan = planRaw as any;
+
+  if (!isAdmin && plan && plan.estado !== "borrador")
+    throw new Error("Solo se pueden eliminar borradores");
 
   const { error } = await supabase.from("plan_sucesion").delete().eq("id", id);
   if (error) throw new Error(error.message);
+
+  // Remove the associated sucesion_match so it no longer appears in Cartas de Reemplazo
+  if (plan?.sucesor_id && plan?.puesto_catalogo_id) {
+    await supabase.from("sucesion_matches")
+      .delete()
+      .eq("ciclo_año", plan.ciclo_año)
+      .eq("colaborador_id", plan.sucesor_id)
+      .eq("puesto_catalogo_id", plan.puesto_catalogo_id);
+  }
 
   revalidatePath(`/carpeta/${id_empleado}`);
 }
