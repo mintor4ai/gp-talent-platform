@@ -1305,8 +1305,8 @@ export default function CartasClient({
     // Source 1: plan_sucesion for the current titular
     for (const s of sucesores) {
       if (s.estado === "descartado" || !s.sucesor_id) continue;
-      const readOk = s.readiness === "listo_ahora" || s.readiness === "uno_dos_anios" ||
-                     s.tiempo_estimado === "corto" || s.tiempo_estimado === "mediano";
+      const r = s.readiness ?? s.tiempo_estimado;
+      const readOk = r === "listo_ahora" || r === "uno_dos_anios" || r === "corto" || r === "mediano";
       if (!readOk) continue;
       const titularNode = colabMap.get(s.id_empleado_titular);
       const catId = titularNode?.puesto_catalogo_id ?? colabToCatalog.get(s.id_empleado_titular);
