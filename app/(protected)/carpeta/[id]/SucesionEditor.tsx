@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { upsertSucesor, deleteSucesor, submitSucesion } from "@/app/actions/sucesion";
+import { descartarPlanSucesion, reactivarPlanSucesion } from "@/app/actions/plan_sucesion_manual";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
 export type SucesionItem = {
@@ -260,6 +261,8 @@ function SucesorCard({
   onEdit,
   onDelete,
   onSubmitted,
+  onDescartado,
+  onReactivado,
   isDeleting,
 }: {
   item: SucesionItem;
@@ -269,13 +272,18 @@ function SucesorCard({
   onEdit: () => void;
   onDelete: () => void;
   onSubmitted: (item: SucesionItem) => void;
+  onDescartado: (item: SucesionItem) => void;
+  onReactivado: (item: SucesionItem) => void;
   isDeleting: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
+  const [showDescartarForm, setShowDescartarForm] = useState(false);
+  const [motivoDescarte, setMotivoDescarte] = useState("");
   const readiness = readinessBadge(item.readiness);
   const estado = ESTADO_CONFIG[item.estado] ?? ESTADO_CONFIG.borrador;
   const isBorrador = item.estado === "borrador";
+  const isDescartado = item.estado === "descartado";
   const canSend = isBorrador && !!(item.brechas && item.acciones_desarrollo);
 
   function handleSubmit() {
@@ -290,8 +298,25 @@ function SucesorCard({
     });
   }
 
+  function handleDescartar() {
+    startTransition(async () => {
+      const res = await descartarPlanSucesion(item.id, motivoDescarte || null);
+      if (!res.ok) { setErr(res.error ?? "Error al descartar"); return; }
+      setShowDescartarForm(false);
+      onDescartado({ ...item, estado: "descartado" });
+    });
+  }
+
+  function handleReactivar() {
+    startTransition(async () => {
+      const res = await reactivarPlanSucesion(item.id);
+      if (!res.ok) { setErr(res.error ?? "Error al reactivar"); return; }
+      onReactivado({ ...item, estado: "borrador" });
+    });
+  }
+
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 hover:shadow-sm transition-shadow"
+    <div className={`bg-white border rounded-xl p-4 space-y-3 hover:shadow-sm transition-shadow ${isDescartado ? "border-gray-200 opacity-75" : "border-gray-200"}`}
       style={{ animation: "sucesionCardIn 0.35s cubic-bezier(0.22,1,0.36,1) both" }}>
       <style>{`@keyframes sucesionCardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
@@ -318,12 +343,27 @@ function SucesorCard({
             </div>
           </div>
         </div>
-        {canEdit && (isBorrador || isAdmin) && (
+        {canEdit && (
           <div className="flex items-center gap-2 flex-shrink-0">
             {isBorrador && <button onClick={onEdit} className="text-xs text-gray-400 hover:text-[#1a3a5c] transition-colors">Editar</button>}
             {isBorrador && <span className="text-gray-200">|</span>}
-            <button onClick={onDelete} disabled={isDeleting}
-              className="text-xs text-red-400 hover:text-red-600 disabled:opacity-40 transition-colors">Eliminar</button>
+            {!isDescartado && (
+              <button onClick={() => { setShowDescartarForm(true); setErr(null); }} disabled={isPending}
+                className="text-xs text-orange-400 hover:text-orange-600 disabled:opacity-40 transition-colors">
+                Descartar
+              </button>
+            )}
+            {isDescartado && (
+              <button onClick={handleReactivar} disabled={isPending}
+                className="text-xs text-blue-500 hover:text-blue-700 disabled:opacity-40 transition-colors">
+                {isPending ? "..." : "↩ Reactivar"}
+              </button>
+            )}
+            {(isBorrador || isAdmin) && <span className="text-gray-200">|</span>}
+            {(isBorrador || isAdmin) && (
+              <button onClick={onDelete} disabled={isDeleting}
+                className="text-xs text-red-400 hover:text-red-600 disabled:opacity-40 transition-colors">Eliminar</button>
+            )}
           </div>
         )}
       </div>
@@ -388,8 +428,32 @@ function SucesorCard({
         </p>
       )}
 
+      {/* Descartar inline form */}
+      {showDescartarForm && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 space-y-2">
+          <p className="text-xs font-medium text-orange-700">Motivo del descarte <span className="font-normal text-orange-500">(opcional)</span></p>
+          <textarea
+            value={motivoDescarte}
+            onChange={(e) => setMotivoDescarte(e.target.value)}
+            rows={2}
+            placeholder="Ej: Ya no aplica por cambio de puesto, fue cubierto por otro sucesor, etc."
+            className="w-full text-sm border border-orange-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none bg-white"
+          />
+          <div className="flex gap-2">
+            <button onClick={() => { setShowDescartarForm(false); setMotivoDescarte(""); }} disabled={isPending}
+              className="flex-1 text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+              Cancelar
+            </button>
+            <button onClick={handleDescartar} disabled={isPending}
+              className="flex-1 text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg hover:bg-orange-600 disabled:opacity-50 font-medium">
+              {isPending ? "Descartando..." : "Confirmar descarte"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Submit button */}
-      {canEdit && isBorrador && (
+      {canEdit && isBorrador && !showDescartarForm && (
         canSend ? (
           <button onClick={handleSubmit} disabled={isPending}
             className="w-full text-xs bg-[#1a3a5c]/5 border border-[#1a3a5c]/20 text-[#1a3a5c] font-medium py-2 rounded-lg hover:bg-[#1a3a5c]/10 disabled:opacity-40 transition-colors">
@@ -433,6 +497,8 @@ export default function SucesionEditor({
   function handleAdded(item: SucesionItem) { setItems((p) => [...p, item]); setAdding(false); flash("Sucesor agregado"); }
   function handleEdited(item: SucesionItem) { setItems((p) => p.map((i) => i.id === item.id ? item : i)); setEditingId(null); flash("Cambios guardados"); }
   function handleSubmitted(item: SucesionItem) { setItems((p) => p.map((i) => i.id === item.id ? item : i)); flash("Plan enviado a revisión del jefe"); }
+  function handleDescartado(item: SucesionItem) { setItems((p) => p.map((i) => i.id === item.id ? item : i)); flash("Plan descartado"); }
+  function handleReactivado(item: SucesionItem) { setItems((p) => p.map((i) => i.id === item.id ? item : i)); flash("Plan reactivado"); }
 
   function handleDelete(id: string) {
     if (!confirm("¿Eliminar este sucesor potencial?")) return;
@@ -491,6 +557,8 @@ export default function SucesionEditor({
                 onEdit={() => { setEditingId(item.id); setAdding(false); }}
                 onDelete={() => handleDelete(item.id)}
                 onSubmitted={handleSubmitted}
+                onDescartado={handleDescartado}
+                onReactivado={handleReactivado}
                 isDeleting={isPending}
               />
             )
