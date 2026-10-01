@@ -273,7 +273,7 @@ function SucRow({ entry }: { entry: SucEntry }) {
     entry.pendingMatchCiclo !== null
       ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-blue-50 text-blue-600 border border-blue-200">Match:{String(entry.pendingMatchCiclo).slice(-2)}</span>
     : entry.isManual
-      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-amber-50 text-amber-600 border border-amber-300">Pend.&nbsp;'{entry.ciclo ? String(entry.ciclo).slice(-2) : "?"}</span>
+      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-gray-100 text-gray-500 border border-gray-300">CH</span>
     : entry.tipo === "validado" && rShort
       ? <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none ${rColor}`}>{rShort}</span>
     : entry.tipo === "borrador"
@@ -729,14 +729,14 @@ function DetailSucRow({ entry, colabMap, titularCatId, picdByEmpleado, planCarre
               ✗{String(entry.ciclo).slice(-2)}
             </span>
           )}
-          {entry.ciclo && entry.motorValidated && entry.tipo !== "descartado" && (
+          {entry.ciclo && (entry.motorValidated || entry.isManual) && entry.tipo !== "descartado" && (
             <span className="text-[8.5px] px-1.5 py-0.5 rounded font-bold leading-none tracking-wide bg-green-100 text-green-700 border border-green-300">
               ✓{String(entry.ciclo).slice(-2)}
             </span>
           )}
           {entry.isManual && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold leading-none bg-amber-50 text-amber-600 border-amber-300">
-              Pend.&nbsp;&apos;{entry.ciclo ? String(entry.ciclo).slice(-2) : "?"}
+            <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold leading-none bg-gray-100 text-gray-500 border-gray-300">
+              CH
             </span>
           )}
           {entry.pendingMatchCiclo !== null && (
