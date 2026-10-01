@@ -422,7 +422,7 @@ function DetailPanel({
     : [];
   const allAspirantes = [...aspirantes.map(a => ({ ...a, readiness: bestReadinessBySuccesor.get(a.id) ?? null })), ...motorMatches];
   const pendingOnlyMatchesForPanel = catId
-    ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => m.id !== node.id && !sucIds.has(m.id))
+    ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => m.id !== node.id)
     : [];
   const entries    = buildEntries(mySuc, allAspirantes.filter(a => !sucIds.has(a.id)), discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnlyMatchesForPanel, sucByPositionAndSuc);
   const conc       = concentracionMap.get(node.id) ?? 0;
@@ -888,7 +888,14 @@ function buildEntries(
 
   // Pending-only motor matches: in pendingMatchMap for this catId but not already in a plan_sucesion row
   for (const p of pendingOnlyMatches) {
-    if (entries.some(e => e.id === p.id)) continue; // already added via mySuc
+    // If this person is already in entries as isManual (plan without a detected motor match),
+    // upgrade them: the pending match is now known, so clear isManual and set pendingMatchCiclo.
+    const manualIdx = entries.findIndex(e => e.id === p.id && e.isManual);
+    if (manualIdx >= 0) {
+      entries[manualIdx] = { ...entries[manualIdx], isManual: false, pendingMatchCiclo: p.ciclo };
+      continue;
+    }
+    if (entries.some(e => e.id === p.id)) continue; // already added via mySuc (non-manual)
     // If a discarded entry for this person is from the same or a newer cycle, don't show the pending
     const dCiclo = discardedCicloByPerson.get(p.id);
     if (dCiclo !== undefined && dCiclo >= p.ciclo) continue;
@@ -1568,7 +1575,7 @@ export default function CartasClient({
                 : [];
               const allAspirantes = [...aspirantes.map(a => ({ ...a, readiness: bestReadinessBySuccesor.get(a.id) ?? null })), ...motorMatches];
               const discartados = catId ? (discardedByCatId.get(catId) ?? []).filter(d => d.id !== node.id) : [];
-              const pendingOnly = catId ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => m.id !== node.id && !sucIds.has(m.id)) : [];
+              const pendingOnly = catId ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => m.id !== node.id) : [];
               const entries   = buildEntries(mySuc, allAspirantes, discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnly, sucByPositionAndSuc);
               const conc      = concentracionMap.get(node.id) ?? 0;
 
