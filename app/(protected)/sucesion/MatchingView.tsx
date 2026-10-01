@@ -1016,6 +1016,8 @@ export default function MatchingView({
   // ── Filtering ─────────────────────────────────────────────────────────────
   // Base predicate (ciclo + uen + area + puesto + criticos + search + tipo) — applied to all matches
   function passesBase(m: MatchRow, includeTipo: boolean): boolean {
+    // Exclude self-matches: person is the current titular of the same position
+    if (m.colaborador_id && (m.titular_ids ?? []).includes(m.colaborador_id)) return false;
     if (selectedCiclo !== "all" && m.ciclo_año !== selectedCiclo) return false;
     if (includeTipo && selectedTipo !== "all" && m.tipo_match !== selectedTipo) return false;
     if (selectedUen !== "all" && m.puesto_org !== selectedUen) return false;
