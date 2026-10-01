@@ -842,8 +842,11 @@ function buildEntries(
     let motorValidated = false;
     let matchCiclo: number | null = s.ciclo_año ?? null;
     let pendingMatchCiclo: number | null = null;
-    if (s.sucesor_id && titularCatId) {
-      const matchKey = `${s.sucesor_id}:${titularCatId}`;
+    // Use the titular's catId when available; fall back to the plan's own puesto_catalogo_id
+    // (handles cases where the titular has no catalog mapping but the plan does)
+    const effectiveCatId = titularCatId ?? s.puesto_catalogo_id;
+    if (s.sucesor_id && effectiveCatId) {
+      const matchKey = `${s.sucesor_id}:${effectiveCatId}`;
       const mc = validatedMatchMap.get(matchKey);
       if (mc !== undefined) {
         motorValidated = true;
