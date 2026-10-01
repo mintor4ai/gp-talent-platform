@@ -376,7 +376,7 @@ function DetailPanel({
   catalogoById, colabToCatalog, aspirantesByPuesto, yaAsignadoIds,
   planCarreraIds, concentracionMap, validatedMatchMap, discardedByCatId, coveredByValidatedMatch,
   validatedMatchesByPuesto, bestReadinessBySuccesor, pendingMatchMap, pendingMatchesByPuesto,
-  pendingCatIds, onClose,
+  pendingCatIds, sucByPositionAndSuc, onClose,
 }: {
   nodeId: string;
   colabMap: Map<string, CartaNode>;
@@ -398,6 +398,7 @@ function DetailPanel({
   pendingMatchMap: Map<string, number>;
   pendingMatchesByPuesto: Map<string, { id: string; nombre: string; ciclo: number }[]>;
   pendingCatIds: Set<string>;
+  sucByPositionAndSuc: Map<string, CartaSucesor>;
   onClose: () => void;
 }) {
   const node = colabMap.get(nodeId);
@@ -423,7 +424,7 @@ function DetailPanel({
   const pendingOnlyMatchesForPanel = catId
     ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => !sucIds.has(m.id))
     : [];
-  const entries    = buildEntries(mySuc, allAspirantes.filter(a => !sucIds.has(a.id)), discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnlyMatchesForPanel);
+  const entries    = buildEntries(mySuc, allAspirantes.filter(a => !sucIds.has(a.id)), discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnlyMatchesForPanel, sucByPositionAndSuc);
   const conc       = concentracionMap.get(node.id) ?? 0;
 
   // Who has this person listed as their successor? (deduplicated by titular, most recent ciclo first)
@@ -804,7 +805,8 @@ function buildEntries(
   validatedMatchMap: Map<string, number>,
   titularCatId: string | null | undefined,
   pendingMatchMap: Map<string, number>,
-  pendingOnlyMatches: { id: string; nombre: string; ciclo: number }[]
+  pendingOnlyMatches: { id: string; nombre: string; ciclo: number }[],
+  sucByPositionAndSuc: Map<string, CartaSucesor>
 ): SucEntry[] {
   // Deduplicate by sucesor_id: prefer aprobado over borrador regardless of ciclo_año,
   // then prefer more recent ciclo_año. This prevents a 2026 borrador from overriding
@@ -887,7 +889,16 @@ function buildEntries(
     // If a discarded entry for this person is from the same or a newer cycle, don't show the pending
     const dCiclo = discardedCicloByPerson.get(p.id);
     if (dCiclo !== undefined && dCiclo >= p.ciclo) continue;
-    entries.push({ nombre: p.nombre, tipo: "aspiracion", readiness: null, id: p.id, ciclo: null, motorValidated: false, isManual: false, pendingMatchCiclo: p.ciclo });
+    // If there's a historical plan_sucesion for this sucesor+position (from any prior titular),
+    // show as "Propuesto" (borrador/validado) instead of "Aspiración".
+    const histPlan = titularCatId ? sucByPositionAndSuc.get(`${p.id}:${titularCatId}`) : undefined;
+    if (histPlan) {
+      const tipo: SucEntry["tipo"] = histPlan.estado === "aprobado" ? "validado" : "borrador";
+      const readiness = histPlan.readiness ?? histPlan.tiempo_estimado ?? null;
+      entries.push({ nombre: p.nombre, tipo, readiness, id: p.id, ciclo: p.ciclo, motorValidated: false, isManual: false, pendingMatchCiclo: p.ciclo });
+    } else {
+      entries.push({ nombre: p.nombre, tipo: "aspiracion", readiness: null, id: p.id, ciclo: null, motorValidated: false, isManual: false, pendingMatchCiclo: p.ciclo });
+    }
   }
 
   // Descartados: motor matches that were discarded — show only if person has no other entry yet
@@ -1328,6 +1339,25 @@ export default function CartasClient({
     return covered;
   }, [sucesores, validatedMatchMap, colabMap, colabToCatalog, validatedMatchesByPuesto, currentHolderByCatId, readinessBySucAndTitular]);
 
+  // Historical cross-titular plans: "sucId:catId" → best CartaSucesor (aprobado > otros, más reciente)
+  // Used to show "Propuesto" instead of "Aspiración" for pending motor matches that have a prior plan
+  // from a different titular of the same position.
+  const sucByPositionAndSuc = useMemo(() => {
+    const m = new Map<string, CartaSucesor>();
+    for (const s of sucesores) {
+      if (!s.sucesor_id || !s.puesto_catalogo_id) continue;
+      const key = `${s.sucesor_id}:${s.puesto_catalogo_id}`;
+      const existing = m.get(key);
+      if (!existing) { m.set(key, s); continue; }
+      const betterEstado = s.estado === "aprobado" && existing.estado !== "aprobado";
+      const sameEstado   = s.estado === existing.estado;
+      if (betterEstado || (sameEstado && (s.ciclo_año ?? 0) > (existing.ciclo_año ?? 0))) {
+        m.set(key, s);
+      }
+    }
+    return m;
+  }, [sucesores]);
+
   // Aspirantes: puestoCatalogId → [{nombre, id}] — keyed by UUID
   // Deduplicate: a person with the same catId in both PICD slots must appear only once
   const aspirantesByPuesto = useMemo(() => {
@@ -1536,7 +1566,7 @@ export default function CartasClient({
               const allAspirantes = [...aspirantes.map(a => ({ ...a, readiness: bestReadinessBySuccesor.get(a.id) ?? null })), ...motorMatches];
               const discartados = catId ? (discardedByCatId.get(catId) ?? []) : [];
               const pendingOnly = catId ? (pendingMatchesByPuesto.get(catId) ?? []).filter(m => !sucIds.has(m.id)) : [];
-              const entries   = buildEntries(mySuc, allAspirantes, discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnly);
+              const entries   = buildEntries(mySuc, allAspirantes, discartados, validatedMatchMap, catId, pendingMatchMap, pendingOnly, sucByPositionAndSuc);
               const conc      = concentracionMap.get(node.id) ?? 0;
 
               return (
@@ -1594,6 +1624,7 @@ export default function CartasClient({
           pendingMatchMap={pendingMatchMap}
           pendingMatchesByPuesto={pendingMatchesByPuesto}
           pendingCatIds={pendingCatIds}
+          sucByPositionAndSuc={sucByPositionAndSuc}
           onClose={() => setSelected(null)}
         />
       )}

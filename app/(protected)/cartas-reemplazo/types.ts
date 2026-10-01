@@ -35,6 +35,7 @@ export type CartaSucesor = {
   tiempo_estimado: string | null;
   estado: string;
   ciclo_año: number;
+  puesto_catalogo_id: string | null;
 };
 
 export type CartaPicd = {

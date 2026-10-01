@@ -54,7 +54,7 @@ export default async function CartasReemplazoPage() {
     fetchAllRows((from, to) =>
       supabase
         .from("plan_sucesion")
-        .select("id_empleado, sucesor_nombre, sucesor_id, readiness, tiempo_estimado, estado, ciclo_año")
+        .select("id_empleado, sucesor_nombre, sucesor_id, readiness, tiempo_estimado, estado, ciclo_año, puesto_catalogo_id")
         .neq("estado", "descartado")
         .order("ciclo_año", { ascending: false })
         .range(from, to)
@@ -119,7 +119,7 @@ export default async function CartasReemplazoPage() {
   const picdLatest = Array.from(picdByEmpleado.values());
 
   // plan_sucesion: rename id_empleado → id_empleado_titular
-  type RawSucesor = { id_empleado: string; sucesor_nombre: string; sucesor_id: string | null; readiness: string | null; tiempo_estimado: string | null; estado: string; ciclo_año: number };
+  type RawSucesor = { id_empleado: string; sucesor_nombre: string; sucesor_id: string | null; readiness: string | null; tiempo_estimado: string | null; estado: string; ciclo_año: number; puesto_catalogo_id: string | null };
   const sucesores: CartaSucesor[] = ((sucesoresRaw ?? []) as unknown as RawSucesor[]).map((s) => ({
     id_empleado_titular: s.id_empleado,
     sucesor_nombre: s.sucesor_nombre,
@@ -128,6 +128,7 @@ export default async function CartasReemplazoPage() {
     tiempo_estimado: s.tiempo_estimado,
     estado: s.estado,
     ciclo_año: s.ciclo_año,
+    puesto_catalogo_id: s.puesto_catalogo_id ?? null,
   }));
 
   const catalogo = ((catalogoRaw.data ?? []) as unknown as CartaCatalogoPuesto[]);
