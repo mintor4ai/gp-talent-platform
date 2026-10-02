@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import type { OrgData } from "@/app/actions/organizacion";
+import type { OrgData, RotacionUen } from "@/app/actions/organizacion";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell, Legend,
+  ComposedChart, Line,
 } from "recharts";
 
 // ── Palette ──────────────────────────────────────────────────────────────────
@@ -76,10 +77,227 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
+// ── Rotation helpers ──────────────────────────────────────────────────────────
+const NIVEL_LABELS_SHORT: Record<number, string> = {
+  1: "N1 Dir. Gral", 2: "N2 VP/Dir Corp", 3: "N3 Director",
+  4: "N4 Subdirector", 5: "N5 Ger. Sr", 6: "N6 Gerente",
+  7: "N7 Jefe Sr", 8: "N8 Jefe", 9: "N9 Coord Sr",
+  10: "N10 Coord", 11: "N11 Analista", 12: "N12 Asistente",
+  13: "N13 Operativo", 99: "Sin nivel",
+};
+
+function rotColor(pct: number) {
+  if (pct >= 20) return "#dc2626";
+  if (pct >= 10) return "#d97706";
+  return "#059669";
+}
+
+function RotBadge({ pct }: { pct: number }) {
+  const color = rotColor(pct);
+  const bg = pct >= 20 ? "#fef2f2" : pct >= 10 ? "#fffbeb" : "#f0fdf4";
+  const label = pct >= 20 ? "Alto" : pct >= 10 ? "Medio" : "OK";
+  return (
+    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ color, background: bg }}>
+      {label}
+    </span>
+  );
+}
+
+function RotacionTab({ data, selectedUens }: { data: OrgData; selectedUens: Set<string> }) {
+  const rot = data.rotacion;
+
+  const filteredByUen = rot.byUen.filter((r) => selectedUens.has(r.uen));
+  const filteredFlujo = rot.flujoMensual.slice(-13);
+
+  // Aggregate KPIs for selected UENs
+  const selBajas12m = filteredByUen.reduce((s, r) => s + r.bajas_12m, 0);
+  const selHcActivo = filteredByUen.reduce((s, r) => s + r.hc_activo, 0);
+  const selRotPct = selHcActivo + selBajas12m
+    ? Math.round((selBajas12m / (selHcActivo + selBajas12m)) * 1000) / 10 : 0;
+
+  // Flujo chart tooltip
+  function FlujoTooltip({ active, payload, label }: any) {
+    if (!active || !payload?.length) return null;
+    const altas = payload.find((p: any) => p.dataKey === "altas")?.value ?? 0;
+    const bajas = payload.find((p: any) => p.dataKey === "bajas")?.value ?? 0;
+    const neto = altas - bajas;
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs space-y-1">
+        <p className="font-semibold text-gray-700 mb-1">{label}</p>
+        <p style={{ color: "#059669" }}>Altas: {altas}</p>
+        <p style={{ color: "#dc2626" }}>Bajas: {bajas}</p>
+        <p className={`font-semibold ${neto >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+          Neto: {neto >= 0 ? "+" : ""}{neto}
+        </p>
+      </div>
+    );
+  }
+
+  const maxBajas = Math.max(...rot.bajasNivel.map((r) => r.bajas), 1);
+
+  return (
+    <div className="space-y-6">
+      {/* Summary tiles */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border shadow-sm px-5 py-4 flex flex-col gap-0.5"
+          style={{ borderColor: rotColor(selRotPct) + "55" }}>
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Rotación LTM</p>
+          <p className="text-3xl font-bold tabular-nums" style={{ color: rotColor(selRotPct) }}>{selRotPct}%</p>
+          <p className="text-xs text-gray-400">{selBajas12m} bajas · últimos 12 meses</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 flex flex-col gap-0.5">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Early Attrition</p>
+          <p className="text-3xl font-bold text-[#1a3a5c] tabular-nums">
+            {filteredByUen.length
+              ? Math.round(filteredByUen.reduce((s, r) => s + r.early_attrition_pct, 0) / filteredByUen.length)
+              : 0}%
+          </p>
+          <p className="text-xs text-gray-400">Salen antes de cumplir 1 año</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 flex flex-col gap-0.5">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Antigüedad al salir</p>
+          <p className="text-3xl font-bold text-[#1a3a5c] tabular-nums">
+            {filteredByUen.length
+              ? Math.round(filteredByUen.reduce((s, r) => s + r.tenure_exit_avg, 0) / filteredByUen.length * 10) / 10
+              : 0} <span className="text-lg font-medium text-gray-400">años</span>
+          </p>
+          <p className="text-xs text-gray-400">Promedio al momento de la baja</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 flex flex-col gap-0.5">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Balance Sep 26</p>
+          <p className="text-3xl font-bold text-red-600 tabular-nums">–15</p>
+          <p className="text-xs text-gray-400">12 altas · 27 bajas · peor mes</p>
+        </div>
+      </div>
+
+      {/* Flujo mensual */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <p className="text-sm font-semibold text-gray-700 mb-1">Flujo mensual de Headcount</p>
+        <p className="text-xs text-gray-400 mb-4">Altas vs. Bajas por mes · barras = volumen · línea = neto acumulado</p>
+        <ResponsiveContainer width="100%" height={240}>
+          <ComposedChart data={filteredFlujo} margin={{ left: 0, right: 8 }}>
+            <XAxis dataKey="mes" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(2).replace("-", "/")} />
+            <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+            <Tooltip content={<FlujoTooltip />} />
+            <Bar yAxisId="left" dataKey="altas" name="Altas" fill="#059669" fillOpacity={0.8} radius={[3, 3, 0, 0]} />
+            <Bar yAxisId="left" dataKey="bajas" name="Bajas" fill="#dc2626" fillOpacity={0.8} radius={[3, 3, 0, 0]} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Rotation by UEN + Early Attrition */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Rotation rate table */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Tasa de rotación por UEN (LTM)</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-gray-400 border-b border-gray-100 text-[10px] uppercase tracking-wide">
+                <th className="text-left pb-2 font-medium">UEN</th>
+                <th className="text-right pb-2 font-medium">Bajas 12m</th>
+                <th className="text-right pb-2 font-medium">Rotación</th>
+                <th className="pb-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredByUen.map((r, i) => (
+                <tr key={r.uen} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="py-2.5 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: uenColor(r.uen, i) }} />
+                    <span className="text-gray-800">{shortUen(r.uen)}</span>
+                  </td>
+                  <td className="py-2.5 text-right tabular-nums text-gray-600">{r.bajas_12m}</td>
+                  <td className="py-2.5 text-right tabular-nums font-semibold" style={{ color: rotColor(r.rotacion_pct) }}>
+                    {r.rotacion_pct}%
+                  </td>
+                  <td className="py-2.5 pl-2"><RotBadge pct={r.rotacion_pct} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Early attrition + tenure */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-1">Early Attrition y antigüedad al salir</p>
+          <p className="text-xs text-gray-400 mb-4">% que sale antes de 1 año · años prom. al momento de la baja</p>
+          <div className="space-y-3">
+            {filteredByUen.map((r, i) => (
+              <div key={r.uen}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="flex items-center gap-1.5 text-gray-700">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: uenColor(r.uen, i) }} />
+                    {shortUen(r.uen)}
+                  </span>
+                  <span className="text-gray-400 tabular-nums">
+                    <span className="font-semibold" style={{ color: r.early_attrition_pct >= 40 ? "#dc2626" : r.early_attrition_pct >= 25 ? "#d97706" : "#059669" }}>
+                      {r.early_attrition_pct}%
+                    </span>
+                    {" · "}{r.tenure_exit_avg} años al salir
+                  </span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${r.early_attrition_pct}%`,
+                      backgroundColor: r.early_attrition_pct >= 40 ? "#dc2626" : r.early_attrition_pct >= 25 ? "#d97706" : "#059669",
+                      opacity: 0.8,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Bajas por nivel */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <p className="text-sm font-semibold text-gray-700 mb-1">Bajas por nivel jerárquico</p>
+        <p className="text-xs text-gray-400 mb-4">Volumen de bajas históricas y antigüedad promedio al momento de la salida</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[480px]">
+            <thead>
+              <tr className="text-gray-400 border-b border-gray-100 text-[10px] uppercase tracking-wide">
+                <th className="text-left pb-2 font-medium">Nivel</th>
+                <th className="text-right pb-2 font-medium">Bajas</th>
+                <th className="pb-2 pl-3" style={{ width: "40%" }}>Volumen</th>
+                <th className="text-right pb-2 font-medium">Años al salir</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rot.bajasNivel.filter((r) => r.nivel_num !== 99).map((r) => (
+                <tr key={r.nivel_num} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="py-2 text-gray-700 font-medium">{NIVEL_LABELS_SHORT[r.nivel_num] ?? `N${r.nivel_num}`}</td>
+                  <td className="py-2 text-right tabular-nums text-gray-600">{r.bajas}</td>
+                  <td className="py-2 pl-3">
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.round((r.bajas / maxBajas) * 100)}%`,
+                          backgroundColor: "#1a3a5c",
+                          opacity: 0.6 + (r.bajas / maxBajas) * 0.4,
+                        }}
+                      />
+                    </div>
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-gray-500">{r.tenure_exit_avg} años</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function OrgDashboard({ data }: { data: OrgData }) {
   const [selectedUens, setSelectedUens] = useState<Set<string>>(new Set(data.uens));
-  const [tab, setTab] = useState<"resumen" | "headcount" | "demografia">("resumen");
+  const [tab, setTab] = useState<"resumen" | "headcount" | "demografia" | "rotacion">("resumen");
 
   function toggleUen(uen: string) {
     setSelectedUens((prev) => {
@@ -212,17 +430,30 @@ export default function OrgDashboard({ data }: { data: OrgData }) {
         <Tab active={tab === "resumen"} onClick={() => setTab("resumen")}>Resumen</Tab>
         <Tab active={tab === "headcount"} onClick={() => setTab("headcount")}>Headcount</Tab>
         <Tab active={tab === "demografia"} onClick={() => setTab("demografia")}>Demografía</Tab>
+        <Tab active={tab === "rotacion"} onClick={() => setTab("rotacion")}>Rotación</Tab>
       </div>
 
       {/* ── RESUMEN tab ── */}
       {tab === "resumen" && (
         <div className="space-y-6">
           {/* KPI row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Tile label="Headcount Total" value={totalHc.toLocaleString()} sub={`${selectedUens.size} UEN${selectedUens.size !== 1 ? "s" : ""}`} />
             <Tile label="Edad Promedio" value={`${edadProm} años`} />
             <Tile label="Antigüedad Prom." value={`${antiguedadProm} años`} />
             <Tile label="UENs Activas" value={selectedUens.size} sub={`de ${data.uens.length} totales`} />
+            <div
+              className="bg-white rounded-xl border shadow-sm px-5 py-4 flex flex-col gap-0.5 cursor-pointer hover:border-red-300 transition-colors"
+              style={{ borderColor: data.rotacion.rotacionGrupoPct >= 20 ? "#fca5a5" : data.rotacion.rotacionGrupoPct >= 10 ? "#fde68a" : "#86efac" }}
+              onClick={() => setTab("rotacion")}
+              title="Ver análisis de rotación"
+            >
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Rotación LTM</p>
+              <p className="text-3xl font-bold tabular-nums" style={{ color: data.rotacion.rotacionGrupoPct >= 20 ? "#dc2626" : data.rotacion.rotacionGrupoPct >= 10 ? "#d97706" : "#059669" }}>
+                {data.rotacion.rotacionGrupoPct}%
+              </p>
+              <p className="text-xs text-gray-400">{data.rotacion.totalBajas12m} bajas · últimos 12 m</p>
+            </div>
           </div>
 
           {/* HC by UEN + donut */}
@@ -252,7 +483,7 @@ export default function OrgDashboard({ data }: { data: OrgData }) {
                       <Cell key={d.name} fill={uenColor(d.fullName, i)} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number, name: string) => [`${v} (${((v / totalHc) * 100).toFixed(1)}%)`, name]} />
+                  <Tooltip formatter={(v: unknown, name: unknown) => [`${v} (${((Number(v) / totalHc) * 100).toFixed(1)}%)`, name as string]} />
                   <Legend iconType="circle" iconSize={8} formatter={(v) => <span style={{ fontSize: 11 }}>{v}</span>} />
                 </PieChart>
               </ResponsiveContainer>
@@ -355,6 +586,11 @@ export default function OrgDashboard({ data }: { data: OrgData }) {
             </table>
           </div>
         </div>
+      )}
+
+      {/* ── ROTACIÓN tab ── */}
+      {tab === "rotacion" && (
+        <RotacionTab data={data} selectedUens={selectedUens} />
       )}
 
       {/* ── DEMOGRAFÍA tab ── */}
