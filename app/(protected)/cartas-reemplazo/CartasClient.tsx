@@ -95,6 +95,8 @@ type Cob = "verde" | "amarillo" | "rojo" | "negro";
 // validatedMatchMap + titularCatId: used to gate amarillo — only show yellow if at
 // least one sucesor has an active validated match (same gate as buildEntries display),
 // so the border always matches what is actually shown on the card.
+const READINESS_URGENT = new Set(['listo_ahora', 'uno_dos_anios']);
+
 function getCob(
   colabUuid: string,
   isYaAsignado: boolean,
@@ -103,13 +105,12 @@ function getCob(
   validatedMatchMap: Map<string, number>,
   titularCatId: string | null | undefined,
   validatedMatchesByPuesto: Map<string, { id: string; nombre: string }[]>,
-  pendingCatIds: Set<string>
+  pendingCatIds: Set<string>,
+  bestReadinessBySuccesor: Map<string, string>
 ): Cob {
   const mine = suc.filter(s => s.id_empleado_titular === colabUuid);
-  // Coverage status takes priority over yaAsignado — the badge already shows that info.
-  // Border color reflects how well THIS position is covered, not where the person is assigned.
+  // Coverage status takes priority — border reflects how well THIS position is covered.
   if (coveredByValidatedMatch.has(colabUuid)) return "verde";
-  // Amarillo: validated motor match, manual plan entry, or pending motor match for the position
   const hasValidatedSuccessor = titularCatId
     ? mine.some(s => s.sucesor_id !== null && validatedMatchMap.has(`${s.sucesor_id}:${titularCatId}`))
       || (validatedMatchesByPuesto.get(titularCatId) ?? []).length > 0
@@ -117,7 +118,13 @@ function getCob(
   const hasAnyPlanEntry = mine.some(s => s.sucesor_id !== null);
   const hasPendingMatch = titularCatId ? pendingCatIds.has(titularCatId) : false;
   if (!hasValidatedSuccessor && !hasAnyPlanEntry && !hasPendingMatch) {
-    return isYaAsignado ? "negro" : "rojo";
+    // No successors: if yaAsignado and moving Inm/Med → Rojo (position vacates soon)
+    // If yaAsignado but Largo or unknown → Amarillo (transition is distant)
+    if (isYaAsignado) {
+      const r = bestReadinessBySuccesor.get(colabUuid);
+      return (r && READINESS_URGENT.has(r)) ? "rojo" : "amarillo";
+    }
+    return "rojo";
   }
   return "amarillo";
 }
@@ -432,7 +439,7 @@ function DetailPanel({
   const catId      = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
   const cat        = catId ? catalogoById.get(catId) : undefined;
   const isYa       = yaAsignadoIds.has(node.id);
-  const cob        = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds);
+  const cob        = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor);
   const mySuc      = sucesores.filter(s => s.id_empleado_titular === node.id && s.sucesor_id !== node.id);
   const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []).filter(a => a.id !== node.id) : [];
   const sucIds     = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
@@ -1073,7 +1080,7 @@ function ExecSummary({
     const n = colabMap.get(id);
     if (n) {
       const catId = n.puesto_catalogo_id ?? colabToCatalog.get(n.id);
-      counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds)]++;
+      counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor)]++;
     }
   }
 
@@ -1620,7 +1627,7 @@ export default function CartasClient({
 
               const isYa      = yaIds.has(id);
               const catId     = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
-              const cob       = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds);
+              const cob       = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor);
               const tc        = tcMap.get(node.id);
               const cat       = catId ? catalogoById.get(catId) : undefined;
               const mySuc     = sucesores.filter(s => s.id_empleado_titular === node.id && s.sucesor_id !== node.id);
