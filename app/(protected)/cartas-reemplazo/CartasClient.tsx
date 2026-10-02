@@ -513,7 +513,16 @@ function DetailPanel({
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Status chips */}
           <div className="flex gap-2 flex-wrap">
-            {cob === "negro" && plansDondeEsSucesor.length > 0 ? (
+            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold leading-none ${
+              cob === "verde"    ? "bg-green-50 text-green-700 border-green-200" :
+              cob === "amarillo" ? "bg-amber-50 text-amber-700 border-amber-200" :
+              "bg-red-50 text-red-700 border-red-200"
+            }`}>
+              {cob === "verde" ? "🟢 Cubierto" :
+               cob === "amarillo" ? "🟡 En desarrollo" :
+               "🔴 En riesgo"}
+            </span>
+            {isYa && plansDondeEsSucesor.length > 0 && (
               <HoverTooltip label="⚫ Ya asignado" cls="bg-gray-100 text-gray-700 border border-gray-300 text-[10px] px-2 py-0.5 rounded-full font-semibold leading-none">
                 <p className="font-semibold text-gray-300 uppercase tracking-wider text-[9px] mb-1">Designado sucesor de:</p>
                 {plansDondeEsSucesor.map((p, i) => (
@@ -528,18 +537,6 @@ function DetailPanel({
                   </div>
                 ))}
               </HoverTooltip>
-            ) : (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold leading-none ${
-                cob === "verde"    ? "bg-green-50 text-green-700 border-green-200" :
-                cob === "amarillo" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                cob === "negro"    ? "bg-gray-100 text-gray-700 border-gray-300" :
-                "bg-red-50 text-red-700 border-red-200"
-              }`}>
-                {cob === "verde" ? "🟢 Cubierto" :
-                 cob === "amarillo" ? "🟡 En desarrollo" :
-                 cob === "negro" ? "⚫ Ya asignado" :
-                 "🔴 En riesgo"}
-              </span>
             )}
             {tc?.es_talento_clave && (
               <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold leading-none bg-amber-50 text-amber-700 border-amber-200 cursor-help"
@@ -1061,7 +1058,7 @@ function RootSelector({
 
 function ExecSummary({
   rootId, childrenMap, colabMap, sucesores, yaAsignadoIds, coveredByValidatedMatch,
-  validatedMatchMap, colabToCatalog, validatedMatchesByPuesto, pendingCatIds,
+  validatedMatchMap, colabToCatalog, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor,
 }: {
   rootId: string;
   childrenMap: Map<string, string[]>;
@@ -1073,14 +1070,17 @@ function ExecSummary({
   colabToCatalog: Map<string, string>;
   validatedMatchesByPuesto: Map<string, { id: string; nombre: string }[]>;
   pendingCatIds: Set<string>;
+  bestReadinessBySuccesor: Map<string, string>;
 }) {
   const directKids = childrenMap.get(rootId) ?? [];
-  const counts = { verde: 0, amarillo: 0, rojo: 0, negro: 0 };
+  const counts = { verde: 0, amarillo: 0, rojo: 0 };
+  let yaAsignados = 0;
   for (const id of directKids) {
     const n = colabMap.get(id);
     if (n) {
       const catId = n.puesto_catalogo_id ?? colabToCatalog.get(n.id);
       counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor)]++;
+      if (yaAsignadoIds.has(n.id)) yaAsignados++;
     }
   }
 
@@ -1107,10 +1107,10 @@ function ExecSummary({
           {counts.rojo} En riesgo
         </span>
       )}
-      {counts.negro > 0 && (
+      {yaAsignados > 0 && (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 text-gray-700 font-semibold border border-gray-200">
-          <span className="w-2 h-2 rounded-full bg-gray-600 flex-shrink-0" />
-          {counts.negro} Ya asignados
+          <span className="w-2 h-2 rounded-full bg-gray-500 flex-shrink-0" />
+          {yaAsignados} Ya asignados
         </span>
       )}
     </div>
@@ -1133,17 +1133,12 @@ function Legend() {
         <span className="inline-flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 flex-shrink-0" />
           <span className="font-semibold text-amber-700">En desarrollo</span>
-          <span className="text-gray-400">sucesor sin match validado</span>
+          <span className="text-gray-400">sucesor Lrg. o plan pendiente</span>
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm bg-red-500 flex-shrink-0" />
           <span className="font-semibold text-red-700">En riesgo</span>
-          <span className="text-gray-400">sin sucesor interno</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm bg-gray-600 flex-shrink-0" />
-          <span className="font-semibold text-gray-600">Ya asignado</span>
-          <span className="text-gray-400">es sucesor en otro plan</span>
+          <span className="text-gray-400">sin sucesor o titular próximo a salir</span>
         </span>
       </div>
 
@@ -1154,11 +1149,23 @@ function Legend() {
         <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mr-1">Chips</span>
         <span className="inline-flex items-center gap-1">
           <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-green-100 text-green-700 border border-green-300">✓25</span>
-          <span className="text-gray-500">Match validado</span>
+          <span className="text-gray-500">Match CH validado</span>
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-gray-100 text-gray-500 border-gray-300">CH</span>
+          <span className="text-gray-500">Plan manual CH aprobado</span>
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-blue-50 text-blue-600 border-blue-200">Match:25</span>
+          <span className="text-gray-500">Match pendiente de validar</span>
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-700 border-amber-300">Propuesto</span>
-          <span className="text-gray-500">Plan sin validar</span>
+          <span className="text-gray-500">Plan de sucesión borrador</span>
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-600 border-amber-300">Pend.&apos;25</span>
+          <span className="text-gray-500">Plan borrador pendiente de aprobación</span>
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-blue-50 text-blue-600 border-blue-200">Aspiración</span>
@@ -1562,7 +1569,7 @@ export default function CartasClient({
 
       {rootId && (
         <>
-          <ExecSummary rootId={rootId} childrenMap={childrenMap} colabMap={colabMap} sucesores={sucesores} yaAsignadoIds={yaIds} coveredByValidatedMatch={coveredByValidatedMatch} validatedMatchMap={validatedMatchMap} colabToCatalog={colabToCatalog} validatedMatchesByPuesto={validatedMatchesByPuesto} pendingCatIds={pendingCatIds} />
+          <ExecSummary rootId={rootId} childrenMap={childrenMap} colabMap={colabMap} sucesores={sucesores} yaAsignadoIds={yaIds} coveredByValidatedMatch={coveredByValidatedMatch} validatedMatchMap={validatedMatchMap} colabToCatalog={colabToCatalog} validatedMatchesByPuesto={validatedMatchesByPuesto} pendingCatIds={pendingCatIds} bestReadinessBySuccesor={bestReadinessBySuccesor} />
           <Legend />
         </>
       )}
