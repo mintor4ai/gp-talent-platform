@@ -328,61 +328,58 @@ async function AdminDashboard({
   ].filter(Boolean) as Alert[];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Panel de Capital Humano</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {rol === "superadmin" ? "Vista Super Admin" : "Vista Capital Humano"} · GP Talent
-          Intelligence
+        <h1 className="text-lg font-semibold text-gray-900">Panel de Capital Humano</h1>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {rol === "superadmin" ? "Super Admin" : "Capital Humano"} · GP Talent Intelligence
         </p>
       </div>
 
       {alerts.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {alerts.map((alert) => (
             <a
               key={alert.href}
               href={alert.href}
-              className={`flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:bg-gray-50 transition-colors ${
-                alert.urgent ? "border-l-[3px] border-l-red-500" : "border-l-[3px] border-l-amber-400"
+              className={`flex items-center justify-between bg-white rounded-lg border border-gray-200 px-3.5 py-2.5 hover:bg-gray-50 transition-colors ${
+                alert.urgent ? "border-l-2 border-l-red-400" : "border-l-2 border-l-amber-400"
               }`}
             >
-              <div className="flex items-baseline gap-2">
-                <span className={`text-xl font-bold tabular-nums ${alert.urgent ? "text-red-600" : "text-amber-600"}`}>
+              <div className="flex items-baseline gap-1.5">
+                <span className={`text-sm font-bold tabular-nums ${alert.urgent ? "text-red-600" : "text-amber-600"}`}>
                   {alert.count}
                 </span>
-                <span className="text-sm text-gray-600">{alert.label}</span>
+                <span className="text-xs text-gray-500">{alert.label}</span>
               </div>
-              <span className="text-xs text-gray-400 font-medium">Ver →</span>
+              <span className="text-[11px] text-gray-400">ver →</span>
             </a>
           ))}
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3">
         <KpiCard
-          label="Colaboradores activos"
+          label="Colaboradores"
           value={(totalColab ?? 0).toLocaleString()}
         />
         <KpiCard
-          label="Con evaluación EIP"
+          label="Con EIP"
           value={totalEvaluados.toLocaleString()}
-          sub={totalColab ? `${Math.round((totalEvaluados / totalColab) * 100)}% del total` : undefined}
+          sub={totalColab ? `${Math.round((totalEvaluados / totalColab) * 100)}%` : undefined}
         />
         <KpiCard
-          label="Planes de carrera activos"
+          label="Planes activos"
           value={(planesActivos ?? 0).toLocaleString()}
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Accesos rápidos</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <QuickLink href="/carpetas" label="Carpetas Individuales" />
-          <QuickLink href="/sucesion?tab=matching" label="Motor de Matching" />
-          <QuickLink href="/organizacion" label="Organización" />
-          <QuickLink href="/importar" label="Importar datos" />
-        </div>
+      <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider px-3.5 py-2.5">Accesos rápidos</p>
+        <QuickLink href="/carpetas" label="Carpetas Individuales" />
+        <QuickLink href="/sucesion?tab=matching" label="Motor de Matching" />
+        <QuickLink href="/organizacion" label="Organización" />
+        <QuickLink href="/importar" label="Importar datos" />
       </div>
     </div>
   );
@@ -390,10 +387,12 @@ async function AdminDashboard({
 
 function KpiCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</p>
-      <p className="text-3xl font-bold text-gray-900 mt-2 tabular-nums">{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+    <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
+      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">{label}</p>
+      <div className="flex items-baseline gap-1.5 mt-1">
+        <p className="text-2xl font-bold text-gray-900 tabular-nums leading-none">{value}</p>
+        {sub && <p className="text-xs text-gray-400">{sub}</p>}
+      </div>
     </div>
   );
 }
@@ -402,10 +401,10 @@ function QuickLink({ href, label }: { href: string; label: string }) {
   return (
     <a
       href={href}
-      className="group flex items-center justify-between bg-gray-50 hover:bg-gray-100 rounded-lg px-4 py-3 transition-colors"
+      className="group flex items-center justify-between px-3.5 py-2.5 hover:bg-gray-50 transition-colors"
     >
-      <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">{label}</span>
-      <span className="text-gray-300 group-hover:text-gray-500 text-sm transition-colors">→</span>
+      <span className="text-xs font-medium text-gray-600 group-hover:text-gray-900 transition-colors">{label}</span>
+      <span className="text-gray-300 group-hover:text-gray-400 text-xs transition-colors">→</span>
     </a>
   );
 }
