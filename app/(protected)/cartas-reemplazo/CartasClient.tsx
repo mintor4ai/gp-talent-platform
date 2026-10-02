@@ -106,8 +106,9 @@ function getCob(
   pendingCatIds: Set<string>
 ): Cob {
   const mine = suc.filter(s => s.id_empleado_titular === colabUuid);
+  // Coverage status takes priority over yaAsignado — the badge already shows that info.
+  // Border color reflects how well THIS position is covered, not where the person is assigned.
   if (coveredByValidatedMatch.has(colabUuid)) return "verde";
-  if (isYaAsignado) return "negro";
   // Amarillo: validated motor match, manual plan entry, or pending motor match for the position
   const hasValidatedSuccessor = titularCatId
     ? mine.some(s => s.sucesor_id !== null && validatedMatchMap.has(`${s.sucesor_id}:${titularCatId}`))
@@ -115,7 +116,9 @@ function getCob(
     : false;
   const hasAnyPlanEntry = mine.some(s => s.sucesor_id !== null);
   const hasPendingMatch = titularCatId ? pendingCatIds.has(titularCatId) : false;
-  if (!hasValidatedSuccessor && !hasAnyPlanEntry && !hasPendingMatch) return "rojo";
+  if (!hasValidatedSuccessor && !hasAnyPlanEntry && !hasPendingMatch) {
+    return isYaAsignado ? "negro" : "rojo";
+  }
   return "amarillo";
 }
 
