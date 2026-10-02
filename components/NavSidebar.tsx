@@ -1,10 +1,17 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+
+type SubChild = {
+  href: string;
+  label: string;
+  tab: string;
+};
 
 type SubItem = {
   href: string;
   label: string;
+  subChildren?: SubChild[];
 };
 
 type NavItem = {
@@ -28,7 +35,15 @@ const ADMIN_NAV: NavItem[] = [
       { href: "/carpetas",      label: "Carpetas Individuales" },
       { href: "/talento-clave", label: "Talento Clave" },
       { href: "/movilidad",     label: "Movilidad" },
-      { href: "/sucesion",      label: "Plan de Sucesión" },
+      {
+        href: "/sucesion",
+        label: "Plan de Sucesión",
+        subChildren: [
+          { href: "/sucesion?tab=planes",    label: "Planes de Sucesión",  tab: "planes" },
+          { href: "/sucesion?tab=cobertura", label: "Cobertura por Puesto", tab: "cobertura" },
+          { href: "/sucesion?tab=matching",  label: "Motor de Matching",   tab: "matching" },
+        ],
+      },
       { href: "/plan-carrera",  label: "Plano de Carrera" },
       { href: "/picd-admin",    label: "Ciclos PICD" },
       { href: "/rutas-talento", label: "Rutas de Talento" },
@@ -67,6 +82,7 @@ export default function NavSidebar({
   idEmpleado: string | null;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const isAdmin = rol === "capital_humano" || rol === "superadmin";
 
   let items: NavItem[];
@@ -129,18 +145,44 @@ export default function NavSidebar({
                   <div className="ml-4 space-y-0.5 border-l border-gray-200 pl-3">
                     {item.children.map((child) => {
                       const childActive = pathname === child.href || pathname.startsWith(child.href + "/");
+                      const onSubPage = child.subChildren && pathname.startsWith(child.href);
                       return (
-                        <a
-                          key={child.href}
-                          href={child.href}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                            childActive
-                              ? "bg-[#1a3a5c] text-white font-medium"
-                              : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-                          }`}
-                        >
-                          {child.label}
-                        </a>
+                        <div key={child.href}>
+                          <a
+                            href={child.href}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                              childActive && !onSubPage
+                                ? "bg-[#1a3a5c] text-white font-medium"
+                                : onSubPage
+                                ? "text-[#1a3a5c] font-medium"
+                                : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                            }`}
+                          >
+                            {child.label}
+                          </a>
+                          {child.subChildren && (
+                            <div className="ml-3 mt-0.5 space-y-0.5 border-l border-gray-100 pl-2">
+                              {child.subChildren.map((sub) => {
+                                const subActive =
+                                  pathname.startsWith(child.href) &&
+                                  searchParams.get("tab") === sub.tab;
+                                return (
+                                  <a
+                                    key={sub.href}
+                                    href={sub.href}
+                                    className={`flex items-center px-2 py-1.5 rounded-md text-xs transition-colors ${
+                                      subActive
+                                        ? "bg-[#1a3a5c]/10 text-[#1a3a5c] font-semibold"
+                                        : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                                    }`}
+                                  >
+                                    {sub.label}
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>

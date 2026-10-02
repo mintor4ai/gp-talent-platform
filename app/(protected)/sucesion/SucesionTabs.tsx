@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import SucesionAdminView from "./SucesionAdminView";
 import CoberturaView from "./CoberturaView";
 import MatchingView from "./MatchingView";
@@ -41,8 +42,18 @@ export default function SucesionTabs({
   matches: MatchRow[];
   matchCiclos: number[];
 }) {
-  const [tab, setTab] = useState<"planes" | "cobertura" | "matching">("matching");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab") as "planes" | "cobertura" | "matching" | null;
+  const [tab, setTab] = useState<"planes" | "cobertura" | "matching">(
+    tabParam && ["planes", "cobertura", "matching"].includes(tabParam) ? tabParam : "matching"
+  );
   const [cicloCobertura, setCicloCobertura] = useState<number | "todos">(ciclos[0] ?? "todos");
+
+  useEffect(() => {
+    if (tabParam && ["planes", "cobertura", "matching"].includes(tabParam)) {
+      setTab(tabParam);
+    }
+  }, [tabParam]);
 
   const puestosCobertura =
     cicloCobertura === "todos"
