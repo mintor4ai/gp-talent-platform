@@ -24,6 +24,10 @@ type PreviewRow = {
   cambios: string[];
   cambiosDetalle: CampoDetalle[];
   error?: string;
+  cambioRazonSocial?: boolean;
+  razonSocialAnterior?: string | null;
+  puestoAnterior?: string | null;
+  fechaBajaAnterior?: string | null;
 };
 
 type PreviewSummary = {
@@ -34,6 +38,7 @@ type PreviewSummary = {
   conCambios: number;
   sinCambios: number;
   errores: number;
+  cambiosRazonSocial?: number;
 };
 
 type ImportResult = {
@@ -42,6 +47,7 @@ type ImportResult = {
   upserted: number;
   jefeLinked: number;
   conCambios: number;
+  cambiosRazonSocial?: number;
   errores: number;
   errors: string[];
 };
@@ -171,11 +177,12 @@ export default function ImportadorHrCorp() {
       {preview && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3">
-            <StatCard label="Nuevos"         value={preview.nuevos}     color="green" />
-            <StatCard label="Con cambios"     value={preview.conCambios} color="amber" />
-            <StatCard label="Sin cambios"     value={preview.sinCambios} color="gray"  />
+            <StatCard label="Nuevos"              value={preview.nuevos}               color="green" />
+            <StatCard label="Con cambios"          value={preview.conCambios}           color="amber" />
+            <StatCard label="Sin cambios"          value={preview.sinCambios}           color="gray"  />
+            {(preview.cambiosRazonSocial ?? 0) > 0 && <StatCard label="Cambio R.S." value={preview.cambiosRazonSocial!} color="blue" />}
             {preview.errores > 0 && <StatCard label="Errores" value={preview.errores} color="red" />}
-            <StatCard label="Total"           value={preview.total}      color="gray"  />
+            <StatCard label="Total"                value={preview.total}                color="gray"  />
           </div>
 
           {preview.conCambios === 0 && preview.nuevos === 0 && (
@@ -277,6 +284,16 @@ export default function ImportadorHrCorp() {
                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
                                 Nuevo
                               </span>
+                            ) : row.cambioRazonSocial ? (
+                              <span className="inline-flex flex-col gap-0.5">
+                                <span className="inline-flex items-center gap-1 text-blue-700 font-semibold text-[11px]">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+                                  Cambio R.S.
+                                </span>
+                                {row.razonSocialAnterior && (
+                                  <span className="text-[10px] text-gray-400 leading-tight">{row.razonSocialAnterior} → {row.organización}</span>
+                                )}
+                              </span>
                             ) : row.cambios.length === 0 ? (
                               <span className="text-gray-300">Sin cambios</span>
                             ) : (
@@ -345,10 +362,11 @@ export default function ImportadorHrCorp() {
             {result.errors.length ? "Importación completada con advertencias" : "Importación HrCorp exitosa"}
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Total filas"               value={result.total}      color="gray"  />
-            <StatCard label="Insertados / actualizados" value={result.upserted}   color="green" />
-            <StatCard label="Registros con cambios"     value={result.conCambios} color="amber" />
-            <StatCard label="Jefes vinculados"          value={result.jefeLinked} color="blue"  />
+            <StatCard label="Total filas"               value={result.total}                          color="gray"  />
+            <StatCard label="Insertados / actualizados" value={result.upserted}                     color="green" />
+            <StatCard label="Registros con cambios"     value={result.conCambios}                   color="amber" />
+            {(result.cambiosRazonSocial ?? 0) > 0 && <StatCard label="Cambio R.S." value={result.cambiosRazonSocial!} color="blue" />}
+            <StatCard label="Jefes vinculados"          value={result.jefeLinked}                   color="blue"  />
             {result.errores > 0 && <StatCard label="Errores" value={result.errores} color="red" />}
           </div>
           {result.conCambios > 0 && (

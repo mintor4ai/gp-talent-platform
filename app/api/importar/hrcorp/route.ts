@@ -169,6 +169,10 @@ export type HrCorpPreviewRow = {
   cambios: string[];
   cambiosDetalle: { campo: string; anterior: string | null; nuevo: string | null }[];
   error?: string;
+  cambioRazonSocial?: boolean;   // same id_empleado appeared as baja+activo in same file
+  razonSocialAnterior?: string | null;
+  puestoAnterior?: string | null;
+  fechaBajaAnterior?: string | null;
 };
 
 export async function POST(req: NextRequest) {
@@ -287,20 +291,71 @@ export async function POST(req: NextRequest) {
     results.push(parsed);
   }
 
+  // ── Deduplicate: same id_empleado with baja + activo rows = razon social change ──
+  const rowsByEmpleado = new Map<string, HrCorpPreviewRow[]>();
+  for (const r of results) {
+    if (!r.id_empleado) continue;
+    if (!rowsByEmpleado.has(r.id_empleado)) rowsByEmpleado.set(r.id_empleado, []);
+    rowsByEmpleado.get(r.id_empleado)!.push(r);
+  }
+
+  const deduplicatedResults: HrCorpPreviewRow[] = [];
+  for (const [, rows] of rowsByEmpleado) {
+    if (rows.length === 1) {
+      deduplicatedResults.push(rows[0]);
+      continue;
+    }
+    const activoRow = rows.find((r) => r.activo && !r.error);
+    const bajaRow   = rows.find((r) => !r.activo && !r.error);
+    if (activoRow && bajaRow) {
+      // Razon social change: keep activo as canonical record, annotate it
+      activoRow.cambioRazonSocial  = true;
+      activoRow.razonSocialAnterior = bajaRow.razon_social;
+      activoRow.puestoAnterior      = bajaRow.puesto;
+      activoRow.fechaBajaAnterior   = bajaRow.fecha_baja;
+      // Merge baja changes into the activo row's diff so historial captures the full transition
+      const bajaFields = TRACKED_FIELDS.map(([f]) => f) as string[];
+      for (const field of bajaFields) {
+        const existingChange = activoRow.cambiosDetalle.find((c) => c.campo === TRACKED_FIELDS.find(([f]) => f === field)?.[1]);
+        if (!existingChange) {
+          const bVal = normVal((bajaRow as unknown as Record<string, unknown>)[field]);
+          const aVal = normVal((activoRow as unknown as Record<string, unknown>)[field]);
+          if (bVal !== aVal && !activoRow.cambios.includes(field)) {
+            activoRow.cambios.push(field);
+            activoRow.cambiosDetalle.push({
+              campo: TRACKED_FIELDS.find(([f]) => f === field)?.[1] ?? field,
+              anterior: bVal,
+              nuevo: aVal,
+            });
+          }
+        }
+      }
+      deduplicatedResults.push(activoRow);
+    } else {
+      // All same estatus — keep last row only
+      deduplicatedResults.push(rows[rows.length - 1]);
+    }
+  }
+  // Add any rows that had no id_empleado (errors without id)
+  for (const r of results) {
+    if (!r.id_empleado) deduplicatedResults.push(r);
+  }
+
   if (modo === "preview") {
     return NextResponse.json({
-      rows: results,
-      total: results.length,
-      nuevos:          results.filter((r) => r.esNuevo && !r.error).length,
-      actualizaciones: results.filter((r) => !r.esNuevo && !r.error).length,
-      conCambios:      results.filter((r) => !r.esNuevo && !r.error && r.cambios.length > 0).length,
-      sinCambios:      results.filter((r) => !r.esNuevo && !r.error && r.cambios.length === 0).length,
-      errores:         results.filter((r) => !!r.error).length,
+      rows: deduplicatedResults,
+      total: deduplicatedResults.length,
+      nuevos:             deduplicatedResults.filter((r) => r.esNuevo && !r.error).length,
+      actualizaciones:    deduplicatedResults.filter((r) => !r.esNuevo && !r.error).length,
+      conCambios:         deduplicatedResults.filter((r) => !r.esNuevo && !r.error && r.cambios.length > 0).length,
+      sinCambios:         deduplicatedResults.filter((r) => !r.esNuevo && !r.error && r.cambios.length === 0).length,
+      errores:            deduplicatedResults.filter((r) => !!r.error).length,
+      cambiosRazonSocial: deduplicatedResults.filter((r) => r.cambioRazonSocial).length,
     });
   }
 
   // ── IMPORT ──────────────────────────────────────────────────────────────────
-  const validos = results.filter((r) => !r.error && r.id_empleado && r.nombre_completo);
+  const validos = deduplicatedResults.filter((r) => !r.error && r.id_empleado && r.nombre_completo);
   const errors: string[] = [];
   let upserted = 0;
 
@@ -403,11 +458,12 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    total: results.length,
+    total: deduplicatedResults.length,
     upserted,
     jefeLinked,
     conCambios: historialInserted,
-    errores: results.filter((r) => !!r.error).length,
+    cambiosRazonSocial: deduplicatedResults.filter((r) => r.cambioRazonSocial).length,
+    errores: deduplicatedResults.filter((r) => !!r.error).length,
     errors: errors.slice(0, 20),
   });
 }
