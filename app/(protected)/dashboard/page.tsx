@@ -343,43 +343,41 @@ async function AdminDashboard({
             <a
               key={alert.href}
               href={alert.href}
-              className={`flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
-                alert.urgent
-                  ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
-                  : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+              className={`flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:bg-gray-50 transition-colors ${
+                alert.urgent ? "border-l-[3px] border-l-red-500" : "border-l-[3px] border-l-amber-400"
               }`}
             >
-              <span>
-                <span className="font-bold text-base mr-1.5">{alert.count}</span>
-                {alert.label}
-              </span>
-              <span className="text-lg">→</span>
+              <div className="flex items-baseline gap-2">
+                <span className={`text-xl font-bold tabular-nums ${alert.urgent ? "text-red-600" : "text-amber-600"}`}>
+                  {alert.count}
+                </span>
+                <span className="text-sm text-gray-600">{alert.label}</span>
+              </div>
+              <span className="text-xs text-gray-400 font-medium">Ver →</span>
             </a>
           ))}
         </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Colaboradores activos" value={totalColab ?? 0} />
-        <StatCard label="Con evaluación EIP" value={totalEvaluados} />
-        <StatCard label="Planes de carrera activos" value={planesActivos ?? 0} />
+        <KpiCard
+          label="Colaboradores activos"
+          value={(totalColab ?? 0).toLocaleString()}
+        />
+        <KpiCard
+          label="Con evaluación EIP"
+          value={totalEvaluados.toLocaleString()}
+          sub={totalColab ? `${Math.round((totalEvaluados / totalColab) * 100)}% del total` : undefined}
+        />
+        <KpiCard
+          label="Planes de carrera activos"
+          value={(planesActivos ?? 0).toLocaleString()}
+        />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <SectionHeader label="Distribución por zona EIP" />
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-1">
-          {Object.entries(ZONA_COLORS).map(([zona, colors]) => (
-            <div key={zona} className={`rounded-lg px-4 py-3 ${colors.bg}`}>
-              <p className={`text-xs font-medium uppercase tracking-wider ${colors.text}`}>{zona}</p>
-              <p className={`text-2xl font-bold mt-0.5 ${colors.text}`}>{zonaCounts[zona] ?? 0}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <SectionHeader label="Accesos rápidos" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Accesos rápidos</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <QuickLink href="/carpetas" label="Carpetas Individuales" />
           <QuickLink href="/sucesion?tab=matching" label="Motor de Matching" />
           <QuickLink href="/organizacion" label="Organización" />
@@ -390,11 +388,12 @@ async function AdminDashboard({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function KpiCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className="text-2xl font-bold text-gray-900">{value.toLocaleString()}</p>
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</p>
+      <p className="text-3xl font-bold text-gray-900 mt-2 tabular-nums">{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
     </div>
   );
 }
@@ -403,9 +402,10 @@ function QuickLink({ href, label }: { href: string; label: string }) {
   return (
     <a
       href={href}
-      className="block px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+      className="group flex items-center justify-between bg-gray-50 hover:bg-gray-100 rounded-lg px-4 py-3 transition-colors"
     >
-      {label} →
+      <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">{label}</span>
+      <span className="text-gray-300 group-hover:text-gray-500 text-sm transition-colors">→</span>
     </a>
   );
 }
