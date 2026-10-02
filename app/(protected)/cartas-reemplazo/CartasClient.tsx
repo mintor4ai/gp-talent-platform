@@ -1521,11 +1521,14 @@ export default function CartasClient({
   const [vp, setVp] = useState({ x: 0, y: 0, scale: 1 });
   const dragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
+  const vpRef = useRef<HTMLDivElement>(null);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
+    e.preventDefault(); // prevent browser text-selection during drag
     dragging.current = true;
     lastMouse.current = { x: e.clientX, y: e.clientY };
+    if (vpRef.current) vpRef.current.style.cursor = "grabbing";
   }, []);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
@@ -1536,7 +1539,10 @@ export default function CartasClient({
     setVp(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
   }, []);
 
-  const onMouseUp = useCallback(() => { dragging.current = false; }, []);
+  const onMouseUp = useCallback(() => {
+    dragging.current = false;
+    if (vpRef.current) vpRef.current.style.cursor = "grab";
+  }, []);
 
   const onWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -1598,10 +1604,11 @@ export default function CartasClient({
 
       {rootId ? (
         <div
+          ref={vpRef}
           className={fullscreen
             ? "fixed inset-0 z-50 bg-gray-50 overflow-hidden"
             : "relative rounded-xl border border-gray-200 bg-gray-50 overflow-hidden"}
-          style={{ height: fullscreen ? "100dvh" : 600, cursor: dragging.current ? "grabbing" : "grab" }}
+          style={{ height: fullscreen ? "100dvh" : 600, cursor: "grab", userSelect: "none" }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
