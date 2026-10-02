@@ -4,6 +4,7 @@ import { ZONA_COLORS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { getDisabledOrgs } from "@/lib/disabled-uens";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -287,6 +288,13 @@ async function AdminDashboard({
   supabase: SupabaseClient;
   rol: Rol;
 }) {
+  const disabledOrgs = await getDisabledOrgs();
+
+  const colabsQuery = supabase.from("colaboradores").select("id, organización").eq("activo", true) as any;
+  const colabsQueryFiltered = disabledOrgs.length > 0
+    ? (colabsQuery as any).not("organización", "in", `(${disabledOrgs.map((o) => `"${o}"`).join(",")})`)
+    : colabsQuery;
+
   const [
     { data: colabsRaw },
     { data: zonas },
@@ -295,7 +303,7 @@ async function AdminDashboard({
     { data: planesRaw },
     { data: sucesionPlanes },
   ] = await Promise.all([
-    supabase.from("colaboradores").select("id, organización").eq("activo", true) as any,
+    colabsQueryFiltered,
     supabase.from("ultimo_eip_vigente").select("zona_evaluacion"),
     supabase
       .from("sucesion_matches")
