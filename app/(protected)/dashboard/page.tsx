@@ -288,27 +288,36 @@ async function AdminDashboard({
   rol: Rol;
 }) {
   const [
-    { count: totalColab },
+    { data: colabsRaw },
     { data: zonas },
     { count: matchesPendientes },
-    { count: gapsCriticos },
-    { count: planesActivos },
+    { data: criticosRaw },
+    { data: planesRaw },
+    { data: sucesionPlanes },
   ] = await Promise.all([
-    supabase.from("colaboradores").select("*", { count: "exact", head: true }).eq("activo", true),
+    supabase.from("colaboradores").select("id, organización").eq("activo", true) as any,
     supabase.from("ultimo_eip_vigente").select("zona_evaluacion"),
     supabase
       .from("sucesion_matches")
       .select("*", { count: "exact", head: true })
       .is("validado_ch", null)
       .eq("descartado", false),
-    supabase
-      .from("sucesion_matches")
-      .select("*", { count: "exact", head: true })
-      .eq("tipo_match", "gap_critico")
-      .eq("descartado", false),
-    supabase.from("plan_carrera").select("*", { count: "exact", head: true }).eq("estado", "activo"),
+    supabase.from("catalogo_puestos").select("id").eq("es_critico", true).eq("activo", true) as any,
+    supabase.from("plan_carrera").select("id").eq("estado", "activo") as any,
+    supabase.from("plan_sucesion").select("puesto_catalogo_id").neq("estado", "descartado") as any,
   ]);
 
+  // HC por UEN
+  const hcByUen: Record<string, number> = {};
+  for (const c of (colabsRaw ?? []) as { id: string; organización: string | null }[]) {
+    const uen = c.organización ?? "Sin UEN";
+    hcByUen[uen] = (hcByUen[uen] ?? 0) + 1;
+  }
+  const hcByUenSorted = Object.entries(hcByUen).sort((a, b) => b[1] - a[1]);
+  const maxHc = hcByUenSorted[0]?.[1] ?? 1;
+  const totalColab = (colabsRaw as any[])?.length ?? 0;
+
+  // EIP coverage
   const zonaCounts: Record<string, number> = {};
   for (const row of zonas ?? []) {
     if (row.zona_evaluacion) {
@@ -317,13 +326,24 @@ async function AdminDashboard({
   }
   const totalEvaluados = Object.values(zonaCounts).reduce((a, b) => a + b, 0);
 
+  // Sucesión cobertura
+  const criticalIds = new Set<string>(((criticosRaw ?? []) as { id: string }[]).map((r) => r.id));
+  const coveredIds = new Set<string>(
+    ((sucesionPlanes ?? []) as { puesto_catalogo_id: string | null }[])
+      .map((r) => r.puesto_catalogo_id)
+      .filter((id): id is string => id !== null && criticalIds.has(id))
+  );
+  const totalCriticos = criticalIds.size;
+  const critiCosCubiertos = coveredIds.size;
+  const criticosSinSucesor = totalCriticos - critiCosCubiertos;
+  const coberturaPct = totalCriticos > 0 ? Math.round((critiCosCubiertos / totalCriticos) * 100) : 0;
+
+  const planesActivos = (planesRaw as any[])?.length ?? 0;
+
   type Alert = { count: number; label: string; href: string; urgent: boolean };
   const alerts: Alert[] = [
-    gapsCriticos && gapsCriticos > 0
-      ? { count: gapsCriticos, label: "puestos críticos sin sucesor activo", href: "/sucesion?tab=cobertura", urgent: true }
-      : null,
     matchesPendientes && matchesPendientes > 0
-      ? { count: matchesPendientes, label: "matches por validar en Motor de Matching", href: "/sucesion?tab=matching", urgent: false }
+      ? { count: matchesPendientes, label: "matches pendientes de validar", href: "/sucesion?tab=matching", urgent: false }
       : null,
   ].filter(Boolean) as Alert[];
 
@@ -336,20 +356,68 @@ async function AdminDashboard({
         </p>
       </div>
 
+      {/* KPIs */}
+      <div className="grid grid-cols-3 gap-3">
+        <KpiCard label="HC activo" value={totalColab.toLocaleString()} />
+        <KpiCard
+          label="Cobertura EIP"
+          value={`${Math.round((totalEvaluados / (totalColab || 1)) * 100)}%`}
+          sub={`${totalEvaluados.toLocaleString()} evaluados`}
+        />
+        <KpiCard label="Planes de carrera" value={planesActivos.toLocaleString()} />
+      </div>
+
+      {/* HC por UEN */}
+      <div className="bg-white rounded-lg border border-gray-200">
+        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider px-3.5 pt-3 pb-2">HC por UEN</p>
+        <div className="px-3.5 pb-3 space-y-2">
+          {hcByUenSorted.map(([uen, hc]) => (
+            <div key={uen} className="flex items-center gap-3">
+              <span className="text-xs text-gray-500 w-28 truncate flex-shrink-0" title={uen}>{uen}</span>
+              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                <div
+                  className="bg-[#1a3a5c] h-1.5 rounded-full"
+                  style={{ width: `${Math.round((hc / maxHc) * 100)}%` }}
+                />
+              </div>
+              <span className="text-xs font-medium text-gray-700 tabular-nums w-8 text-right">{hc}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Posiciones críticas */}
+      <a href="/sucesion?tab=cobertura" className="block bg-white rounded-lg border border-gray-200 px-3.5 py-3 hover:bg-gray-50 transition-colors">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Posiciones críticas</p>
+          <span className="text-[11px] text-gray-400">ver →</span>
+        </div>
+        <div className="flex items-baseline gap-3 mb-2">
+          <span className="text-2xl font-bold text-gray-900 tabular-nums">{coberturaPct}%</span>
+          <span className="text-xs text-gray-500">cobertura · {critiCosCubiertos}/{totalCriticos} puestos</span>
+          {criticosSinSucesor > 0 && (
+            <span className="ml-auto text-xs font-semibold text-red-500">{criticosSinSucesor} sin sucesor</span>
+          )}
+        </div>
+        <div className="w-full bg-gray-100 rounded-full h-1.5">
+          <div
+            className={`h-1.5 rounded-full transition-all ${coberturaPct >= 80 ? "bg-green-500" : coberturaPct >= 50 ? "bg-amber-400" : "bg-red-400"}`}
+            style={{ width: `${coberturaPct}%` }}
+          />
+        </div>
+      </a>
+
+      {/* Alertas */}
       {alerts.length > 0 && (
         <div className="space-y-1.5">
           {alerts.map((alert) => (
             <a
               key={alert.href}
               href={alert.href}
-              className={`flex items-center justify-between bg-white rounded-lg border border-gray-200 px-3.5 py-2.5 hover:bg-gray-50 transition-colors ${
-                alert.urgent ? "border-l-2 border-l-red-400" : "border-l-2 border-l-amber-400"
-              }`}
+              className="flex items-center justify-between bg-white rounded-lg border border-gray-200 border-l-2 border-l-amber-400 px-3.5 py-2.5 hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-baseline gap-1.5">
-                <span className={`text-sm font-bold tabular-nums ${alert.urgent ? "text-red-600" : "text-amber-600"}`}>
-                  {alert.count}
-                </span>
+                <span className="text-sm font-bold tabular-nums text-amber-600">{alert.count}</span>
                 <span className="text-xs text-gray-500">{alert.label}</span>
               </div>
               <span className="text-[11px] text-gray-400">ver →</span>
@@ -358,22 +426,7 @@ async function AdminDashboard({
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
-        <KpiCard
-          label="Colaboradores"
-          value={(totalColab ?? 0).toLocaleString()}
-        />
-        <KpiCard
-          label="Con EIP"
-          value={totalEvaluados.toLocaleString()}
-          sub={totalColab ? `${Math.round((totalEvaluados / totalColab) * 100)}%` : undefined}
-        />
-        <KpiCard
-          label="Planes activos"
-          value={(planesActivos ?? 0).toLocaleString()}
-        />
-      </div>
-
+      {/* Accesos rápidos */}
       <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
         <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider px-3.5 py-2.5">Accesos rápidos</p>
         <QuickLink href="/carpetas" label="Carpetas Individuales" />
