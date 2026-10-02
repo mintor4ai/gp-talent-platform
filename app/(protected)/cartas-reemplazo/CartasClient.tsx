@@ -1125,74 +1125,86 @@ function ExecSummary({
 // ── Legend ────────────────────────────────────────────────────────────────────
 
 function Legend() {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-lg border border-gray-100 bg-white px-4 py-2.5 flex flex-wrap gap-x-6 gap-y-2 text-[11px]">
-      {/* Card border colors */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mr-1">Borde</span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm bg-green-500 flex-shrink-0" />
-          <span className="font-semibold text-green-700">Cubierto</span>
-          <span className="text-gray-400">match validado + Inm./Med.</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 flex-shrink-0" />
-          <span className="font-semibold text-amber-700">En desarrollo</span>
-          <span className="text-gray-400">sucesor Lrg. o plan pendiente</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm bg-red-500 flex-shrink-0" />
-          <span className="font-semibold text-red-700">En riesgo</span>
-          <span className="text-gray-400">puesto crítico sin sucesor o titular próximo a salir</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm bg-gray-700 flex-shrink-0" />
-          <span className="font-semibold text-gray-600">Sin cobertura</span>
-          <span className="text-gray-400">puesto no crítico, titular ya asignado</span>
-        </span>
-      </div>
-
-      <div className="w-px bg-gray-200 self-stretch hidden sm:block" />
-
-      {/* Successor chips */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mr-1">Chips</span>
-        <span className="inline-flex items-center gap-1">
-          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-green-100 text-green-700 border border-green-300">✓25</span>
-          <span className="text-gray-500">Match CH validado</span>
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-gray-100 text-gray-500 border-gray-300">CH</span>
-          <span className="text-gray-500">Plan manual CH aprobado</span>
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-blue-50 text-blue-600 border-blue-200">Match:25</span>
-          <span className="text-gray-500">Match pendiente de validar</span>
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-700 border-amber-300">Propuesto</span>
-          <span className="text-gray-500">Plan de sucesión borrador</span>
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-600 border-amber-300">Pend.&apos;25</span>
-          <span className="text-gray-500">Plan borrador pendiente de aprobación</span>
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-blue-50 text-blue-600 border-blue-200">Aspiración</span>
-          <span className="text-gray-500">PICD vinculado</span>
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-red-100 text-red-600 border border-red-200">✗26</span>
-          <span className="text-gray-500">Match descartado</span>
-        </span>
-        <span className="inline-flex items-center gap-1 text-gray-400">
-          <span>⭐</span><span>Talento Clave</span>
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block" />
-          <span className="text-orange-700 font-medium">Puesto Crítico</span>
-        </span>
-      </div>
+    <div className="rounded-lg border border-gray-100 bg-white text-[11px]">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-50 transition-colors"
+      >
+        <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Borde</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-green-500" /><span className="text-green-700 font-semibold">Cubierto</span></span>
+        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-400" /><span className="text-amber-700 font-semibold">En desarrollo</span></span>
+        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-500" /><span className="text-red-700 font-semibold">En riesgo</span></span>
+        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-gray-700" /><span className="text-gray-600 font-semibold">Sin cobertura</span></span>
+        <span className="ml-auto text-gray-400 text-[10px]">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-gray-100 px-4 py-2.5 flex flex-wrap gap-x-6 gap-y-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mr-1">Borde</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-green-500 flex-shrink-0" />
+              <span className="font-semibold text-green-700">Cubierto</span>
+              <span className="text-gray-400">match validado + Inm./Med.</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 flex-shrink-0" />
+              <span className="font-semibold text-amber-700">En desarrollo</span>
+              <span className="text-gray-400">sucesor Lrg. o plan pendiente</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-red-500 flex-shrink-0" />
+              <span className="font-semibold text-red-700">En riesgo</span>
+              <span className="text-gray-400">puesto crítico sin sucesor o titular próximo a salir</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-gray-700 flex-shrink-0" />
+              <span className="font-semibold text-gray-600">Sin cobertura</span>
+              <span className="text-gray-400">puesto no crítico, titular ya asignado</span>
+            </span>
+          </div>
+          <div className="w-px bg-gray-200 self-stretch hidden sm:block" />
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mr-1">Chips</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-green-100 text-green-700 border border-green-300">✓25</span>
+              <span className="text-gray-500">Match CH validado</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-gray-100 text-gray-500 border-gray-300">CH</span>
+              <span className="text-gray-500">Plan manual CH aprobado</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-blue-50 text-blue-600 border-blue-200">Match:25</span>
+              <span className="text-gray-500">Match pendiente de validar</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-700 border-amber-300">Propuesto</span>
+              <span className="text-gray-500">Plan de sucesión borrador</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-amber-50 text-amber-600 border-amber-300">Pend.&apos;25</span>
+              <span className="text-gray-500">Plan borrador pendiente de aprobación</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[9px] px-1.5 py-0.5 rounded border font-semibold bg-blue-50 text-blue-600 border-blue-200">Aspiración</span>
+              <span className="text-gray-500">PICD vinculado</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-red-100 text-red-600 border border-red-200">✗26</span>
+              <span className="text-gray-500">Match descartado</span>
+            </span>
+            <span className="inline-flex items-center gap-1 text-gray-400">
+              <span>⭐</span><span>Talento Clave</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block" />
+              <span className="text-orange-700 font-medium">Puesto Crítico</span>
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
