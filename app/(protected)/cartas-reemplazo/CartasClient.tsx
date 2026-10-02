@@ -55,19 +55,31 @@ function allVisible(id: string, cm: Map<string, string[]>, ex: Set<string>, visi
   return r;
 }
 
-// ── Name shortener: primer nombre + primer apellido ───────────────────────────
+// ── Name shortener: hasta 2 nombres + primer apellido ────────────────────────
+// Format: nombre1 [nombre2] apellido1 [DE [LA]] apellido2
+// e.g. KARLA VERONICA VARGAS BARBOSA → Karla Veronica Vargas
+//      ARANTXA ITZEL ZEPEDA DE LEON  → Arantxa Itzel Zepeda
 
 const NAME_CONNECTORS = new Set(['de', 'del', 'la', 'las', 'los', 'van', 'von']);
 
 function nombreCorto(nombre: string): string {
-  const parts = nombre.trim().split(/\s+/);
   const toTitle = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-  if (parts.length <= 2) return parts.map(toTitle).join(" ");
-  // Mexican format: nombre1 [nombre2] apellido1 [DE] apellido2
-  // Find primer apellido: second-to-last, stepping back over connectors
-  let idx = parts.length - 2;
-  while (idx > 0 && NAME_CONNECTORS.has(parts[idx].toLowerCase())) idx--;
-  return `${toTitle(parts[0])} ${toTitle(parts[idx])}`;
+  const raw = nombre.trim().split(/\s+/);
+  if (raw.length <= 3) return raw.map(toTitle).join(' ');
+
+  // Find segundo apellido: last word, then consume any connectors immediately before it
+  let segundoStart = raw.length - 1;
+  while (segundoStart > 1 && NAME_CONNECTORS.has(raw[segundoStart - 1].toLowerCase())) {
+    segundoStart--;
+  }
+
+  // primer apellido: word just before segundo apellido, skipping stray connectors
+  let primerIdx = segundoStart - 1;
+  while (primerIdx > 0 && NAME_CONNECTORS.has(raw[primerIdx].toLowerCase())) primerIdx--;
+
+  // first names: everything before primer apellido, capped at 2
+  const names = raw.slice(0, primerIdx).slice(0, 2);
+  return [...names, raw[primerIdx]].map(toTitle).join(' ');
 }
 
 // ── Cobertura ─────────────────────────────────────────────────────────────────
