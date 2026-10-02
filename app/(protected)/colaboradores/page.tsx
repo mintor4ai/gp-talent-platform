@@ -29,7 +29,6 @@ export default async function ColaboradoresPage() {
   let query = supabase
     .from("colaboradores")
     .select("*")
-    .eq("activo", true)
     .order("nombre_completo");
 
   if (disabledOrgs.length > 0) {
@@ -62,6 +61,7 @@ export default async function ColaboradoresPage() {
     area: string | null;
     jefe_inmediato_nombre: string | null;
     segmento_organizacional: string | null;
+    activo: boolean;
   };
 
   const colabs = (colaboradores ?? []) as unknown as ColabRow[];

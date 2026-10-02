@@ -14,6 +14,7 @@ type Colaborador = {
   area: string | null;
   jefe_inmediato_nombre: string | null;
   segmento_organizacional: string | null;
+  activo: boolean;
 };
 
 type Props = {
@@ -62,6 +63,7 @@ export default function ColaboradoresClient({
   const [filterArea, setFilterArea] = useState("");
   const [filterJefe, setFilterJefe] = useState("");
   const [filterSegmento, setFilterSegmento] = useState("");
+  const [incluirBajas, setIncluirBajas] = useState(false);
   const [colPickerOpen, setColPickerOpen] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(new Set(DEFAULT_VISIBLE));
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -95,6 +97,7 @@ export default function ColaboradoresClient({
   const filtered = useMemo(() => {
     const q = nombre.trim().toLowerCase();
     const base = colaboradores.filter((c) => {
+      if (!incluirBajas && !c.activo) return false;
       if (q && !c.nombre_completo.toLowerCase().includes(q)) return false;
       if (filterUen && c.organización !== filterUen) return false;
       if (filterArea && c.area !== filterArea) return false;
@@ -116,9 +119,9 @@ export default function ColaboradoresClient({
       }
       return dir * av.localeCompare(bv, "es");
     });
-  }, [colaboradores, nombre, filterUen, filterArea, filterJefe, filterSegmento, sortKey, sortDir]);
+  }, [colaboradores, nombre, filterUen, filterArea, filterJefe, filterSegmento, incluirBajas, sortKey, sortDir]);
 
-  const hasFilters = nombre || filterUen || filterArea || filterJefe || filterSegmento;
+  const hasFilters = nombre || filterUen || filterArea || filterJefe || filterSegmento || incluirBajas;
   const colCount = 1 + visibleCols.size + 1; // nombre + visible + ver
 
   return (
@@ -161,9 +164,19 @@ export default function ColaboradoresClient({
           </>
         )}
 
+        <label className="inline-flex items-center gap-1.5 cursor-pointer select-none whitespace-nowrap px-1">
+          <input
+            type="checkbox"
+            checked={incluirBajas}
+            onChange={(e) => setIncluirBajas(e.target.checked)}
+            className="rounded text-[#1a3a5c] focus:ring-[#1a3a5c]"
+          />
+          <span className="text-sm text-gray-600">Incluir bajas</span>
+        </label>
+
         {hasFilters && (
           <button type="button"
-            onClick={() => { setNombre(""); setFilterUen(""); setFilterArea(""); setFilterJefe(""); setFilterSegmento(""); }}
+            onClick={() => { setNombre(""); setFilterUen(""); setFilterArea(""); setFilterJefe(""); setFilterSegmento(""); setIncluirBajas(false); }}
             className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors whitespace-nowrap">
             Limpiar
           </button>
@@ -255,7 +268,7 @@ export default function ColaboradoresClient({
                 </tr>
               ) : (
                 filtered.map((c) => (
-                  <tr key={c.id} className="hover:bg-gray-50 transition-colors group">
+                  <tr key={c.id} className={`hover:bg-gray-50 transition-colors group ${!c.activo ? "opacity-50" : ""}`}>
                     {/* Sticky name */}
                     <td className="px-4 py-3 sticky left-0 bg-white group-hover:bg-gray-50 z-10 min-w-[180px] max-w-[240px] transition-colors">
                       <a
@@ -265,6 +278,7 @@ export default function ColaboradoresClient({
                       >
                         <EmpleadoAvatar idEmpleado={c.id_empleado} nombre={c.nombre_completo} size={28} rounded="lg" className="flex-shrink-0" />
                         <span className="truncate">{c.nombre_completo}</span>
+                        {!c.activo && <span className="ml-1 text-[10px] font-semibold text-red-400 bg-red-50 px-1.5 py-0.5 rounded flex-shrink-0">Baja</span>}
                       </a>
                     </td>
                     {visibleCols.has("puesto") && <Cell value={c.puesto} />}
