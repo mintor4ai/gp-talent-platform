@@ -266,7 +266,7 @@ async function TeamTable({
           {equipo.map((c) => (
             <tr key={c.id} className="hover:bg-gray-50 transition-colors cursor-pointer">
               <td className="py-2.5 font-medium text-gray-900">
-                <a href={`/colaboradores/${c.id}`} className="hover:text-[#1a3a5c]">
+                <a href={`/carpeta/${c.id}`} className="hover:text-[#1a3a5c]">
                   {c.nombre_completo}
                 </a>
               </td>
@@ -287,12 +287,26 @@ async function AdminDashboard({
   supabase: SupabaseClient;
   rol: Rol;
 }) {
-  const [{ count: totalColab }, { data: zonas }] = await Promise.all([
-    supabase
-      .from("colaboradores")
-      .select("*", { count: "exact", head: true })
-      .eq("activo", true),
+  const [
+    { count: totalColab },
+    { data: zonas },
+    { count: matchesPendientes },
+    { count: gapsCriticos },
+    { count: planesActivos },
+  ] = await Promise.all([
+    supabase.from("colaboradores").select("*", { count: "exact", head: true }).eq("activo", true),
     supabase.from("ultimo_eip_vigente").select("zona_evaluacion"),
+    supabase
+      .from("sucesion_matches")
+      .select("*", { count: "exact", head: true })
+      .is("validado_ch", null)
+      .eq("descartado", false),
+    supabase
+      .from("sucesion_matches")
+      .select("*", { count: "exact", head: true })
+      .eq("tipo_match", "gap_critico")
+      .eq("descartado", false),
+    supabase.from("plan_carrera").select("*", { count: "exact", head: true }).eq("estado", "activo"),
   ]);
 
   const zonaCounts: Record<string, number> = {};
@@ -301,8 +315,17 @@ async function AdminDashboard({
       zonaCounts[row.zona_evaluacion] = (zonaCounts[row.zona_evaluacion] ?? 0) + 1;
     }
   }
-
   const totalEvaluados = Object.values(zonaCounts).reduce((a, b) => a + b, 0);
+
+  type Alert = { count: number; label: string; href: string; urgent: boolean };
+  const alerts: Alert[] = [
+    gapsCriticos && gapsCriticos > 0
+      ? { count: gapsCriticos, label: "puestos críticos sin sucesor activo", href: "/sucesion?tab=cobertura", urgent: true }
+      : null,
+    matchesPendientes && matchesPendientes > 0
+      ? { count: matchesPendientes, label: "matches por validar en Motor de Matching", href: "/sucesion?tab=matching", urgent: false }
+      : null,
+  ].filter(Boolean) as Alert[];
 
   return (
     <div className="space-y-6">
@@ -314,25 +337,53 @@ async function AdminDashboard({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((alert) => (
+            <a
+              key={alert.href}
+              href={alert.href}
+              className={`flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
+                alert.urgent
+                  ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                  : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+              }`}
+            >
+              <span>
+                <span className="font-bold text-base mr-1.5">{alert.count}</span>
+                {alert.label}
+              </span>
+              <span className="text-lg">→</span>
+            </a>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label="Colaboradores activos" value={totalColab ?? 0} />
         <StatCard label="Con evaluación EIP" value={totalEvaluados} />
-        {Object.entries(ZONA_COLORS).map(([zona, colors]) => (
-          <div key={zona} className={`rounded-xl border p-5 ${colors.bg} border-transparent`}>
-            <p className={`text-xs font-medium uppercase tracking-wider mb-1 ${colors.text}`}>
-              {zona}
-            </p>
-            <p className={`text-2xl font-bold ${colors.text}`}>{zonaCounts[zona] ?? 0}</p>
-          </div>
-        ))}
+        <StatCard label="Planes de carrera activos" value={planesActivos ?? 0} />
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <SectionHeader label="Distribución por zona EIP" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-1">
+          {Object.entries(ZONA_COLORS).map(([zona, colors]) => (
+            <div key={zona} className={`rounded-lg px-4 py-3 ${colors.bg}`}>
+              <p className={`text-xs font-medium uppercase tracking-wider ${colors.text}`}>{zona}</p>
+              <p className={`text-2xl font-bold mt-0.5 ${colors.text}`}>{zonaCounts[zona] ?? 0}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <SectionHeader label="Accesos rápidos" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <QuickLink href="/colaboradores" label="Directorio de colaboradores" />
-          <QuickLink href="/evaluaciones" label="Carpetas individuales" />
-          <QuickLink href="/sucesion" label="Plan de sucesión" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <QuickLink href="/carpetas" label="Carpetas Individuales" />
+          <QuickLink href="/sucesion?tab=matching" label="Motor de Matching" />
+          <QuickLink href="/organizacion" label="Organización" />
+          <QuickLink href="/importar" label="Importar datos" />
         </div>
       </div>
     </div>
