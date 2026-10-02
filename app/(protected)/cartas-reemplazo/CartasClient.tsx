@@ -57,13 +57,17 @@ function allVisible(id: string, cm: Map<string, string[]>, ex: Set<string>, visi
 
 // ── Name shortener: primer nombre + primer apellido ───────────────────────────
 
+const NAME_CONNECTORS = new Set(['de', 'del', 'la', 'las', 'los', 'van', 'von']);
+
 function nombreCorto(nombre: string): string {
   const parts = nombre.trim().split(/\s+/);
   const toTitle = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
   if (parts.length <= 2) return parts.map(toTitle).join(" ");
-  // Mexican format: nombre1 [nombre2] apellido1 [apellido2]
-  // second-to-last = primer apellido
-  return `${toTitle(parts[0])} ${toTitle(parts[parts.length - 2])}`;
+  // Mexican format: nombre1 [nombre2] apellido1 [DE] apellido2
+  // Find primer apellido: second-to-last, stepping back over connectors
+  let idx = parts.length - 2;
+  while (idx > 0 && NAME_CONNECTORS.has(parts[idx].toLowerCase())) idx--;
+  return `${toTitle(parts[0])} ${toTitle(parts[idx])}`;
 }
 
 // ── Cobertura ─────────────────────────────────────────────────────────────────
