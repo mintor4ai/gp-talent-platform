@@ -964,13 +964,13 @@ function buildEntries(
   // → T4 Aspiraciones → T5 Descartados → T6 Externos
   // Within each tier: newer ciclo first
   function entryTier(e: SucEntry): number {
-    if (e.tipo === "externo")    return 6;
-    if (e.tipo === "descartado") return 5;
-    if (e.tipo === "aspiracion") return 4;
-    if (e.pendingMatchCiclo !== null || (e.isManual && e.tipo === "borrador")) return 3;
-    if (e.motorValidated)        return 2;
-    if (e.isManual)              return 1; // isManual + tipo=validado
-    return 2; // fallback: treat other validado as motor tier
+    if (e.tipo === "externo")              return 6;
+    if (e.tipo === "descartado")           return 5;
+    if (e.tipo === "aspiracion" && e.pendingMatchCiclo === null && !e.isManual) return 4;
+    if (e.pendingMatchCiclo !== null && !e.isManual) return 3; // pending motor match
+    if (e.isManual)                        return 2; // manual plan (jefe's decision)
+    if (e.motorValidated)                  return 1; // motor validated by RH
+    return 4;
   }
   return entries.sort((a, b) => {
     const td = entryTier(a) - entryTier(b);
