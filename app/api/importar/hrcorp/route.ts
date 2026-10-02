@@ -312,7 +312,8 @@ export async function POST(req: NextRequest) {
       activoRow.cambioRazonSocial  = true;
       activoRow.razonSocialAnterior = bajaRow.razon_social;
       activoRow.puestoAnterior      = bajaRow.puesto;
-      activoRow.fechaBajaAnterior   = bajaRow.fecha_baja;
+      // Use fecha_ingreso_razon_social of the active row as fallback when baja has no fecha_baja
+      activoRow.fechaBajaAnterior   = bajaRow.fecha_baja ?? activoRow.fecha_ingreso_razon_social;
       // Merge baja changes into the activo row's diff so historial captures the full transition
       const bajaFields = TRACKED_FIELDS.map(([f]) => f) as string[];
       for (const field of bajaFields) {
