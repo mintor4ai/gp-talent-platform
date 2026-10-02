@@ -107,7 +107,18 @@ function RotacionTab({ data, selectedUens }: { data: OrgData; selectedUens: Set<
   const rot = data.rotacion;
 
   const filteredByUen = rot.byUen.filter((r) => selectedUens.has(r.uen));
-  const filteredFlujo = rot.flujoMensual.slice(-13);
+  const flujoConHc = useMemo(() => {
+    const meses = rot.flujoMensual.slice(-13);
+    // Walk backwards from current totalHc to derive HC at end of each month
+    let hc = data.totalHc;
+    const result = [...meses].reverse().map((m) => {
+      const hc_fin = hc;
+      hc = hc - m.altas + m.bajas; // HC at end of previous month
+      return { ...m, hc_fin };
+    });
+    return result.reverse();
+  }, [rot.flujoMensual, data.totalHc]);
+  const filteredFlujo = flujoConHc;
 
   // Aggregate KPIs for selected UENs
   const selBajas12m = filteredByUen.reduce((s, r) => s + r.bajas_12m, 0);
@@ -173,14 +184,57 @@ function RotacionTab({ data, selectedUens }: { data: OrgData; selectedUens: Set<
       {/* Flujo mensual */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
         <p className="text-sm font-semibold text-gray-700 mb-1">Flujo mensual de Headcount</p>
-        <p className="text-xs text-gray-400 mb-4">Altas vs. Bajas por mes · barras = volumen · línea = neto acumulado</p>
-        <ResponsiveContainer width="100%" height={240}>
-          <ComposedChart data={filteredFlujo} margin={{ left: 0, right: 8 }}>
+        <p className="text-xs text-gray-400 mb-4">
+          Barras: altas (verde) y bajas (rojo) · Línea azul: HC total al cierre del mes
+        </p>
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={filteredFlujo} margin={{ left: 0, right: 16 }}>
             <XAxis dataKey="mes" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(2).replace("-", "/")} />
-            <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-            <Tooltip content={<FlujoTooltip />} />
+            <YAxis yAxisId="left" tick={{ fontSize: 11 }} allowDecimals={false} />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tick={{ fontSize: 10, fill: "#2563eb" }}
+              domain={["auto", "auto"]}
+              tickFormatter={(v) => v.toLocaleString()}
+              width={52}
+            />
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                const altas   = payload.find((p: any) => p.dataKey === "altas")?.value ?? 0;
+                const bajas   = payload.find((p: any) => p.dataKey === "bajas")?.value ?? 0;
+                const hc_fin  = payload.find((p: any) => p.dataKey === "hc_fin")?.value;
+                const neto = Number(altas) - Number(bajas);
+                return (
+                  <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs space-y-1">
+                    <p className="font-semibold text-gray-700 mb-1">{label}</p>
+                    <p style={{ color: "#059669" }}>Altas: {altas}</p>
+                    <p style={{ color: "#dc2626" }}>Bajas: {bajas}</p>
+                    <p className={`font-semibold ${neto >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      Neto: {neto >= 0 ? "+" : ""}{neto}
+                    </p>
+                    {hc_fin != null && (
+                      <p className="text-blue-600 font-semibold border-t border-gray-100 pt-1 mt-1">
+                        HC cierre: {Number(hc_fin).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                );
+              }}
+            />
             <Bar yAxisId="left" dataKey="altas" name="Altas" fill="#059669" fillOpacity={0.8} radius={[3, 3, 0, 0]} />
             <Bar yAxisId="left" dataKey="bajas" name="Bajas" fill="#dc2626" fillOpacity={0.8} radius={[3, 3, 0, 0]} />
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="hc_fin"
+              name="HC cierre"
+              stroke="#2563eb"
+              strokeWidth={2}
+              dot={{ r: 3, fill: "#2563eb", strokeWidth: 0 }}
+              activeDot={{ r: 5 }}
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
