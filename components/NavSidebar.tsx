@@ -31,10 +31,9 @@ const ADMIN_NAV: NavItem[] = [
     label: "Talent Intelligence",
     icon: "✦",
     children: [
-      { href: "/mapa-talento",  label: "Mapa de Talento" },
       { href: "/carpetas",      label: "Carpetas Individuales" },
+      { href: "/mapa-talento",  label: "Mapa de Talento" },
       { href: "/talento-clave", label: "Talento Clave" },
-      { href: "/movilidad",     label: "Movilidad" },
       {
         href: "/sucesion",
         label: "Plan de Sucesión",
@@ -45,8 +44,9 @@ const ADMIN_NAV: NavItem[] = [
         ],
       },
       { href: "/plan-carrera",  label: "Plano de Carrera" },
-      { href: "/rutas-talento", label: "Rutas de Talento" },
       { href: "/cartas-reemplazo", label: "Cartas de Reemplazo" },
+      { href: "/movilidad",     label: "Movilidad" },
+      { href: "/rutas-talento", label: "Rutas de Talento" },
       { href: "/picd-admin",    label: "Ciclos PICD" },
       { href: "/configuracion/higiene-picd", label: "Revisión PICD" },
     ],
