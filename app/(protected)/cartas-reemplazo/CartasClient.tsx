@@ -106,7 +106,8 @@ function getCob(
   titularCatId: string | null | undefined,
   validatedMatchesByPuesto: Map<string, { id: string; nombre: string }[]>,
   pendingCatIds: Set<string>,
-  bestReadinessBySuccesor: Map<string, string>
+  bestReadinessBySuccesor: Map<string, string>,
+  esCritico: boolean
 ): Cob {
   const mine = suc.filter(s => s.id_empleado_titular === colabUuid);
   // Coverage status takes priority — border reflects how well THIS position is covered.
@@ -118,9 +119,10 @@ function getCob(
   const hasAnyPlanEntry = mine.some(s => s.sucesor_id !== null);
   const hasPendingMatch = titularCatId ? pendingCatIds.has(titularCatId) : false;
   if (!hasValidatedSuccessor && !hasAnyPlanEntry && !hasPendingMatch) {
-    // No successors: if yaAsignado and moving Inm/Med → Rojo (position vacates soon)
-    // If yaAsignado but Largo or unknown → Amarillo (transition is distant)
     if (isYaAsignado) {
+      // Non-critical position: person leaving isn't a risk → negro
+      if (!esCritico) return "negro";
+      // Critical + moving Inm/Med → urgent risk
       const r = bestReadinessBySuccesor.get(colabUuid);
       return (r && READINESS_URGENT.has(r)) ? "rojo" : "amarillo";
     }
@@ -439,7 +441,7 @@ function DetailPanel({
   const catId      = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
   const cat        = catId ? catalogoById.get(catId) : undefined;
   const isYa       = yaAsignadoIds.has(node.id);
-  const cob        = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor);
+  const cob        = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor, cat?.es_critico ?? false);
   const mySuc      = sucesores.filter(s => s.id_empleado_titular === node.id && s.sucesor_id !== node.id);
   const aspirantes = catId ? (aspirantesByPuesto.get(catId) ?? []).filter(a => a.id !== node.id) : [];
   const sucIds     = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
@@ -1058,7 +1060,8 @@ function RootSelector({
 
 function ExecSummary({
   rootId, childrenMap, colabMap, sucesores, yaAsignadoIds, coveredByValidatedMatch,
-  validatedMatchMap, colabToCatalog, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor,
+  validatedMatchMap, colabToCatalog, validatedMatchesByPuesto, pendingCatIds,
+  bestReadinessBySuccesor, catalogoById,
 }: {
   rootId: string;
   childrenMap: Map<string, string[]>;
@@ -1071,15 +1074,17 @@ function ExecSummary({
   validatedMatchesByPuesto: Map<string, { id: string; nombre: string }[]>;
   pendingCatIds: Set<string>;
   bestReadinessBySuccesor: Map<string, string>;
+  catalogoById: Map<string, { es_critico?: boolean }>;
 }) {
   const directKids = childrenMap.get(rootId) ?? [];
-  const counts = { verde: 0, amarillo: 0, rojo: 0 };
+  const counts = { verde: 0, amarillo: 0, rojo: 0, negro: 0 };
   let yaAsignados = 0;
   for (const id of directKids) {
     const n = colabMap.get(id);
     if (n) {
       const catId = n.puesto_catalogo_id ?? colabToCatalog.get(n.id);
-      counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor)]++;
+      const esCritico = catId ? (catalogoById.get(catId)?.es_critico ?? false) : false;
+      counts[getCob(n.id, yaAsignadoIds.has(n.id), sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor, esCritico)]++;
       if (yaAsignadoIds.has(n.id)) yaAsignados++;
     }
   }
@@ -1138,7 +1143,12 @@ function Legend() {
         <span className="inline-flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm bg-red-500 flex-shrink-0" />
           <span className="font-semibold text-red-700">En riesgo</span>
-          <span className="text-gray-400">sin sucesor o titular próximo a salir</span>
+          <span className="text-gray-400">puesto crítico sin sucesor o titular próximo a salir</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm bg-gray-700 flex-shrink-0" />
+          <span className="font-semibold text-gray-600">Sin cobertura</span>
+          <span className="text-gray-400">puesto no crítico, titular ya asignado</span>
         </span>
       </div>
 
@@ -1569,7 +1579,7 @@ export default function CartasClient({
 
       {rootId && (
         <>
-          <ExecSummary rootId={rootId} childrenMap={childrenMap} colabMap={colabMap} sucesores={sucesores} yaAsignadoIds={yaIds} coveredByValidatedMatch={coveredByValidatedMatch} validatedMatchMap={validatedMatchMap} colabToCatalog={colabToCatalog} validatedMatchesByPuesto={validatedMatchesByPuesto} pendingCatIds={pendingCatIds} bestReadinessBySuccesor={bestReadinessBySuccesor} />
+          <ExecSummary rootId={rootId} childrenMap={childrenMap} colabMap={colabMap} sucesores={sucesores} yaAsignadoIds={yaIds} coveredByValidatedMatch={coveredByValidatedMatch} validatedMatchMap={validatedMatchMap} colabToCatalog={colabToCatalog} validatedMatchesByPuesto={validatedMatchesByPuesto} pendingCatIds={pendingCatIds} bestReadinessBySuccesor={bestReadinessBySuccesor} catalogoById={catalogoById} />
           <Legend />
         </>
       )}
@@ -1634,9 +1644,9 @@ export default function CartasClient({
 
               const isYa      = yaIds.has(id);
               const catId     = node.puesto_catalogo_id ?? colabToCatalog.get(node.id);
-              const cob       = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor);
               const tc        = tcMap.get(node.id);
               const cat       = catId ? catalogoById.get(catId) : undefined;
+              const cob       = getCob(node.id, isYa, sucesores, coveredByValidatedMatch, validatedMatchMap, catId, validatedMatchesByPuesto, pendingCatIds, bestReadinessBySuccesor, cat?.es_critico ?? false);
               const mySuc     = sucesores.filter(s => s.id_empleado_titular === node.id && s.sucesor_id !== node.id);
               const sucIds    = new Set(mySuc.filter(s => s.sucesor_id).map(s => s.sucesor_id!));
               const aspirantes = catId
