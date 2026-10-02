@@ -25,6 +25,7 @@ export type OrgData = {
   rotacion: {
     byUen: RotacionUen[];
     flujoMensual: { mes: string; altas: number; bajas: number }[];
+    flujoByUen: { mes: string; uen: string; altas: number; bajas: number }[];
     bajasNivel: { nivel_num: number; bajas: number; tenure_exit_avg: number }[];
     totalBajas12m: number;
     rotacionGrupoPct: number;
@@ -73,7 +74,7 @@ export async function getOrgData(): Promise<OrgData> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let altasQ: any = supabase
     .from("colaboradores")
-    .select("fecha_antiguedad")
+    .select("organización, fecha_antiguedad")
     .not("fecha_antiguedad", "is", null)
     .gte("fecha_antiguedad", cutoff13mStr);
   if (disabledFilter) altasQ = altasQ.not("organización", "in", disabledFilter);
@@ -211,7 +212,7 @@ export async function getOrgData(): Promise<OrgData> {
 
   // ── Rotation calculations ─────────────────────────────────────────────────
   const bajaRows = (rawBajas.data ?? []) as { organización: string; fecha_baja: string; fecha_antiguedad: string | null }[];
-  const altasRows = (rawFlujoAltas.data ?? []) as { fecha_antiguedad: string }[];
+  const altasRows = (rawFlujoAltas.data ?? []) as { organización: string | null; fecha_antiguedad: string }[];
   const bajasNivelRows = (rawBajasNivel.data ?? []) as { nivel_num: number | null; fecha_baja: string; fecha_antiguedad: string | null }[];
 
   // Rotation by UEN
@@ -244,18 +245,26 @@ export async function getOrgData(): Promise<OrgData> {
     };
   }).sort((a, b) => b.rotacion_pct - a.rotacion_pct);
 
-  // Monthly flow — altas
+  // Monthly flow — altas (group-level + per-UEN)
   const altasMap: Record<string, number> = {};
+  const altasUenMap: Record<string, Record<string, number>> = {};
   for (const r of altasRows) {
     const mes = r.fecha_antiguedad.slice(0, 7);
     altasMap[mes] = (altasMap[mes] ?? 0) + 1;
+    const u = r.organización ?? "Sin UEN";
+    if (!altasUenMap[u]) altasUenMap[u] = {};
+    altasUenMap[u][mes] = (altasUenMap[u][mes] ?? 0) + 1;
   }
-  // Monthly flow — bajas
+  // Monthly flow — bajas (group-level + per-UEN)
   const bajasMap: Record<string, number> = {};
+  const bajasUenMap: Record<string, Record<string, number>> = {};
   for (const r of bajaRows) {
     if (r.fecha_baja >= cutoff13mStr) {
       const mes = r.fecha_baja.slice(0, 7);
       bajasMap[mes] = (bajasMap[mes] ?? 0) + 1;
+      const u = r.organización;
+      if (!bajasUenMap[u]) bajasUenMap[u] = {};
+      bajasUenMap[u][mes] = (bajasUenMap[u][mes] ?? 0) + 1;
     }
   }
   const allMeses = Array.from(new Set([...Object.keys(altasMap), ...Object.keys(bajasMap)])).sort();
@@ -264,6 +273,17 @@ export async function getOrgData(): Promise<OrgData> {
     altas: altasMap[mes] ?? 0,
     bajas: bajasMap[mes] ?? 0,
   }));
+
+  // Per-UEN flujo (same 13-month window)
+  const flujoUens = Array.from(new Set([...Object.keys(altasUenMap), ...Object.keys(bajasUenMap)]));
+  const flujoByUen: OrgData["rotacion"]["flujoByUen"] = [];
+  for (const uen of flujoUens) {
+    for (const mes of allMeses) {
+      const altas = altasUenMap[uen]?.[mes] ?? 0;
+      const bajas = bajasUenMap[uen]?.[mes] ?? 0;
+      if (altas || bajas) flujoByUen.push({ mes, uen, altas, bajas });
+    }
+  }
 
   // Bajas by nivel
   const nivelRotMap: Record<number, { bajas: number; sumTenure: number; cntTenure: number }> = {};
@@ -309,6 +329,7 @@ export async function getOrgData(): Promise<OrgData> {
     rotacion: {
       byUen: rotacionByUen,
       flujoMensual,
+      flujoByUen,
       bajasNivel,
       totalBajas12m,
       rotacionGrupoPct,

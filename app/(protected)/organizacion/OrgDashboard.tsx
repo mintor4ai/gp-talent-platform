@@ -107,17 +107,33 @@ function RotacionTab({ data, selectedUens }: { data: OrgData; selectedUens: Set<
   const rot = data.rotacion;
 
   const filteredByUen = rot.byUen.filter((r) => selectedUens.has(r.uen));
+
+  // Aggregate flujoByUen for selected UENs, then derive HC-at-close
   const flujoConHc = useMemo(() => {
-    const meses = rot.flujoMensual.slice(-13);
-    // Walk backwards from current totalHc to derive HC at end of each month
-    let hc = data.totalHc;
+    // Aggregate per-UEN flujo rows into group totals for selected UENs
+    const mesMap: Record<string, { altas: number; bajas: number }> = {};
+    for (const r of rot.flujoByUen) {
+      if (!selectedUens.has(r.uen)) continue;
+      if (!mesMap[r.mes]) mesMap[r.mes] = { altas: 0, bajas: 0 };
+      mesMap[r.mes].altas += r.altas;
+      mesMap[r.mes].bajas += r.bajas;
+    }
+    // Fill any months present in group flujoMensual but missing per-UEN rows
+    for (const m of rot.flujoMensual) {
+      if (!mesMap[m.mes]) mesMap[m.mes] = { altas: 0, bajas: 0 };
+    }
+    const meses = Object.keys(mesMap).sort().slice(-13).map((mes) => ({ mes, ...mesMap[mes] }));
+
+    // Starting HC = sum of hc_activo for selected UENs
+    const selStartHc = filteredByUen.reduce((s, r) => s + r.hc_activo, 0);
+    let hc = selStartHc;
     const result = [...meses].reverse().map((m) => {
       const hc_fin = hc;
-      hc = hc - m.altas + m.bajas; // HC at end of previous month
+      hc = hc - m.altas + m.bajas;
       return { ...m, hc_fin };
     });
     return result.reverse();
-  }, [rot.flujoMensual, data.totalHc]);
+  }, [rot.flujoByUen, rot.flujoMensual, filteredByUen, selectedUens]);
   const filteredFlujo = flujoConHc;
 
   // Aggregate KPIs for selected UENs
