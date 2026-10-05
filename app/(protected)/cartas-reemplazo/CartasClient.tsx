@@ -95,7 +95,7 @@ type Cob = "verde" | "amarillo" | "rojo" | "negro";
 // validatedMatchMap + titularCatId: used to gate amarillo — only show yellow if at
 // least one sucesor has an active validated match (same gate as buildEntries display),
 // so the border always matches what is actually shown on the card.
-const READINESS_URGENT = new Set(['listo_ahora', 'uno_dos_anios']);
+const READINESS_URGENT = new Set(['listo_ahora', 'uno_dos_anios', 'corto', 'mediano', 'inmediato']);
 
 function getCob(
   colabUuid: string,
@@ -104,7 +104,7 @@ function getCob(
   coveredByValidatedMatch: Set<string>,
   validatedMatchMap: Map<string, number>,
   titularCatId: string | null | undefined,
-  validatedMatchesByPuesto: Map<string, { id: string; nombre: string }[]>,
+  validatedMatchesByPuesto: Map<string, { id: string; nombre: string; readiness?: string | null }[]>,
   pendingCatIds: Set<string>,
   bestReadinessBySuccesor: Map<string, string>,
   esCritico: boolean
@@ -427,7 +427,7 @@ function DetailPanel({
   validatedMatchMap: Map<string, number>;
   discardedByCatId: Map<string, { id: string; nombre: string; ciclo: number }[]>;
   coveredByValidatedMatch: Set<string>;
-  validatedMatchesByPuesto: Map<string, { id: string; nombre: string }[]>;
+  validatedMatchesByPuesto: Map<string, { id: string; nombre: string; readiness?: string | null }[]>;
   bestReadinessBySuccesor: Map<string, string>;
   pendingMatchMap: Map<string, number>;
   pendingMatchesByPuesto: Map<string, { id: string; nombre: string; ciclo: number }[]>;
@@ -979,7 +979,11 @@ function buildEntries(
   return entries.sort((a, b) => {
     const td = entryTier(a) - entryTier(b);
     if (td !== 0) return td;
-    return (b.ciclo ?? 0) - (a.ciclo ?? 0); // newer cycle first within same tier
+    // Secondary: better readiness first (Inm. before Med. before Lrg.)
+    const rA = READINESS_PRIORITY[a.readiness ?? ""] ?? 99;
+    const rB = READINESS_PRIORITY[b.readiness ?? ""] ?? 99;
+    if (rA !== rB) return rA - rB;
+    return (b.ciclo ?? 0) - (a.ciclo ?? 0); // newer cycle first within same readiness
   });
 }
 
@@ -1075,7 +1079,7 @@ function ExecSummary({
   coveredByValidatedMatch: Set<string>;
   validatedMatchMap: Map<string, number>;
   colabToCatalog: Map<string, string>;
-  validatedMatchesByPuesto: Map<string, { id: string; nombre: string }[]>;
+  validatedMatchesByPuesto: Map<string, { id: string; nombre: string; readiness?: string | null }[]>;
   pendingCatIds: Set<string>;
   bestReadinessBySuccesor: Map<string, string>;
   catalogoById: Map<string, { es_critico?: boolean }>;
@@ -1335,9 +1339,9 @@ export default function CartasClient({
   // pendingCatIds: set of catIds that have ≥1 pending motor match
   const pendingCatIds = useMemo(() => new Set(pendingMatchesByPuesto.keys()), [pendingMatchesByPuesto]);
 
-  // validatedMatchesByPuesto: catId → [{id, nombre}] — motor match successors by position (position-based, survives titular changes)
+  // validatedMatchesByPuesto: catId → [{id, nombre, readiness}] — motor match successors by position (position-based, survives titular changes)
   const validatedMatchesByPuesto = useMemo(() => {
-    const m = new Map<string, { id: string; nombre: string }[]>();
+    const m = new Map<string, { id: string; nombre: string; readiness?: string | null }[]>();
     const seen = new Map<string, Set<string>>();
     for (const vm of validatedMatches) {
       const { colaborador_id, puesto_catalogo_id } = vm;
@@ -1347,7 +1351,7 @@ export default function CartasClient({
       if (!m.has(puesto_catalogo_id)) { m.set(puesto_catalogo_id, []); seen.set(puesto_catalogo_id, new Set()); }
       if (seen.get(puesto_catalogo_id)!.has(colaborador_id)) continue;
       seen.get(puesto_catalogo_id)!.add(colaborador_id);
-      m.get(puesto_catalogo_id)!.push({ id: colaborador_id, nombre: colab.nombre_completo });
+      m.get(puesto_catalogo_id)!.push({ id: colaborador_id, nombre: colab.nombre_completo, readiness: vm.readiness });
     }
     return m;
   }, [validatedMatches, colabMap]);
@@ -1436,7 +1440,7 @@ export default function CartasClient({
     for (const s of sucesores) {
       if (s.estado === "descartado" || !s.sucesor_id) continue;
       const r = s.readiness ?? s.tiempo_estimado;
-      const readOk = r === "listo_ahora" || r === "uno_dos_anios" || r === "corto" || r === "mediano";
+      const readOk = r === "listo_ahora" || r === "uno_dos_anios" || r === "corto" || r === "mediano" || r === "inmediato";
       if (!readOk) continue;
       const titularNode = colabMap.get(s.id_empleado_titular);
       const catId = titularNode?.puesto_catalogo_id ?? colabToCatalog.get(s.id_empleado_titular);
@@ -1444,14 +1448,14 @@ export default function CartasClient({
       if (validatedMatchMap.has(`${s.sucesor_id}:${catId}`)) covered.add(s.id_empleado_titular);
     }
     // Source 2: position-based motor matches — covers titulares whose predecessor had a plan.
-    // Readiness is looked up by (sucesor, currentHolder) so only the current titular's plan counts.
+    // Readiness priority: plan_sucesion pair (readinessBySucAndTitular), then the match's own readiness field.
     for (const [catId, matches] of validatedMatchesByPuesto) {
       const currentHolder = currentHolderByCatId.get(catId);
       if (!currentHolder || covered.has(currentHolder)) continue;
       for (const match of matches) {
-        const r = readinessBySucAndTitular.get(`${match.id}:${currentHolder}`);
+        const r = readinessBySucAndTitular.get(`${match.id}:${currentHolder}`) ?? match.readiness ?? null;
         if (!r) continue;
-        const readOk = r === "listo_ahora" || r === "uno_dos_anios" || r === "corto" || r === "mediano";
+        const readOk = r === "listo_ahora" || r === "uno_dos_anios" || r === "corto" || r === "mediano" || r === "inmediato";
         if (readOk) { covered.add(currentHolder); break; }
       }
     }
