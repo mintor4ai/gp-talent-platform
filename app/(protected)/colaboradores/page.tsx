@@ -25,15 +25,9 @@ export default async function ColaboradoresPage() {
 
   const disabledOrgs = await getDisabledOrgs();
 
-  // select("*") avoids Supabase TS parser error on the accented column `organización`
-  let query = supabase
-    .from("colaboradores")
-    .select("*")
-    .order("nombre_completo");
-
-  if (disabledOrgs.length > 0) {
-    query = query.not("organización", "in", `("${disabledOrgs.join('","')}")`);
-  }
+  // For jefes/colaboradores the result set is small — no pagination needed.
+  // For admins paginate to get all rows (PostgREST default cap is 1000).
+  let colaboradores: unknown[] = [];
 
   if (rol === "jefe" && perfil.id_empleado) {
     const { data: jefe } = await supabase
@@ -43,13 +37,27 @@ export default async function ColaboradoresPage() {
       .single();
 
     if (jefe) {
-      query = query.eq("jefe_inmediato_nombre", jefe.nombre_completo);
+      let q = supabase.from("colaboradores").select("*").order("nombre_completo")
+        .eq("jefe_inmediato_nombre", (jefe as { nombre_completo: string }).nombre_completo);
+      if (disabledOrgs.length > 0) q = q.not("organización", "in", `("${disabledOrgs.join('","')}")`);
+      const { data } = await q;
+      colaboradores = data ?? [];
     }
   } else if (rol === "colaborador" && perfil.id_empleado) {
-    query = query.eq("id", perfil.id_empleado);
+    const { data } = await supabase.from("colaboradores").select("*").eq("id", perfil.id_empleado);
+    colaboradores = data ?? [];
+  } else {
+    // Admin: paginate to retrieve all rows beyond the 1000-row PostgREST cap
+    const PAGE = 1000;
+    for (let start = 0; ; start += PAGE) {
+      let q = supabase.from("colaboradores").select("*").order("nombre_completo").range(start, start + PAGE - 1);
+      if (disabledOrgs.length > 0) q = q.not("organización", "in", `("${disabledOrgs.join('","')}")`);
+      const { data } = await q;
+      if (!data?.length) break;
+      colaboradores.push(...data);
+      if (data.length < PAGE) break;
+    }
   }
-
-  const { data: colaboradores } = await query;
 
   type ColabRow = {
     id: string;
