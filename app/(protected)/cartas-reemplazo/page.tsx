@@ -81,7 +81,7 @@ export default async function CartasReemplazoPage() {
       .select("colaborador_id"),
     supabase
       .from("sucesion_matches")
-      .select("colaborador_id, puesto_catalogo_id, ciclo_año")
+      .select("colaborador_id, puesto_catalogo_id, ciclo_año, readiness")
       .eq("validado_ch", true)
       .eq("descartado", false),
     supabase
@@ -137,7 +137,7 @@ export default async function CartasReemplazoPage() {
     ((planCarreraRaw.data ?? []) as Array<{ colaborador_id: string }>).map((r) => r.colaborador_id)
   );
 
-  type MatchRow = { colaborador_id: string; puesto_catalogo_id: string; ciclo_año: number };
+  type MatchRow = { colaborador_id: string; puesto_catalogo_id: string; ciclo_año: number; readiness?: string | null };
   const validatedMatches: MatchRow[] = (validatedMatchesRaw.data ?? []) as unknown as MatchRow[];
   const discardedMatches: MatchRow[] = (discardedMatchesRaw.data ?? []) as unknown as MatchRow[];
   const pendingMatches: MatchRow[] = (pendingMatchesRaw.data ?? []) as unknown as MatchRow[];

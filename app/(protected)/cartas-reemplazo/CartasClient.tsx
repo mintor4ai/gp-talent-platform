@@ -139,12 +139,15 @@ const COB_LEFT: Record<Cob, string> = {
 };
 
 const READINESS_PRIORITY: Record<string, number> = {
-  listo_ahora: 0, corto: 0, uno_dos_anios: 1, mediano: 1, tres_mas_anios: 2, largo: 2,
+  listo_ahora: 0, corto: 0, inmediato: 0,
+  uno_dos_anios: 1, mediano: 1,
+  tres_mas_anios: 2, largo: 2,
 };
 
 const RSHORT: Record<string, string> = {
   listo_ahora: "Inm.", uno_dos_anios: "Med.", tres_mas_anios: "Lrg.",
   corto: "Inm.", mediano: "Med.", largo: "Lrg.",
+  inmediato: "Inm.",
 };
 const RCOLOR_BADGE: Record<string, string> = {
   listo_ahora: "bg-green-100 text-green-700",
@@ -153,6 +156,7 @@ const RCOLOR_BADGE: Record<string, string> = {
   corto: "bg-green-100 text-green-700",
   mediano: "bg-blue-100 text-blue-700",
   largo: "bg-gray-100 text-gray-500",
+  inmediato: "bg-green-100 text-green-700",
 };
 
 // ── Unified successor entry type ──────────────────────────────────────────────
@@ -1223,7 +1227,7 @@ export default function CartasClient({
   catalogo: CartaCatalogoPuesto[];
   yaAsignadoIds: string[];
   planCarreraIds: string[];
-  validatedMatches: { colaborador_id: string; puesto_catalogo_id: string; ciclo_año: number }[];
+  validatedMatches: { colaborador_id: string; puesto_catalogo_id: string; ciclo_año: number; readiness?: string | null }[];
   discardedMatches: { colaborador_id: string; puesto_catalogo_id: string; ciclo_año: number }[];
   pendingMatches: { colaborador_id: string; puesto_catalogo_id: string; ciclo_año: number }[];
   rol: string;
@@ -1348,7 +1352,7 @@ export default function CartasClient({
     return m;
   }, [validatedMatches, colabMap]);
 
-  // bestReadinessBySuccesor: sucesorId → best readiness across ALL plan_sucesion rows (not filtered by titular)
+  // bestReadinessBySuccesor: sucesorId → best readiness across ALL plan_sucesion rows + validated motor matches
   // Used for DISPLAY of motor match successors where there is no plan for the current titular.
   const bestReadinessBySuccesor = useMemo(() => {
     const m = new Map<string, string>();
@@ -1361,8 +1365,17 @@ export default function CartasClient({
       const cP = current !== undefined ? (READINESS_PRIORITY[current] ?? 99) : 100;
       if (rP < cP) m.set(s.sucesor_id, r);
     }
+    // Also pull readiness from validated motor matches (sucesion_matches.readiness)
+    for (const vm of validatedMatches) {
+      if (!vm.colaborador_id || !vm.readiness) continue;
+      const r = vm.readiness;
+      const current = m.get(vm.colaborador_id);
+      const rP = READINESS_PRIORITY[r] ?? 99;
+      const cP = current !== undefined ? (READINESS_PRIORITY[current] ?? 99) : 100;
+      if (rP < cP) m.set(vm.colaborador_id, r);
+    }
     return m;
-  }, [sucesores]);
+  }, [sucesores, validatedMatches]);
 
   const childrenMap = useMemo(() => {
     const m = new Map<string, string[]>();
