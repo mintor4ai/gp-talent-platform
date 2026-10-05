@@ -296,10 +296,9 @@ function SucRow({ entry }: { entry: SucEntry }) {
   const rColor = r ? (RCOLOR_BADGE[r] ?? "bg-gray-100 text-gray-500") : null;
 
   const nameClass =
-    entry.tipo === "validado"   ? "text-gray-900 font-medium" :
-    entry.tipo === "borrador"   ? "text-gray-700" :
     entry.tipo === "externo"    ? "text-gray-500 italic" :
-    /* aspiracion */              "text-gray-400";
+    entry.tipo === "descartado" ? "text-gray-400 line-through" :
+    /* validado / borrador / aspiracion */ "text-gray-700";
 
   const badge =
     entry.pendingMatchCiclo !== null
