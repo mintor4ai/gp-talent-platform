@@ -212,7 +212,7 @@ function OrgCard({
   return (
     <div
       className={`absolute bg-white rounded-xl shadow-md border border-gray-200 border-l-[5px] overflow-hidden cursor-pointer transition-shadow hover:shadow-lg
-        ${COB_LEFT[cob]}
+        ${esCritico ? COB_LEFT[cob] : "border-l-gray-300"}
         ${isSelected ? "ring-2 ring-offset-1 ring-[#1a3a5c] shadow-lg" : ""}
         ${!esCritico ? "opacity-60 hover:opacity-90" : ""}
       `}
