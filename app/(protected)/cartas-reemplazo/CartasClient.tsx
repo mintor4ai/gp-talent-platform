@@ -300,21 +300,18 @@ function SucRow({ entry }: { entry: SucEntry }) {
     entry.tipo === "descartado" ? "text-gray-400 line-through" :
     /* validado / borrador / aspiracion */ "text-gray-700";
 
+  // Mini card shows ONE chip. Priority: special state → readiness (if available) → type fallback.
   const badge =
-    entry.pendingMatchCiclo !== null
-      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-blue-50 text-blue-600 border border-blue-200">Match:{String(entry.pendingMatchCiclo).slice(-2)}</span>
-    : entry.isManual && entry.tipo === "validado"
-      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-gray-100 text-gray-500 border border-gray-300">CH</span>
-    : entry.isManual && entry.tipo === "borrador"
-      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-amber-50 text-amber-600 border border-amber-300">Pend.&apos;{entry.ciclo ? String(entry.ciclo).slice(-2) : "?"}</span>
-    : entry.tipo === "validado" && rShort
-      ? <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none ${rColor}`}>{rShort}</span>
-    : entry.tipo === "borrador"
-      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-amber-50 text-amber-600 border border-amber-300">{rShort ?? "Pend."}</span>
-    : entry.tipo === "externo"
+    entry.tipo === "externo"
       ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-gray-100 text-gray-500">Ext.</span>
     : entry.tipo === "descartado"
       ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-red-50 text-red-500 border border-red-200 line-through">✗</span>
+    : entry.pendingMatchCiclo !== null
+      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-blue-50 text-blue-600 border border-blue-200">Match:{String(entry.pendingMatchCiclo).slice(-2)}</span>
+    : rShort
+      ? <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none ${rColor}`}>{rShort}</span>
+    : entry.isManual && entry.tipo === "borrador"
+      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none bg-amber-50 text-amber-600 border border-amber-300">Pend.</span>
     : <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none border border-gray-300 text-gray-400">Asp.</span>;
 
   return (
