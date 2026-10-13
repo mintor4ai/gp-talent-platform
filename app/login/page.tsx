@@ -30,20 +30,11 @@ export default function LoginPage() {
     } else {
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          shouldCreateUser: false,
-        },
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
       });
       if (error) {
         const msg = error.message;
-        if (msg?.toLowerCase().includes("signups not allowed") || msg?.toLowerCase().includes("not allowed")) {
-          setError("Este correo no está registrado. Solicita acceso al administrador.");
-        } else if (msg) {
-          setError(msg);
-        } else {
-          setError("No se pudo enviar el enlace. Intenta de nuevo o usa contraseña.");
-        }
+        setError(msg || "No se pudo enviar el enlace. Intenta de nuevo o usa contraseña.");
       } else {
         setSent(true);
       }
