@@ -107,26 +107,26 @@ function CreateUserForm({
     if (form.usePassword && form.password.length < 8) { setErr("La contraseña debe tener al menos 8 caracteres"); return; }
 
     startTransition(async () => {
-      try {
-        await createUser({
-          email:           form.email.trim(),
-          password:        form.usePassword ? form.password : null,
-          rol:             form.rol,
-          id_empleado:     form.id_empleado || null,
-          nombre:          form.nombre.trim() || null,
-          coach_habilitado: form.coach_habilitado,
-        });
-        onDone({
-          email:           form.email.trim(),
-          rol:             form.rol,
-          activo:          true,
-          coach_habilitado: form.coach_habilitado,
-          providers:       form.usePassword ? ["email"] : [],
-          display_name:    form.nombre.trim() || null,
-        });
-      } catch (err) {
-        setErr(err instanceof Error ? err.message : "Error al crear usuario");
+      const result = await createUser({
+        email:           form.email.trim(),
+        password:        form.usePassword ? form.password : null,
+        rol:             form.rol,
+        id_empleado:     form.id_empleado || null,
+        nombre:          form.nombre.trim() || null,
+        coach_habilitado: form.coach_habilitado,
+      });
+      if (!result.ok) {
+        setErr(result.error);
+        return;
       }
+      onDone({
+        email:           form.email.trim(),
+        rol:             form.rol,
+        activo:          true,
+        coach_habilitado: form.coach_habilitado,
+        providers:       form.usePassword ? ["email"] : [],
+        display_name:    form.nombre.trim() || null,
+      });
     });
   }
 
@@ -293,27 +293,27 @@ function EditUserPanel({
   function handleSave() {
     setErr(null);
     startTransition(async () => {
-      try {
-        await updateUsuario({
-          user_id:         usuario.id,
-          rol:             form.rol,
-          activo:          form.activo,
-          coach_habilitado: form.coach_habilitado,
-          id_empleado:     form.clear_empleado ? null : (form.id_empleado || null),
-          clear_empleado:  form.clear_empleado,
-          nombre:          form.nombre.trim() || null,
-        });
-        onDone({
-          rol:             form.rol,
-          activo:          form.activo,
-          coach_habilitado: form.coach_habilitado,
-          id_empleado:     form.clear_empleado ? null : (form.id_empleado || null),
-          display_name:    form.nombre.trim() || usuario.display_name,
-        });
-        flash("Cambios guardados");
-      } catch (err) {
-        flash(err instanceof Error ? err.message : "Error al guardar", false);
+      const result = await updateUsuario({
+        user_id:         usuario.id,
+        rol:             form.rol,
+        activo:          form.activo,
+        coach_habilitado: form.coach_habilitado,
+        id_empleado:     form.clear_empleado ? null : (form.id_empleado || null),
+        clear_empleado:  form.clear_empleado,
+        nombre:          form.nombre.trim() || null,
+      });
+      if (!result.ok) {
+        flash(result.error, false);
+        return;
       }
+      onDone({
+        rol:             form.rol,
+        activo:          form.activo,
+        coach_habilitado: form.coach_habilitado,
+        id_empleado:     form.clear_empleado ? null : (form.id_empleado || null),
+        display_name:    form.nombre.trim() || usuario.display_name,
+      });
+      flash("Cambios guardados");
     });
   }
 
@@ -322,13 +322,13 @@ function EditUserPanel({
     if (pwForm.password !== pwForm.confirm) { setErr("Las contraseñas no coinciden"); return; }
     setErr(null);
     startTransition(async () => {
-      try {
-        await resetPassword(usuario.id, pwForm.password);
-        flash("Contraseña actualizada");
-        setPwForm({ show: false, password: "", confirm: "" });
-      } catch (err) {
-        flash(err instanceof Error ? err.message : "Error al resetear", false);
+      const result = await resetPassword(usuario.id, pwForm.password);
+      if (!result.ok) {
+        flash(result.error, false);
+        return;
       }
+      flash("Contraseña actualizada");
+      setPwForm({ show: false, password: "", confirm: "" });
     });
   }
 
