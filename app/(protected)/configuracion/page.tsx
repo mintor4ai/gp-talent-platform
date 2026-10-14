@@ -21,7 +21,7 @@ export default async function ConfiguracionPage() {
   if (perfil?.rol !== "superadmin") redirect("/dashboard");
 
   // Distinct group values from colaboradores (trim whitespace)
-  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes, ponderacionesRes, tablaExpRes, tablaMovRes, tablaFormAcadRes, sucesionCiclosRes, uensConfigRes] =
+  const [uenRes, deptRes, areaRes, segRes, reglasRes, promptsRes, apiRes, usersRes, colabsRes, zonasRes, periodosRes, authUsersRes, ponderacionesRes, tablaExpRes, tablaMovRes, tablaFormAcadRes, sucesionCiclosRes, uensConfigRes, planConfidencialesRes] =
     await Promise.all([
       supabase.from("colaboradores").select("razon_social").not("razon_social", "is", null),
       supabase.from("colaboradores").select("departamento").not("departamento", "is", null),
@@ -41,6 +41,10 @@ export default async function ConfiguracionPage() {
       supabase.from("eip_tabla_formacion_academica").select("ciclo_año, nivel_num, escolaridad, score").order("ciclo_año", { ascending: false }).order("nivel_num"),
       supabase.from("plan_sucesion").select("ciclo_año").order("ciclo_año", { ascending: false }),
       supabase.from("uens_config").select("organización, activa").order("organización"),
+      supabase.from("plan_sucesion")
+        .select("id, id_empleado, sucesor_nombre, sucesor_id, ciclo_año, estado, readiness")
+        .eq("confidencial", true)
+        .order("ciclo_año", { ascending: false }),
     ]);
 
   type Raw = { [key: string]: string | null };
@@ -112,6 +116,13 @@ export default async function ConfiguracionPage() {
 
   const uensConfig = ((uensConfigRes.data ?? []) as UenConfigRow[]);
 
+  type PlanConfidencialRow = { id: string; id_empleado: string; sucesor_nombre: string; sucesor_id: string | null; ciclo_año: number; estado: string; readiness: string };
+  const planConfidenciales = ((planConfidencialesRes.data ?? []) as unknown as PlanConfidencialRow[]).map((p) => ({
+    ...p,
+    titular_nombre: colabMap.get(p.id_empleado)?.nombre_completo ?? p.id_empleado,
+    titular_puesto: colabMap.get(p.id_empleado)?.puesto ?? null,
+  }));
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
@@ -135,6 +146,7 @@ export default async function ConfiguracionPage() {
         tablaFormAcad={tablaFormAcadRows}
         sucesionCiclosDisponibles={sucesionCiclosDisponibles}
         uensConfig={uensConfig}
+        planConfidenciales={planConfidenciales}
       />
     </div>
   );

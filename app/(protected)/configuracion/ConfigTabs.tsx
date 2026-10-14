@@ -10,6 +10,7 @@ import {
   actualizarConfigApi,
   recalcularTodosLosCiclos,
 } from "@/app/actions/configuracion";
+import { toggleConfidencial } from "@/app/actions/sucesion";
 import { saveZonaBandsArray, copyZonaBandsFromCycle } from "@/app/actions/zonas";
 import { upsertPeriodo, setPeriodoActivo, deletePeriodo } from "@/app/actions/periodos";
 import { savePonderaciones, type PonderacionInput } from "@/app/actions/ponderaciones";
@@ -23,6 +24,7 @@ import UensTab, { type UenConfigRow } from "./UensTab";
 type Regla = { id: string; nivel: string; valor: string; habilitado: boolean };
 type Prompt = { id: string; tipo: string; contenido: string; version: number; activo: boolean; created_at: string };
 type ColabRow = { id: string; nombre_completo: string | null; puesto: string | null; razon_social: string | null };
+export type PlanConfidencialRow = { id: string; id_empleado: string; sucesor_nombre: string; sucesor_id: string | null; ciclo_año: number; estado: string; readiness: string; titular_nombre: string; titular_puesto: string | null };
 type PonderacionRow = {
   ciclo_año: number; calif_ponderada: number;
   w_exp: number; w_form_acad: number; w_cursos: number;
@@ -62,6 +64,7 @@ export default function ConfigTabs({
   tablaFormAcad,
   sucesionCiclosDisponibles,
   uensConfig,
+  planConfidenciales,
 }: {
   grupos: { uens: string[]; departamentos: string[]; areas: string[]; segmentos: string[] };
   reglasAcceso: Regla[];
@@ -79,6 +82,7 @@ export default function ConfigTabs({
   tablaFormAcad: TablaFormAcadRow[];
   sucesionCiclosDisponibles: number[];
   uensConfig: UenConfigRow[];
+  planConfidenciales: PlanConfidencialRow[];
 }) {
   const [tab, setTab] = useState<"usuarios" | "access" | "prompts" | "api" | "zonas" | "periodos" | "ponderaciones" | "tablas_eip" | "sucesion" | "calcular_eip" | "uens">("usuarios");
 
@@ -121,7 +125,7 @@ export default function ConfigTabs({
       {tab === "zonas"         && <ZonasEipTab zonasMap={zonasMap} availableCycles={availableZonaCycles} periodos={periodos} />}
       {tab === "ponderaciones" && <PonderacionesEipTab ponderacionesMap={ponderacionesMap} periodos={periodos} />}
       {tab === "tablas_eip"    && <TablasEipTab tablaExp={tablaExp} tablaMov={tablaMov} tablaFormAcad={tablaFormAcad} periodos={periodos} />}
-      {tab === "sucesion"      && <SucesionTab ciclosDisponibles={sucesionCiclosDisponibles} />}
+      {tab === "sucesion"      && <SucesionTab ciclosDisponibles={sucesionCiclosDisponibles} planConfidenciales={planConfidenciales} />}
       {tab === "calcular_eip"  && <CalculadorEIP ciclos={periodos.map((p) => p.ciclo_año).sort((a, b) => b - a)} />}
       {tab === "uens"          && <UensTab uens={uensConfig} />}
     </div>
@@ -1187,12 +1191,14 @@ function ZonasEipTab({
 
 // ── Sucesión Tab ──────────────────────────────────────────────────────────────
 
-function SucesionTab({ ciclosDisponibles }: { ciclosDisponibles: number[] }) {
+function SucesionTab({ ciclosDisponibles, planConfidenciales: planConfidencialesInit }: { ciclosDisponibles: number[]; planConfidenciales: PlanConfidencialRow[] }) {
   const [isPending, startTransition] = useTransition();
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; results: Record<number, unknown>; errors: string[] } | null>(null);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [selectedCiclos, setSelectedCiclos] = useState<Set<number>>(() => new Set(ciclosDisponibles));
+  const [confPlans, setConfPlans] = useState<PlanConfidencialRow[]>(planConfidencialesInit);
+  const [confPending, setConfPending] = useState<string | null>(null);
 
   const ciclos = ciclosDisponibles;
 
@@ -1224,6 +1230,20 @@ function SucesionTab({ ciclosDisponibles }: { ciclosDisponibles: number[] }) {
     });
   }
 
+  function handleDesconfidencializar(id: string) {
+    setConfPending(id);
+    startTransition(async () => {
+      const res = await toggleConfidencial(id, false);
+      setConfPending(null);
+      if (res.ok) {
+        setConfPlans((prev) => prev.filter((p) => p.id !== id));
+        flash("Plan marcado como visible nuevamente");
+      } else {
+        flash(`Error: ${res.error}`, false);
+      }
+    });
+  }
+
   return (
     <div className="space-y-6 max-w-2xl">
       {msg && (
@@ -1231,6 +1251,42 @@ function SucesionTab({ ciclosDisponibles }: { ciclosDisponibles: number[] }) {
           {msg.text}
         </div>
       )}
+
+      {/* Planes confidenciales */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-700">Planes de sucesión confidenciales</p>
+            <p className="text-xs text-gray-400 mt-0.5">Ocultos en Cartas de Reemplazo. Solo visibles en el expediente individual.</p>
+          </div>
+          <span className="text-xs font-mono bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full">{confPlans.length}</span>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {confPlans.length === 0 && (
+            <p className="px-5 py-4 text-sm text-gray-400 italic">Sin planes confidenciales actualmente.</p>
+          )}
+          {confPlans.map((p) => (
+            <div key={p.id} className="px-5 py-3 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-800 truncate">{p.titular_nombre}</p>
+                {p.titular_puesto && <p className="text-xs text-gray-400 truncate">{p.titular_puesto}</p>}
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="text-xs text-gray-500">→ <span className="font-medium text-gray-700">{p.sucesor_nombre}</span></span>
+                  <span className="text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{p.ciclo_año}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium">{p.readiness}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => handleDesconfidencializar(p.id)}
+                disabled={confPending === p.id}
+                className="flex-shrink-0 text-xs px-3 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:border-red-300 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+              >
+                {confPending === p.id ? "…" : "Hacer visible"}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
