@@ -28,7 +28,7 @@ const SECCIONES = [
   { key: "areas_desarrollo",        label: "Áreas de desarrollo / comportamientos esperados", placeholder: "Comportamientos, habilidades o competencias a desarrollar…" },
   { key: "logros_experiencias",     label: "Logros o experiencias observadas",                placeholder: "Logros relevantes o experiencias que destacaron…" },
   { key: "experiencias_requeridas", label: "Experiencias requeridas o sugeridas",              placeholder: "Qué tipo de experiencias recomienda el director o CH para este rol…" },
-  { key: "observaciones",           label: "Observaciones generales",                          placeholder: "Cualquier comentario adicional, contexto o acuerdo…" },
+  { key: "observaciones",           label: "Observaciones generales / Compromiso del Director de área", placeholder: "Cualquier comentario adicional, contexto o acuerdo…" },
 ] as const;
 
 type SeccionKey = (typeof SECCIONES)[number]["key"];
