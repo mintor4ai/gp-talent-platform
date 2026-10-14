@@ -258,3 +258,19 @@ export async function registrarAspiracion(params: {
 
   revalidatePath(`/carpeta/${plan.id_empleado}`);
 }
+
+export async function toggleConfidencial(
+  id: string,
+  confidencial: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { supabase, perfil } = await requireAuth();
+  if (perfil.rol !== "superadmin") return { ok: false, error: "Sin permisos" };
+  const { data: plan } = await supabase
+    .from("plan_sucesion").select("id_empleado").eq("id", id).single();
+  if (!plan) return { ok: false, error: "No encontrado" };
+  const { error } = await supabase
+    .from("plan_sucesion").update({ confidencial }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/carpeta/${plan.id_empleado}`);
+  return { ok: true };
+}

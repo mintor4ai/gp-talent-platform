@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { upsertSucesor, deleteSucesor, submitSucesion } from "@/app/actions/sucesion";
+import { upsertSucesor, deleteSucesor, submitSucesion, toggleConfidencial } from "@/app/actions/sucesion";
 import { descartarPlanSucesion, reactivarPlanSucesion } from "@/app/actions/plan_sucesion_manual";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
@@ -30,6 +30,7 @@ export type SucesionItem = {
   sucesor_aspiracion: boolean | null;
   sucesor_aspiracion_at: string | null;
   created_at: string;
+  confidencial?: boolean;
 };
 
 type ColabOption = { id: string; nombre_completo: string | null; puesto: string | null };
@@ -258,22 +259,26 @@ function SucesorCard({
   colaboradorId,
   canEdit,
   isAdmin,
+  isSuperadmin,
   onEdit,
   onDelete,
   onSubmitted,
   onDescartado,
   onReactivado,
+  onToggleConfidencial,
   isDeleting,
 }: {
   item: SucesionItem;
   colaboradorId: string;
   canEdit: boolean;
   isAdmin?: boolean;
+  isSuperadmin?: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onSubmitted: (item: SucesionItem) => void;
   onDescartado: (item: SucesionItem) => void;
   onReactivado: (item: SucesionItem) => void;
+  onToggleConfidencial: (id: string, value: boolean) => void;
   isDeleting: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -325,8 +330,15 @@ function SucesorCard({
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-[#1a3a5c] flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-sm font-bold">{item.sucesor_nombre.charAt(0).toUpperCase()}</span>
+          <div className="relative w-9 h-9 flex-shrink-0">
+            <div className="w-9 h-9 rounded-full bg-[#1a3a5c] flex items-center justify-center">
+              <span className="text-white text-sm font-bold">{item.sucesor_nombre.charAt(0).toUpperCase()}</span>
+            </div>
+            {item.confidencial && (
+              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-amber-100 border border-amber-300 rounded-full flex items-center justify-center" title="Confidencial">
+                <svg className="w-2.5 h-2.5 text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/></svg>
+              </span>
+            )}
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900">{item.sucesor_nombre}</p>
@@ -343,24 +355,42 @@ function SucesorCard({
             </div>
           </div>
         </div>
-        {canEdit && (
+        {(canEdit || isSuperadmin) && (
           <div className="flex items-center gap-2 flex-shrink-0">
-            {isBorrador && <button onClick={onEdit} className="text-xs text-gray-400 hover:text-[#1a3a5c] transition-colors">Editar</button>}
-            {isBorrador && <span className="text-gray-200">|</span>}
-            {!isDescartado && (
+            {isSuperadmin && (
+              <button
+                title={item.confidencial ? "Quitar confidencialidad" : "Marcar como confidencial"}
+                onClick={() => {
+                  startTransition(async () => {
+                    const res = await toggleConfidencial(item.id, !item.confidencial);
+                    if (res.ok) onToggleConfidencial(item.id, !item.confidencial);
+                    else setErr(res.error);
+                  });
+                }}
+                disabled={isPending}
+                className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors disabled:opacity-40 ${item.confidencial ? "bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100" : "border-gray-200 text-gray-400 hover:border-amber-300 hover:text-amber-600"}`}
+              >
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/></svg>
+                {item.confidencial ? "Conf." : ""}
+              </button>
+            )}
+            {canEdit && isSuperadmin && <span className="text-gray-200">|</span>}
+            {canEdit && isBorrador && <button onClick={onEdit} className="text-xs text-gray-400 hover:text-[#1a3a5c] transition-colors">Editar</button>}
+            {canEdit && isBorrador && <span className="text-gray-200">|</span>}
+            {canEdit && !isDescartado && (
               <button onClick={() => { setShowDescartarForm(true); setErr(null); }} disabled={isPending}
                 className="text-xs text-orange-400 hover:text-orange-600 disabled:opacity-40 transition-colors">
                 Descartar
               </button>
             )}
-            {isDescartado && (
+            {canEdit && isDescartado && (
               <button onClick={handleReactivar} disabled={isPending}
                 className="text-xs text-blue-500 hover:text-blue-700 disabled:opacity-40 transition-colors">
                 {isPending ? "..." : "↩ Reactivar"}
               </button>
             )}
-            {(isBorrador || isAdmin) && <span className="text-gray-200">|</span>}
-            {(isBorrador || isAdmin) && (
+            {canEdit && (isBorrador || isAdmin) && <span className="text-gray-200">|</span>}
+            {canEdit && (isBorrador || isAdmin) && (
               <button onClick={onDelete} disabled={isDeleting}
                 className="text-xs text-red-400 hover:text-red-600 disabled:opacity-40 transition-colors">Eliminar</button>
             )}
@@ -476,6 +506,7 @@ export default function SucesionEditor({
   colaboradores,
   canEdit,
   isAdmin,
+  isSuperadmin,
 }: {
   colaboradorId: string;
   cicloAño: number;
@@ -483,6 +514,7 @@ export default function SucesionEditor({
   colaboradores: ColabOption[];
   canEdit: boolean;
   isAdmin?: boolean;
+  isSuperadmin?: boolean;
 }) {
   const [items, setItems]         = useState<SucesionItem[]>(
     itemsIniciales.filter((i) => i.ciclo_año === cicloAño)
@@ -499,6 +531,11 @@ export default function SucesionEditor({
   function handleSubmitted(item: SucesionItem) { setItems((p) => p.map((i) => i.id === item.id ? item : i)); flash("Plan enviado a revisión del jefe"); }
   function handleDescartado(item: SucesionItem) { setItems((p) => p.map((i) => i.id === item.id ? item : i)); flash("Plan descartado"); }
   function handleReactivado(item: SucesionItem) { setItems((p) => p.map((i) => i.id === item.id ? item : i)); flash("Plan reactivado"); }
+
+  function handleToggleConfidencial(id: string, value: boolean) {
+    setItems((p) => p.map((i) => i.id === id ? { ...i, confidencial: value } : i));
+    flash(value ? "Match marcado como confidencial" : "Confidencialidad removida");
+  }
 
   function handleDelete(id: string) {
     if (!confirm("¿Eliminar este sucesor potencial?")) return;
@@ -554,11 +591,13 @@ export default function SucesionEditor({
               <SucesorCard key={item.id} item={item} colaboradorId={colaboradorId}
                 canEdit={canEdit}
                 isAdmin={isAdmin}
+                isSuperadmin={isSuperadmin}
                 onEdit={() => { setEditingId(item.id); setAdding(false); }}
                 onDelete={() => handleDelete(item.id)}
                 onSubmitted={handleSubmitted}
                 onDescartado={handleDescartado}
                 onReactivado={handleReactivado}
+                onToggleConfidencial={handleToggleConfidencial}
                 isDeleting={isPending}
               />
             )

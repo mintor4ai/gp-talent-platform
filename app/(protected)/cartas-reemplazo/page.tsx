@@ -56,6 +56,7 @@ export default async function CartasReemplazoPage() {
         .from("plan_sucesion")
         .select("id_empleado, sucesor_nombre, sucesor_id, readiness, tiempo_estimado, estado, ciclo_año, puesto_catalogo_id")
         .neq("estado", "descartado")
+        .eq("confidencial", false)
         .order("ciclo_año", { ascending: false })
         .range(from, to)
     ),

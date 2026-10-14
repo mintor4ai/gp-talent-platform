@@ -782,6 +782,7 @@ export default function CarpetaTabs({
               colaboradores={colaboradores}
               canEdit={isOwn || isAdmin}
               isAdmin={isAdmin}
+              isSuperadmin={rol === "superadmin"}
             />
           </div>
         </div>
