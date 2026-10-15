@@ -123,6 +123,7 @@ export async function validarMatch(matchId: string): Promise<{ ok: boolean; plan
         snapshot,
       });
       planCreado = planRes.ok;
+      if (!planRes.ok) throw new Error(`Match validado pero el expediente no pudo crearse: ${planRes.error}`);
     }
 
     revalidatePath("/sucesion");

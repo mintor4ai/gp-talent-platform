@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { PlanCarreraFull, PlanCarreraObjetivo } from "@/app/actions/plan_carrera";
-import { agregarObjetivo, actualizarPrioridadObjetivo, desactivarObjetivo } from "@/app/actions/plan_carrera";
+import { agregarObjetivo, actualizarPrioridadObjetivo, desactivarObjetivo, crearPlanCarrera } from "@/app/actions/plan_carrera";
 import type { PlanCarreraNota } from "@/app/actions/plan_carrera_notas";
 import { agregarNota, editarNota } from "@/app/actions/plan_carrera_notas";
 
@@ -47,11 +47,13 @@ export default function PlanCarreraView({
   plan: initialPlan,
   notas: initialNotas,
   catalogo,
+  matchPendiente,
 }: {
   colab: ColabInfo;
   plan: PlanCarreraFull | null;
   notas: PlanCarreraNota[];
   catalogo: CatalogItem[];
+  matchPendiente?: { id: string; puesto_catalogo_id: string; ciclo_año: number } | null;
 }) {
   const [plan, setPlan] = useState(initialPlan);
   const [notas, setNotas] = useState<PlanCarreraNota[]>(initialNotas);
@@ -116,16 +118,49 @@ export default function PlanCarreraView({
   // ── No plan ────────────────────────────────────────────────────────────────
 
   if (!plan) {
+    function handleCrearExpediente() {
+      if (!matchPendiente) return;
+      startTransition(async () => {
+        const res = await crearPlanCarrera({
+          colaboradorId: colab.id,
+          matchId: matchPendiente.id,
+          puestoCatalogoId: matchPendiente.puesto_catalogo_id,
+          cicloAño: matchPendiente.ciclo_año,
+          snapshot: { puesto: colab.puesto, area: colab.area, organización: colab.organización, fecha_validacion: new Date().toISOString() },
+        });
+        if (res.ok) {
+          // Reload to show the new plan
+          window.location.reload();
+        } else {
+          setFlash({ msg: `Error: ${res.error}`, ok: false });
+        }
+      });
+    }
+
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="text-center space-y-4 max-w-sm">
+          {flash && (
+            <div className={`text-sm border rounded-lg px-4 py-2 ${flash.ok ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+              {flash.msg}
+            </div>
+          )}
           <div className="text-5xl">📋</div>
           <h1 className="text-xl font-bold text-gray-900">Sin Expediente de Talento</h1>
           <p className="text-sm text-gray-500">
             {colab.nombre_completo} no tiene un expediente aún.
-            Se genera automáticamente al validar un match de sucesión.
+            {matchPendiente ? " Se detectó un match validado — puedes crear el expediente ahora." : " Se genera automáticamente al validar un match de sucesión."}
           </p>
-          <Link href="/sucesion" className="inline-block text-sm font-medium text-[#1a3a5c] hover:underline">
+          {matchPendiente ? (
+            <button
+              onClick={handleCrearExpediente}
+              disabled={isPending}
+              className="px-5 py-2 text-sm font-semibold bg-[#1a3a5c] text-white rounded-lg hover:bg-[#152e4d] disabled:opacity-40 transition-colors"
+            >
+              {isPending ? "Creando expediente…" : "Crear expediente"}
+            </button>
+          ) : null}
+          <Link href="/sucesion" className="block text-sm font-medium text-[#1a3a5c] hover:underline">
             ← Ir al Motor de Matching
           </Link>
         </div>

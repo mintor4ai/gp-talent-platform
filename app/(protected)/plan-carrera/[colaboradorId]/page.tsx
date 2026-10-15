@@ -51,6 +51,20 @@ export default async function PlanCarreraPage({
   // Load notas for this plan
   const notas = plan ? (await getNotasByPlan(plan.id)).data ?? [] : [];
 
+  // If no plan and admin, look for a validated match to allow manual recovery
+  let matchPendiente: { id: string; puesto_catalogo_id: string; ciclo_año: number } | null = null;
+  if (!plan && isAdmin) {
+    const { data: matchRaw } = await supabase
+      .from("sucesion_matches")
+      .select("id, puesto_catalogo_id, ciclo_año")
+      .eq("colaborador_id", colaboradorId)
+      .eq("validado_ch", true)
+      .order("ciclo_año", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    matchPendiente = matchRaw as typeof matchPendiente;
+  }
+
   // Load catalog positions for the objective selector
   const { data: catalogoRaw } = await supabase
     .from("catalogo_puestos")
@@ -84,6 +98,7 @@ export default async function PlanCarreraPage({
       plan={plan}
       notas={notas}
       catalogo={catalogo}
+      matchPendiente={matchPendiente}
     />
   );
 }
