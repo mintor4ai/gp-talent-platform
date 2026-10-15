@@ -93,9 +93,16 @@ export async function POST(req: NextRequest) {
   // Load existing records with all comparable fields
   const { data: existingRaw } = await supabase
     .from("catalogo_puestos")
-    .select("clave, id_externo, nombre, organización, segmento_organizacional, razon_social, horario, tipo_trabajador, periodo_pago, tabla_prestaciones");
+    .select("id, clave, id_externo, nombre, organización, segmento_organizacional, razon_social, horario, tipo_trabajador, periodo_pago, tabla_prestaciones, es_temporal");
+  type ExistingRecordFull = ExistingRecord & { id: string; es_temporal: boolean };
   const existingMap = new Map<string, ExistingRecord>(
-    ((existingRaw ?? []) as unknown as ExistingRecord[]).map((r) => [r.clave, r])
+    ((existingRaw ?? []) as unknown as ExistingRecordFull[]).map((r) => [r.clave, r])
+  );
+  // Map of temp entries by (nombre.upper + "|" + (org?.upper ?? "")) for reconciliation
+  const tempByNameOrg = new Map<string, ExistingRecordFull>(
+    ((existingRaw ?? []) as unknown as ExistingRecordFull[])
+      .filter((r) => r.es_temporal)
+      .map((r) => [`${(r.nombre ?? "").toUpperCase()}|${(r.organización ?? "").toUpperCase()}`, r])
   );
 
   const results: PuestoPreviewRow[] = [];
@@ -173,6 +180,34 @@ export async function POST(req: NextRequest) {
   let sinCambios = results.filter((r) => !r.error && !r.esNuevo && !r.hayCambios).length;
 
   for (const r of validos) {
+    // Reconcile: if a temporal entry exists with same nombre+organización, promote it
+    const tempKey = `${r.nombre.toUpperCase()}|${(r.organización ?? "").toUpperCase()}`;
+    const tempEntry = tempByNameOrg.get(tempKey);
+
+    if (tempEntry) {
+      // Promote temp entry: assign the official clave and clear es_temporal
+      const { error } = await supabase
+        .from("catalogo_puestos")
+        .update({
+          clave:                   r.clave,
+          id_externo:              r.id_externo,
+          organización:            r.organización,
+          segmento_organizacional: r.segmento_organizacional,
+          razon_social:            r.razon_social,
+          horario:                 r.horario,
+          tipo_trabajador:         r.tipo_trabajador,
+          periodo_pago:            r.periodo_pago,
+          tabla_prestaciones:      r.tabla_prestaciones,
+          es_temporal:             false,
+          activo:                  true,
+          updated_at:              new Date().toISOString(),
+        })
+        .eq("id", tempEntry.id);
+      if (error) errors.push(`${r.clave} – ${r.nombre} (reconciliar temporal): ${error.message}`);
+      else upserted++;
+      continue;
+    }
+
     const { error } = await supabase.from("catalogo_puestos").upsert(
       {
         clave:                   r.clave,

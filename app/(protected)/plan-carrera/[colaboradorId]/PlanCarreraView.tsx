@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo, useRef } from "react";
 import Link from "next/link";
 import type { PlanCarreraFull, PlanCarreraObjetivo } from "@/app/actions/plan_carrera";
 import { agregarObjetivo, actualizarPrioridadObjetivo, desactivarObjetivo, crearPlanCarrera } from "@/app/actions/plan_carrera";
+import { crearPuestoCatalogoTemporal } from "@/app/actions/catalogo-puestos";
 import type { PlanCarreraNota } from "@/app/actions/plan_carrera_notas";
 import { agregarNota, editarNota } from "@/app/actions/plan_carrera_notas";
 
@@ -540,18 +541,90 @@ function ObjetivosSection({
   onFlash: (msg: string, ok?: boolean) => void;
 }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [selectedPuestoId, setSelectedPuestoId] = useState("");
+  const [query, setQuery] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedPuesto, setSelectedPuesto] = useState<{ id: string; nombre: string; org: string } | null>(null);
   const [notas, setNotas] = useState("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newNombre, setNewNombre] = useState("");
+  const [newOrg, setNewOrg] = useState("");
+  const [newArea, setNewArea] = useState("");
+  const [newDept, setNewDept] = useState("");
+  const [newEsCritico, setNewEsCritico] = useState(false);
   const [isPendingLocal, startTransition] = useTransition();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   const existingIds = new Set(objetivos.map((o) => o.puesto_catalogo_id));
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const available = catalogo.filter((c) => !existingIds.has(c.id));
+    if (!q) return available;
+    return available.filter(
+      (c) => c.nombre.toLowerCase().includes(q) || c.org.toLowerCase().includes(q)
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, catalogo, objetivos]);
+
+  const exactMatch = useMemo(
+    () => catalogo.some((c) => c.nombre.toLowerCase() === query.trim().toLowerCase()),
+    [query, catalogo]
+  );
+  const showCreateOption = query.trim().length >= 2 && !exactMatch;
+
+  function handleSelectPuesto(c: CatalogItem) {
+    setSelectedPuesto({ id: c.id, nombre: c.nombre, org: c.org });
+    setQuery(c.nombre + (c.org ? ` — ${c.org}` : ""));
+    setShowDropdown(false);
+  }
+
+  function handleStartCreate() {
+    setNewNombre(query.trim().toUpperCase());
+    setShowCreateForm(true);
+    setShowDropdown(false);
+  }
+
   function handleAgregarObjetivo() {
-    if (!selectedPuestoId) return;
+    if (!selectedPuesto) return;
     startTransition(async () => {
-      const res = await agregarObjetivo({ planId, puestoCatalogoId: selectedPuestoId, notas: notas.trim() || null });
+      const res = await agregarObjetivo({ planId, puestoCatalogoId: selectedPuesto.id, notas: notas.trim() || null });
       if (!res.ok) { onFlash(res.error ?? "Error", false); return; }
       window.location.reload();
     });
+  }
+
+  function handleCrearYAgregar() {
+    if (!newNombre.trim()) return;
+    startTransition(async () => {
+      const createRes = await crearPuestoCatalogoTemporal({
+        nombre: newNombre,
+        organización: newOrg || null,
+        area: newArea || null,
+        departamento: newDept || null,
+        es_critico: newEsCritico,
+      });
+      if (!createRes.ok || !createRes.id) {
+        onFlash(createRes.error ?? "Error al crear puesto", false);
+        return;
+      }
+      const addRes = await agregarObjetivo({ planId, puestoCatalogoId: createRes.id, notas: notas.trim() || null });
+      if (!addRes.ok) { onFlash(addRes.error ?? "Error al agregar objetivo", false); return; }
+      window.location.reload();
+    });
+  }
+
+  function resetAdd() {
+    setShowAdd(false);
+    setQuery("");
+    setSelectedPuesto(null);
+    setShowDropdown(false);
+    setNotas("");
+    setShowCreateForm(false);
+    setNewNombre("");
+    setNewOrg("");
+    setNewArea("");
+    setNewDept("");
+    setNewEsCritico(false);
   }
 
   return (
@@ -602,26 +675,110 @@ function ObjetivosSection({
 
       {showAdd && (
         <div className="border-t border-gray-100 px-5 py-4 bg-gray-50/60 space-y-3">
-          <select value={selectedPuestoId} onChange={(e) => setSelectedPuestoId(e.target.value)}
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]">
-            <option value="">Selecciona un puesto...</option>
-            {catalogo.filter((c) => !existingIds.has(c.id)).map((c) => (
-              <option key={c.id} value={c.id}>{c.nombre}{c.org ? ` — ${c.org}` : ""}</option>
-            ))}
-          </select>
-          <input type="text" placeholder="Notas / justificación (opcional)" value={notas}
-            onChange={(e) => setNotas(e.target.value)}
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]" />
-          <div className="flex gap-2">
-            <button onClick={handleAgregarObjetivo} disabled={!selectedPuestoId || isPendingLocal}
-              className="text-sm bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-[#152e4d] disabled:opacity-40 transition-colors">
-              {isPendingLocal ? "Agregando…" : "Agregar objetivo"}
-            </button>
-            <button onClick={() => { setShowAdd(false); setSelectedPuestoId(""); setNotas(""); }}
-              className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 transition-colors">
-              Cancelar
-            </button>
-          </div>
+          {!showCreateForm ? (
+            <>
+              <div className="relative" ref={dropdownRef}>
+                <input
+                  type="text"
+                  placeholder="Buscar puesto en catálogo..."
+                  value={query}
+                  onChange={(e) => { setQuery(e.target.value); setSelectedPuesto(null); setShowDropdown(true); }}
+                  onFocus={() => setShowDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]"
+                />
+                {showDropdown && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {filtered.slice(0, 30).map((c) => (
+                      <button
+                        key={c.id}
+                        onMouseDown={() => handleSelectPuesto(c)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                      >
+                        <span className="font-medium text-gray-900">{c.nombre}</span>
+                        {c.org && <span className="text-gray-400 ml-1 text-xs">— {c.org}</span>}
+                      </button>
+                    ))}
+                    {showCreateOption && (
+                      <button
+                        onMouseDown={handleStartCreate}
+                        className="w-full text-left px-3 py-2 text-sm text-[#1a3a5c] font-medium hover:bg-blue-50 transition-colors border-t border-gray-100"
+                      >
+                        + Crear nuevo puesto: <span className="italic">&ldquo;{query.trim()}&rdquo;</span>
+                      </button>
+                    )}
+                    {filtered.length === 0 && !showCreateOption && (
+                      <div className="px-3 py-2 text-sm text-gray-400">Sin resultados</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <input type="text" placeholder="Notas / justificación (opcional)" value={notas}
+                onChange={(e) => setNotas(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]" />
+              <div className="flex gap-2">
+                <button onClick={handleAgregarObjetivo} disabled={!selectedPuesto || isPendingLocal}
+                  className="text-sm bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-[#152e4d] disabled:opacity-40 transition-colors">
+                  {isPendingLocal ? "Agregando…" : "Agregar objetivo"}
+                </button>
+                <button onClick={resetAdd}
+                  className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 transition-colors">
+                  Cancelar
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-semibold text-[#1a3a5c] uppercase tracking-wide">Nuevo puesto</span>
+                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Temporal</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Nombre *</label>
+                  <input type="text" value={newNombre} onChange={(e) => setNewNombre(e.target.value)}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Organización / UEN</label>
+                  <input type="text" value={newOrg} onChange={(e) => setNewOrg(e.target.value)}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Área</label>
+                  <input type="text" value={newArea} onChange={(e) => setNewArea(e.target.value)}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Departamento</label>
+                  <input type="text" value={newDept} onChange={(e) => setNewDept(e.target.value)}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]" />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={newEsCritico} onChange={(e) => setNewEsCritico(e.target.checked)}
+                  className="rounded border-gray-300 text-[#1a3a5c] focus:ring-[#1a3a5c]" />
+                ¿Es puesto crítico?
+              </label>
+              <input type="text" placeholder="Notas / justificación (opcional)" value={notas}
+                onChange={(e) => setNotas(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]" />
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={handleCrearYAgregar} disabled={!newNombre.trim() || isPendingLocal}
+                  className="text-sm bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-[#152e4d] disabled:opacity-40 transition-colors">
+                  {isPendingLocal ? "Creando…" : "Crear y agregar"}
+                </button>
+                <button onClick={() => setShowCreateForm(false)}
+                  className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 transition-colors">
+                  ← Volver
+                </button>
+                <button onClick={resetAdd}
+                  className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 transition-colors">
+                  Cancelar
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

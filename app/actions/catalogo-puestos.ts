@@ -231,3 +231,49 @@ export async function aplicarInferenciaDepartamentos(
   revalidatePath("/configuracion/catalogo-puestos");
   return { updated };
 }
+
+// ── Temporal positions (created inline from Plano de Carrera) ─────────────
+
+export type PuestoTemporalParams = {
+  nombre: string;
+  organización: string | null;
+  area: string | null;
+  departamento: string | null;
+  es_critico: boolean;
+};
+
+export async function crearPuestoCatalogoTemporal(
+  params: PuestoTemporalParams
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const { error: authErr, supabase } = await requireAdmin();
+  if (authErr || !supabase) return { ok: false, error: authErr ?? "Sin permiso" };
+
+  const nombre = params.nombre.trim().toUpperCase();
+  if (!nombre) return { ok: false, error: "El nombre es obligatorio." };
+
+  // Generate TEMP-xxxxxxxx clave
+  const clave = "TEMP-" + Math.random().toString(36).slice(2, 10).toUpperCase();
+
+  const { data, error } = await supabase
+    .from("catalogo_puestos")
+    .insert({
+      clave,
+      nombre,
+      "organización":  params.organización?.trim() || null,
+      area:            params.area?.trim() || null,
+      departamento:    params.departamento?.trim() || null,
+      es_critico:      params.es_critico,
+      es_temporal:     true,
+      activo:          true,
+      propuesto:       false,
+      updated_at:      new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/configuracion/catalogo-puestos");
+  revalidatePath("/plan-carrera");
+  return { ok: true, id: (data as { id: string }).id };
+}

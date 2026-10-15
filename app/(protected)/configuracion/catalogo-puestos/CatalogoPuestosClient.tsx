@@ -20,7 +20,7 @@ const TIPO_COLORS: Record<string, string> = {
   Operativa:      "bg-orange-100 text-orange-800",
 };
 
-type FilterActivo = "" | "activo" | "inactivo" | "propuesto";
+type FilterActivo = "" | "activo" | "inactivo" | "propuesto" | "temporal";
 
 type Props = {
   puestos: PuestoCatalogo[];
@@ -150,9 +150,11 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
       const critico   = getField(p, "es_critico");
       const activo    = getField(p, "activo");
       const propuesto = getField(p, "propuesto");
-      if (filterActivo === "activo"    && (!activo || propuesto)) return false;
-      if (filterActivo === "inactivo"  && (activo || propuesto))  return false;
-      if (filterActivo === "propuesto" && !propuesto)             return false;
+      const esTemp = getField(p, "es_temporal");
+      if (filterActivo === "activo"    && (!activo || propuesto || esTemp)) return false;
+      if (filterActivo === "inactivo"  && (activo || propuesto))            return false;
+      if (filterActivo === "propuesto" && !propuesto)                       return false;
+      if (filterActivo === "temporal"  && !esTemp)                          return false;
       if (filterCritico === "si" && !critico) return false;
       if (filterCritico === "no" && critico)  return false;
       if (filterUen      && p.organización !== filterUen)                 return false;
@@ -175,6 +177,7 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
   const criticosCount   = filtered.filter((p) => getField(p, "es_critico")).length;
   const sinTitular      = filtered.filter((p) => p.titulares_count === 0).length;
   const propuestosCount = filtered.filter((p) => getField(p, "propuesto")).length;
+  const temporalesCount = puestos.filter((p) => getField(p, "es_temporal")).length;
   const sinDeptCount    = puestos.filter((p) => !getField(p, "departamento")).length;
 
   async function handleInferir() {
@@ -269,6 +272,19 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
         {propuestosCount > 0 && (
           <Chip label="Propuestos"     value={propuestosCount}   color="violet" />
         )}
+        {temporalesCount > 0 && (
+          <button
+            onClick={() => setFilterActivo((v) => v === "temporal" ? "activo" : "temporal")}
+            className={`border rounded-lg px-4 py-2.5 text-center transition-colors ${
+              filterActivo === "temporal"
+                ? "bg-amber-100 border-amber-400 text-amber-800"
+                : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+            }`}
+          >
+            <p className="text-xl font-bold">{temporalesCount}</p>
+            <p className="text-[10px] opacity-70 mt-0.5">Temporales {filterActivo === "temporal" ? "▲" : "▼"}</p>
+          </button>
+        )}
         {sinDeptCount > 0 && (
           <button
             onClick={() => setFilterSinDept((v) => !v)}
@@ -331,6 +347,7 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
             <option value="activo">Solo activos</option>
             <option value="inactivo">Solo inactivos</option>
             <option value="propuesto">Solo propuestos</option>
+            <option value="temporal">Solo temporales</option>
             <option value="">Todos</option>
           </select>
         </div>
@@ -374,10 +391,11 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
           const esCritico  = getField(p, "es_critico");
           const esActivo   = getField(p, "activo");
           const esPropuesto = getField(p, "propuesto");
+          const esTemporal = getField(p, "es_temporal");
           return (
             <div key={p.id}
               className={`bg-white rounded-xl border px-4 py-3 space-y-2 transition-opacity ${
-                esPropuesto ? "border-violet-200" : !esActivo ? "opacity-50 border-gray-100" : esCritico ? "border-red-200" : "border-gray-200"
+                esTemporal ? "border-amber-200" : esPropuesto ? "border-violet-200" : !esActivo ? "opacity-50 border-gray-100" : esCritico ? "border-red-200" : "border-gray-200"
               }`}
             >
               <div className="flex items-start gap-2">
@@ -387,6 +405,9 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
                     <p className="text-sm font-semibold text-gray-900 leading-snug">{p.nombre}</p>
                     {esPropuesto && (
                       <span className="text-[10px] font-semibold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">Propuesto</span>
+                    )}
+                    {esTemporal && (
+                      <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Temporal</span>
                     )}
                   </div>
                   <p className="text-[11px] font-mono text-gray-400 mt-0.5">{p.clave ?? "—"}</p>
@@ -482,8 +503,9 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
                 const esCritico   = getField(p, "es_critico");
                 const esActivo    = getField(p, "activo");
                 const esPropuesto = getField(p, "propuesto");
+                const esTemporal  = getField(p, "es_temporal");
                 return (
-                  <tr key={p.id} className={`hover:bg-gray-50/60 transition-colors ${esPropuesto ? "bg-violet-50/30" : !esActivo ? "opacity-50" : ""} ${esCritico && !esPropuesto ? "bg-red-50/20" : ""}`}>
+                  <tr key={p.id} className={`hover:bg-gray-50/60 transition-colors ${esTemporal ? "bg-amber-50/30" : esPropuesto ? "bg-violet-50/30" : !esActivo ? "opacity-50" : ""} ${esCritico && !esPropuesto && !esTemporal ? "bg-red-50/20" : ""}`}>
                     <td className="px-4 py-3 font-mono text-gray-500 whitespace-nowrap">{p.clave ?? <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -491,6 +513,9 @@ export default function CatalogoPuestosClient({ puestos, uens, segmentos, tipos,
                         <span className="leading-snug">{p.nombre}</span>
                         {esPropuesto && (
                           <span className="text-[9px] font-semibold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full whitespace-nowrap">Propuesto</span>
+                        )}
+                        {esTemporal && (
+                          <span className="text-[9px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full whitespace-nowrap">Temporal</span>
                         )}
                       </div>
                     </td>

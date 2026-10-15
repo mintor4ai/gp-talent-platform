@@ -16,6 +16,7 @@ export type PuestoCatalogo = {
   es_critico: boolean;
   activo: boolean;
   propuesto: boolean;
+  es_temporal: boolean;
   titulares_count: number;
   sucesion_count: number;
 };
@@ -89,7 +90,7 @@ export default async function CatalogoPuestosPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Catálogo de Puestos</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {puestos.length} puestos · {puestos.filter((p) => p.es_critico).length} críticos · {puestos.filter((p) => p.activo).length} activos · {puestos.filter((p) => p.propuesto).length} propuestos
+            {puestos.length} puestos · {puestos.filter((p) => p.es_critico).length} críticos · {puestos.filter((p) => p.activo).length} activos · {puestos.filter((p) => p.propuesto).length} propuestos · {puestos.filter((p) => p.es_temporal).length} temporales
           </p>
         </div>
         <a
