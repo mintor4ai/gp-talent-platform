@@ -119,6 +119,25 @@ export default async function SucesionPage() {
   // Raw matches array (typed)
   const rawMatches = (matchesRaw ?? []) as unknown as MatchRow[];
 
+  // Fill in names for titular_ids that belong to inactive colaboradores (baja)
+  {
+    const allTitularIds = new Set<string>();
+    for (const m of rawMatches) {
+      for (const id of (m.titular_ids as unknown as string[] | null) ?? []) {
+        if (!colabById.has(id)) allTitularIds.add(id);
+      }
+    }
+    if (allTitularIds.size > 0) {
+      const { data: inactiveRows } = await supabase
+        .from("colaboradores")
+        .select("id, nombre_completo")
+        .in("id", [...allTitularIds]);
+      for (const r of (inactiveRows ?? []) as Array<{ id: string; nombre_completo: string | null }>) {
+        if (r.nombre_completo) colabById.set(r.id, r.nombre_completo);
+      }
+    }
+  }
+
   // Map colaborador_id → plan estado (from plan_carrera)
   const planEstadoByColab = new Map<string, string>();
   for (const p of (planCarreraRaw.data ?? []) as Array<{ colaborador_id: string; estado: string }>) {
