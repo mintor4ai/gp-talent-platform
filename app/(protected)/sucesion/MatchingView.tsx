@@ -68,7 +68,7 @@ export type MatchRow = {
   created_at: string;
   // joined fields (populated server-side)
   colaborador_nombre?: string | null;
-  titular_nombres?: string[];
+  titular_nombres?: { nombre: string; baja: boolean }[];
   puesto_nombre?: string | null;
   puesto_org?: string | null;
   puesto_area?: string | null;
@@ -569,13 +569,22 @@ function MatchCard({
 }
 
 // ── TitularBadge ────────────────────────────────────────────────────────────
-function TitularBadge({ nombres, inTable = false }: { nombres: string[] | undefined; inTable?: boolean }) {
+function TitularBadge({ nombres, inTable = false }: { nombres: { nombre: string; baja: boolean }[] | undefined; inTable?: boolean }) {
   if (!nombres || nombres.length === 0) return <span className="text-gray-300">—</span>;
 
   if (nombres.length === 1) {
-    return <span className={inTable ? "text-gray-600" : "font-medium text-xs break-words"}>{nombres[0]}</span>;
+    const { nombre, baja } = nombres[0];
+    return (
+      <span className={`inline-flex items-center gap-1 ${inTable ? "text-gray-600" : "font-medium text-xs break-words"} ${baja ? "opacity-60" : ""}`}>
+        {nombre}
+        {baja && (
+          <span className="text-[9px] font-semibold bg-red-100 text-red-600 px-1 py-px rounded ml-0.5 whitespace-nowrap">Baja</span>
+        )}
+      </span>
+    );
   }
 
+  const anyBaja = nombres.some((t) => t.baja);
   return (
     <div className="relative group inline-block">
       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200 cursor-default select-none">
@@ -584,6 +593,7 @@ function TitularBadge({ nombres, inTable = false }: { nombres: string[] | undefi
           <path d="M12.5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm2 6.5s.5 0 .5-.5c0-.5-.3-3-3-3.5"/>
         </svg>
         {nombres.length} titulares
+        {anyBaja && <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" title="Uno o más titulares dados de baja" />}
       </span>
       {/* Tooltip */}
       <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 pointer-events-none">
@@ -592,8 +602,11 @@ function TitularBadge({ nombres, inTable = false }: { nombres: string[] | undefi
             {nombres.length} titulares
           </p>
           <ul className="space-y-1">
-            {nombres.map((n, i) => (
-              <li key={i} className="text-[11px] leading-snug text-gray-100">{n}</li>
+            {nombres.map((t, i) => (
+              <li key={i} className={`text-[11px] leading-snug flex items-center gap-1.5 ${t.baja ? "opacity-60" : "text-gray-100"}`}>
+                <span>{t.nombre}</span>
+                {t.baja && <span className="text-[9px] bg-red-800 text-red-200 px-1 py-px rounded">Baja</span>}
+              </li>
             ))}
           </ul>
         </div>
@@ -1030,7 +1043,7 @@ export default function MatchingView({
       const q = norm(search.trim());
       const nm = norm(m.colaborador_nombre ?? "").includes(q);
       const pm = norm(m.puesto_nombre ?? "").includes(q);
-      const tm = (m.titular_nombres ?? []).some((t) => norm(t).includes(q));
+      const tm = (m.titular_nombres ?? []).some((t) => norm(t.nombre).includes(q));
       if (!nm && !pm && !tm) return false;
     }
     return true;

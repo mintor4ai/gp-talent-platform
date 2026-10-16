@@ -120,6 +120,8 @@ export default async function SucesionPage() {
   const rawMatches = (matchesRaw ?? []) as unknown as MatchRow[];
 
   // Fill in names for titular_ids that belong to inactive colaboradores (baja)
+  // Track their IDs so we can mark them in the UI
+  const colabBajaIds = new Set<string>();
   {
     const allTitularIds = new Set<string>();
     for (const m of rawMatches) {
@@ -133,7 +135,10 @@ export default async function SucesionPage() {
         .select("id, nombre_completo")
         .in("id", [...allTitularIds]);
       for (const r of (inactiveRows ?? []) as Array<{ id: string; nombre_completo: string | null }>) {
-        if (r.nombre_completo) colabById.set(r.id, r.nombre_completo);
+        if (r.nombre_completo) {
+          colabById.set(r.id, r.nombre_completo);
+          colabBajaIds.add(r.id);
+        }
       }
     }
   }
@@ -273,7 +278,7 @@ export default async function SucesionPage() {
     return {
       ...m,
       colaborador_nombre: m.colaborador_id ? (colabById.get(m.colaborador_id) ?? null) : null,
-      titular_nombres: titularIds.map((id) => colabById.get(id) ?? id).filter(Boolean),
+      titular_nombres: titularIds.map((id) => ({ nombre: colabById.get(id) ?? id, baja: colabBajaIds.has(id) })).filter((t) => t.nombre),
       puesto_nombre: puesto?.nombre ?? null,
       puesto_org: puesto?.org || null,
       puesto_area: puesto?.area ?? null,
