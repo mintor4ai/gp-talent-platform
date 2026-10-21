@@ -230,8 +230,21 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
           <button
             onClick={() => exportPlanesCarrera(filtered, "planes_carrera.xlsx")}
             className="text-xs text-[#1a3a5c] border border-[#1a3a5c]/30 bg-white hover:bg-[#1a3a5c]/5 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"
+            title="Exporta los planes visibles con resumen (sin notas)"
           >
             ↓ Exportar Excel
+          </button>
+          <button
+            onClick={() => {
+              const a = document.createElement("a");
+              a.href = "/api/exportar/planes-carrera";
+              a.download = "planes_carrera_completo.xlsx";
+              a.click();
+            }}
+            className="text-xs text-[#1a3a5c] border border-[#1a3a5c]/30 bg-white hover:bg-[#1a3a5c]/5 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"
+            title="Exporta todos los planes con hilo de entradas completo"
+          >
+            ↓ Con notas
           </button>
         </div>
 

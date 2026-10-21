@@ -81,11 +81,16 @@ export default async function PlanCarreraPage({
 
   const colabInfo = {
     id: colab["id"] as string,
+    id_empleado: (colab["id_empleado"] as string | null) ?? null,
     nombre_completo: (colab["nombre_completo"] as string) ?? "",
     puesto: (colab["puesto"] as string) ?? "",
     nivel: (colab["nivel"] as string) ?? "",
     area: (colab["area"] as string) ?? "",
     organización: (colab["organización"] as string) ?? "",
+    departamento: (colab["departamento"] as string | null) ?? null,
+    segmento_organizacional: (colab["segmento_organizacional"] as string | null) ?? null,
+    razon_social: (colab["razon_social"] as string | null) ?? null,
+    fecha_antiguedad: (colab["fecha_antiguedad"] as string | null) ?? null,
   };
 
   if (!isAdmin) {

@@ -7,14 +7,20 @@ import { agregarObjetivo, actualizarPrioridadObjetivo, desactivarObjetivo, crear
 import { crearPuestoCatalogoTemporal } from "@/app/actions/catalogo-puestos";
 import type { PlanCarreraNota } from "@/app/actions/plan_carrera_notas";
 import { agregarNota, editarNota } from "@/app/actions/plan_carrera_notas";
+import { getFotoUrl } from "@/lib/foto-empleado";
 
 type ColabInfo = {
   id: string;
+  id_empleado: string | null;
   nombre_completo: string;
   puesto: string;
   nivel: string;
   area: string;
   organización: string;
+  departamento: string | null;
+  segmento_organizacional: string | null;
+  razon_social: string | null;
+  fecha_antiguedad: string | null;
 };
 
 type CatalogItem = {
@@ -39,6 +45,125 @@ function formatFecha(iso: string) {
     day: "numeric", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+// ── PDF export ────────────────────────────────────────────────────────────────
+
+const SECCIONES_LABELS: Record<string, string> = {
+  fortalezas:              "Fortalezas observadas y por consolidar",
+  areas_desarrollo:        "Áreas de desarrollo / comportamientos esperados",
+  logros_experiencias:     "Logros o experiencias observadas",
+  experiencias_requeridas: "Experiencias requeridas o sugeridas",
+  observaciones:           "Observaciones generales / Compromiso del Director de área",
+};
+
+function buildPdfHtml(colab: ColabInfo, plan: PlanCarreraFull, notas: PlanCarreraNota[], objetivos: PlanCarreraObjetivo[]): string {
+  const antiguedad = colab.fecha_antiguedad
+    ? Math.floor((Date.now() - new Date(colab.fecha_antiguedad).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+    : null;
+
+  const fotoUrl = getFotoUrl(colab.id_empleado);
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  const notasHtml = notas.map((n) => {
+    const secciones = (["fortalezas", "areas_desarrollo", "logros_experiencias", "experiencias_requeridas", "observaciones"] as const)
+      .filter((k) => n[k])
+      .map((k) => `
+        <div style="margin-bottom:12px">
+          <p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin:0 0 4px">${SECCIONES_LABELS[k]}</p>
+          <div style="font-size:11px;color:#1e293b;white-space:pre-wrap;line-height:1.6">${n[k]!.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</div>
+        </div>`).join("");
+
+    const tipo = n.tipo === "creacion" ? "Expediente creado" : n.tipo === "sesion" ? "Sesión documentada" : "Sistema";
+    const dot  = n.tipo === "creacion" ? "#94a3b8" : n.tipo === "sesion" ? "#22c55e" : "#e2e8f0";
+
+    return `
+      <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:14px;break-inside:avoid">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:9px;height:9px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+            <span style="font-size:11px;font-weight:600;color:#334155">${tipo}</span>
+            <span style="font-size:10px;color:#94a3b8">${fmtDate(n.created_at)}</span>
+          </div>
+          ${n.autor_nombre ? `<span style="font-size:10px;color:#64748b">${n.autor_nombre}</span>` : ""}
+        </div>
+        ${secciones || `<p style="font-size:11px;color:#94a3b8;font-style:italic">Sin contenido registrado</p>`}
+      </div>`;
+  }).join("");
+
+  const objetivosHtml = objetivos.length === 0 ? "" : `
+    <div style="margin-bottom:20px">
+      <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin:0 0 8px">Posiciones Objetivo</p>
+      ${objetivos.map((o, i) => `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:${i===0?"#eff6ff":"#f8fafc"};border:1px solid ${i===0?"#bfdbfe":"#e2e8f0"};border-radius:8px;margin-bottom:6px">
+          <span style="width:18px;height:18px;border-radius:50%;background:${i===0?"#1a3a5c":"#e2e8f0"};color:${i===0?"#fff":"#64748b"};font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</span>
+          <span style="font-size:11px;color:#1e293b;font-weight:500">${o.puesto_nombre ?? "—"}</span>
+          ${o.puesto_org ? `<span style="font-size:10px;color:#64748b">· ${o.puesto_org}</span>` : ""}
+          ${i===0?`<span style="font-size:9px;color:#2563eb;background:#dbeafe;padding:1px 6px;border-radius:99px;margin-left:auto">Principal</span>`:""}
+        </div>`).join("")}
+    </div>`;
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Expediente — ${colab.nombre_completo}</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; color: #1e293b; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @media print { .no-print { display: none !important; } }
+</style>
+</head>
+<body>
+<div class="no-print" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:10px 20px;display:flex;align-items:center;justify-content:space-between">
+  <span style="font-size:12px;color:#64748b">Vista previa del expediente — usa Ctrl+P / ⌘P para imprimir o guardar como PDF</span>
+  <button onclick="window.print()" style="background:#1a3a5c;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">Imprimir / Guardar PDF</button>
+</div>
+
+<div style="max-width:700px;margin:0 auto;padding:20px 0">
+
+  <!-- Header card -->
+  <div style="display:flex;align-items:flex-start;gap:16px;padding:20px;background:#1a3a5c;border-radius:12px;margin-bottom:20px;color:#fff">
+    ${fotoUrl ? `<img src="${fotoUrl}" style="width:70px;height:70px;border-radius:10px;object-fit:cover;object-position:top;flex-shrink:0;border:2px solid rgba(255,255,255,.2)" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+    <div style="display:none;width:70px;height:70px;border-radius:10px;background:rgba(255,255,255,.15);align-items:center;justify-content:center;flex-shrink:0;font-size:26px;font-weight:700;color:#fff">${colab.nombre_completo.charAt(0)}</div>` :
+    `<div style="width:70px;height:70px;border-radius:10px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:26px;font-weight:700;color:#fff">${colab.nombre_completo.charAt(0)}</div>`}
+    <div style="flex:1;min-width:0">
+      <p style="font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.5);margin:0 0 4px">Expediente de Talento</p>
+      <h1 style="font-size:18px;font-weight:700;margin:0 0 4px;line-height:1.2">${colab.nombre_completo}</h1>
+      <p style="font-size:12px;color:rgba(255,255,255,.75);margin:0 0 10px">${colab.puesto}${colab.nivel ? " · " + colab.nivel : ""}</p>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${[
+          ["UEN", colab.organización],
+          ["Área", colab.area],
+          ["Depto.", colab.departamento],
+          ["Segmento", colab.segmento_organizacional],
+          ["Razón Social", colab.razon_social],
+          ["Antigüedad", antiguedad !== null ? antiguedad + " año" + (antiguedad !== 1 ? "s" : "") : null],
+          ["Ciclo Plan", String(plan.ciclo_año)],
+          ["Estado Plan", plan.estado],
+        ].filter(([, v]) => v).map(([l, v]) => `<span style="font-size:9px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:99px;padding:2px 8px;color:rgba(255,255,255,.85)"><span style="color:rgba(255,255,255,.5)">${l}: </span>${v}</span>`).join("")}
+      </div>
+    </div>
+  </div>
+
+  ${objetivosHtml}
+
+  <!-- Hilo de entradas -->
+  <div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin:0">Hilo de entradas</p>
+      <span style="font-size:10px;color:#94a3b8">${notas.length} ${notas.length === 1 ? "entrada" : "entradas"}</span>
+    </div>
+    ${notasHtml || `<p style="font-size:12px;color:#94a3b8;text-align:center;padding:20px">Sin entradas registradas</p>`}
+  </div>
+
+  <p style="font-size:9px;color:#cbd5e1;text-align:right;margin-top:20px;border-top:1px solid #f1f5f9;padding-top:10px">Generado el ${new Date().toLocaleDateString("es-MX", { day:"numeric", month:"long", year:"numeric" })} · GP Talent Platform</p>
+</div>
+</body>
+</html>`;
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
@@ -114,6 +239,15 @@ export default function PlanCarreraView({
 
   function handleObjetivoAdded(objetivo: PlanCarreraObjetivo) {
     setPlan((prev) => prev ? { ...prev, objetivos: [...prev.objetivos, objetivo] } : prev);
+  }
+
+  function handleExportPdf() {
+    if (!plan) return;
+    const html = buildPdfHtml(colab, plan, notas, activeObjetivos);
+    const win = window.open("", "_blank");
+    if (!win) { showFlash("El navegador bloqueó la ventana emergente. Permite ventanas emergentes e inténtalo de nuevo.", false); return; }
+    win.document.write(html);
+    win.document.close();
   }
 
   // ── No plan ────────────────────────────────────────────────────────────────
@@ -218,6 +352,14 @@ export default function PlanCarreraView({
                     </span>
                   ))}
                 </div>
+              </div>
+              <div className="flex-shrink-0 md:pt-1">
+                <button
+                  onClick={handleExportPdf}
+                  className="text-xs bg-white/10 border border-white/20 text-white hover:bg-white/20 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5"
+                >
+                  <span>↓</span> Exportar PDF
+                </button>
               </div>
             </div>
           </div>
