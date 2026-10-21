@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { exportCobertura } from "@/lib/export-xlsx";
 import { SortableTh, useSortState } from "@/components/ui/SortableTh";
 import EmpleadoAvatar from "@/components/ui/EmpleadoAvatar";
 
@@ -499,6 +500,16 @@ export default function CoberturaView({
           <h2 className="text-xl font-bold text-gray-900">Cobertura por Puesto</h2>
           <p className="text-sm text-gray-500 mt-0.5">Visibilidad de planes de sucesión ligados al catálogo de puestos</p>
         </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => {
+              const cicloStr = cicloActual === "todos" ? "todos" : String(cicloActual);
+              exportCobertura(filtered, cicloActual, `cobertura_${cicloStr}.xlsx`);
+            }}
+            className="text-xs text-[#1a3a5c] border border-[#1a3a5c]/30 bg-white hover:bg-[#1a3a5c]/5 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"
+          >
+            ↓ Exportar Excel
+          </button>
         {ciclosDisponibles.length > 0 && (
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-gray-400 font-medium mr-1">Ciclo:</span>
@@ -518,6 +529,7 @@ export default function CoberturaView({
             </button>
           </div>
         )}
+        </div>
       </div>
 
       {/* Summary chips */}

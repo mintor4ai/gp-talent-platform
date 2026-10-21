@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo, useEffect } from "react";
+import { exportMatches } from "@/lib/export-xlsx";
 
 // ── Filter persistence ────────────────────────────────────────────────────────
 const FILTER_KEY = "matching-filters-v1";
@@ -1344,6 +1345,16 @@ export default function MatchingView({
                 ✕ Limpiar filtros
               </button>
             )}
+            <button
+              onClick={() => {
+                const all = [...gridMatches, ...(selectedEstado === "all" ? discardedFiltered : [])];
+                const cicloStr = selectedCiclo === "all" ? "todos" : String(selectedCiclo);
+                exportMatches(all, `matches_${cicloStr}.xlsx`);
+              }}
+              className="text-xs text-[#1a3a5c] border border-[#1a3a5c]/30 bg-white hover:bg-[#1a3a5c]/5 px-3 py-1 rounded-full transition-colors flex items-center gap-1"
+            >
+              ↓ Exportar Excel
+            </button>
           </div>
         );
       })()}

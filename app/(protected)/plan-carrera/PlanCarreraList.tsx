@@ -4,6 +4,7 @@ import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cambiarEstadoPlan, eliminarPlan } from "@/app/actions/plan_carrera";
+import { exportPlanesCarrera } from "@/lib/export-xlsx";
 
 type PlanRow = {
   id: string;
@@ -226,6 +227,12 @@ export default function PlanCarreraList({ planes }: { planes: PlanRow[] }) {
           <span className="text-xs text-gray-400 ml-auto">
             {filtered.length} {filtered.length === 1 ? "plan" : "planes"}
           </span>
+          <button
+            onClick={() => exportPlanesCarrera(filtered, "planes_carrera.xlsx")}
+            className="text-xs text-[#1a3a5c] border border-[#1a3a5c]/30 bg-white hover:bg-[#1a3a5c]/5 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"
+          >
+            ↓ Exportar Excel
+          </button>
         </div>
 
         {/* Empty state */}
