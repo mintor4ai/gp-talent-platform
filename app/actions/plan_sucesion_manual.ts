@@ -215,3 +215,40 @@ export async function reactivarPlanSucesion(
     return { ok: false, error: msg };
   }
 }
+
+export async function revertirValidacionPlanSucesion(
+  planId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { supabase } = await getAdminUser();
+
+    const { data: plan, error: fetchErr } = await supabase
+      .from("plan_sucesion")
+      .select("sucesor_id, puesto_catalogo_id, ciclo_año")
+      .eq("id", planId)
+      .single();
+    if (fetchErr || !plan) throw fetchErr ?? new Error("Plan no encontrado");
+
+    const { error: updErr } = await supabase
+      .from("plan_sucesion")
+      .update({ estado: "borrador" })
+      .eq("id", planId);
+    if (updErr) throw updErr;
+
+    const p = plan as any;
+    if (p.sucesor_id && p.puesto_catalogo_id) {
+      await supabase.from("sucesion_matches")
+        .update({ validado_ch: null, validado_por: null, fecha_validacion: null })
+        .eq("ciclo_año", p.ciclo_año)
+        .eq("colaborador_id", p.sucesor_id)
+        .eq("puesto_catalogo_id", p.puesto_catalogo_id)
+        .eq("validado_ch", true);
+    }
+
+    revalidatePath("/sucesion");
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : (err as any)?.message ?? String(err);
+    return { ok: false, error: msg };
+  }
+}

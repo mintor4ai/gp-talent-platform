@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { upsertSucesor, deleteSucesor, submitSucesion, toggleConfidencial } from "@/app/actions/sucesion";
-import { descartarPlanSucesion, reactivarPlanSucesion } from "@/app/actions/plan_sucesion_manual";
+import { descartarPlanSucesion, reactivarPlanSucesion, revertirValidacionPlanSucesion } from "@/app/actions/plan_sucesion_manual";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
 export type SucesionItem = {
@@ -265,6 +265,7 @@ function SucesorCard({
   onSubmitted,
   onDescartado,
   onReactivado,
+  onRevertido,
   onToggleConfidencial,
   isDeleting,
 }: {
@@ -278,6 +279,7 @@ function SucesorCard({
   onSubmitted: (item: SucesionItem) => void;
   onDescartado: (item: SucesionItem) => void;
   onReactivado: (item: SucesionItem) => void;
+  onRevertido: (item: SucesionItem) => void;
   onToggleConfidencial: (id: string, value: boolean) => void;
   isDeleting: boolean;
 }) {
@@ -289,6 +291,7 @@ function SucesorCard({
   const estado = ESTADO_CONFIG[item.estado] ?? ESTADO_CONFIG.borrador;
   const isBorrador = item.estado === "borrador";
   const isDescartado = item.estado === "descartado";
+  const isAprobado = item.estado === "aprobado";
   const canSend = isBorrador && !!(item.brechas && item.acciones_desarrollo);
 
   function handleSubmit() {
@@ -317,6 +320,15 @@ function SucesorCard({
       const res = await reactivarPlanSucesion(item.id);
       if (!res.ok) { setErr(res.error ?? "Error al reactivar"); return; }
       onReactivado({ ...item, estado: "borrador" });
+    });
+  }
+
+  function handleRevertir() {
+    if (!confirm("¿Revertir la validación? El plan volverá a Borrador y el match quedará sin validar.")) return;
+    startTransition(async () => {
+      const res = await revertirValidacionPlanSucesion(item.id);
+      if (!res.ok) { setErr(res.error ?? "Error al revertir"); return; }
+      onRevertido({ ...item, estado: "borrador" });
     });
   }
 
@@ -377,6 +389,15 @@ function SucesorCard({
             {canEdit && isSuperadmin && <span className="text-gray-200">|</span>}
             {canEdit && isBorrador && <button onClick={onEdit} className="text-xs text-gray-400 hover:text-[#1a3a5c] transition-colors">Editar</button>}
             {canEdit && isBorrador && <span className="text-gray-200">|</span>}
+            {canEdit && isAprobado && (
+              <>
+                <button onClick={handleRevertir} disabled={isPending}
+                  className="text-xs text-blue-500 hover:text-blue-700 disabled:opacity-40 transition-colors">
+                  {isPending ? "..." : "↩ Revertir"}
+                </button>
+                <span className="text-gray-200">|</span>
+              </>
+            )}
             {canEdit && !isDescartado && (
               <button onClick={() => { setShowDescartarForm(true); setErr(null); }} disabled={isPending}
                 className="text-xs text-orange-400 hover:text-orange-600 disabled:opacity-40 transition-colors">
@@ -531,6 +552,7 @@ export default function SucesionEditor({
   function handleSubmitted(item: SucesionItem) { setItems((p) => p.map((i) => i.id === item.id ? item : i)); flash("Plan enviado a revisión del jefe"); }
   function handleDescartado(item: SucesionItem) { setItems((p) => p.map((i) => i.id === item.id ? item : i)); flash("Plan descartado"); }
   function handleReactivado(item: SucesionItem) { setItems((p) => p.map((i) => i.id === item.id ? item : i)); flash("Plan reactivado"); }
+  function handleRevertido(item: SucesionItem) { setItems((p) => p.map((i) => i.id === item.id ? item : i)); flash("Validación revertida — plan regresó a Borrador"); }
 
   function handleToggleConfidencial(id: string, value: boolean) {
     setItems((p) => p.map((i) => i.id === id ? { ...i, confidencial: value } : i));
@@ -597,6 +619,7 @@ export default function SucesionEditor({
                 onSubmitted={handleSubmitted}
                 onDescartado={handleDescartado}
                 onReactivado={handleReactivado}
+                onRevertido={handleRevertido}
                 onToggleConfidencial={handleToggleConfidencial}
                 isDeleting={isPending}
               />
