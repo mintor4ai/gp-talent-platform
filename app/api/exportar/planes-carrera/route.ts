@@ -34,100 +34,130 @@ function autoWidth(ws: XLSX.WorkSheet, rows: Record<string, unknown>[]) {
 }
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
 
-  const { data: perfil } = await supabase.from("usuarios_app").select("rol").eq("id", user.id).single();
-  const rol = (perfil as any)?.rol ?? "";
-  if (rol !== "capital_humano" && rol !== "superadmin") {
-    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
-  }
+    const { data: perfil } = await supabase.from("usuarios_app").select("rol").eq("id", user.id).single();
+    const rol = (perfil as any)?.rol ?? "";
+    if (rol !== "capital_humano" && rol !== "superadmin") {
+      return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+    }
 
-  // ── Fetch plans with collaborator + objective info ─────────────────────────
+    // ── Fetch plans ──────────────────────────────────────────────────────────
 
-  const { data: planesRaw, error: plErr } = await supabase
-    .from("planes_carrera")
-    .select(`
-      id, colaborador_id, estado, ciclo_año, created_at,
-      colaboradores!inner(nombre_completo, puesto, organización),
-      planes_carrera_objetivos(id, puesto_nombre, puesto_org, activo, prioridad)
-    `)
-    .order("created_at", { ascending: false });
+    const { data: planes, error: plErr } = await supabase
+      .from("plan_carrera")
+      .select("id, colaborador_id, estado, ciclo_año, created_at")
+      .order("created_at", { ascending: false });
 
-  if (plErr) return NextResponse.json({ error: plErr.message }, { status: 500 });
+    if (plErr) throw plErr;
 
-  // ── Fetch all notas ────────────────────────────────────────────────────────
+    // ── Fetch collaborator names ─────────────────────────────────────────────
 
-  const { data: notasRaw, error: nErr } = await supabase
-    .from("planes_carrera_notas")
-    .select("*")
-    .order("created_at", { ascending: true });
+    const colaboradorIds = [...new Set((planes ?? []).map((p: any) => p.colaborador_id))];
+    const { data: colabs } = await supabase
+      .from("colaboradores")
+      .select("id, nombre_completo, puesto, organización")
+      .in("id", colaboradorIds.length > 0 ? colaboradorIds : ["__none__"]);
 
-  if (nErr) return NextResponse.json({ error: nErr.message }, { status: 500 });
+    const colabMap = Object.fromEntries((colabs ?? []).map((c: any) => [c.id, c]));
 
-  // ── Sheet 1: planes summary ────────────────────────────────────────────────
+    // ── Fetch objetivos ──────────────────────────────────────────────────────
 
-  const planesRows = (planesRaw ?? []).map((p: any) => {
-    const colab = p.colaboradores ?? {};
-    const objetivos = ((p.planes_carrera_objetivos ?? []) as any[])
-      .filter((o) => o.activo)
-      .sort((a: any, b: any) => a.prioridad - b.prioridad);
-    const principal = objetivos[0];
-    return {
-      "Plan ID":             p.id,
-      "Colaborador ID":      p.colaborador_id,
-      "Colaborador":         colab.nombre_completo ?? "",
-      "Puesto Actual":       colab.puesto ?? "",
-      "UEN / Organización":  colab.organización ?? "",
-      "Ciclo":               p.ciclo_año,
-      "Estado":              ESTADO_LABEL[p.estado] ?? p.estado,
-      "Objetivo Principal":  principal?.puesto_nombre ?? "",
-      "Org Objetivo":        principal?.puesto_org ?? "",
-      "# Objetivos":         objetivos.length,
-      "# Sesiones":          (notasRaw ?? []).filter((n: any) => n.plan_id === p.id && n.tipo === "sesion").length,
-      "Creado el":           fmtDate(p.created_at),
-    };
-  });
+    const planIds = (planes ?? []).map((p: any) => p.id);
+    const { data: objetivos } = await supabase
+      .from("plan_carrera_objetivos")
+      .select("id, plan_id, puesto_nombre, puesto_org, activo, prioridad")
+      .in("plan_id", planIds.length > 0 ? planIds : ["__none__"])
+      .eq("activo", true)
+      .order("prioridad");
 
-  // ── Sheet 2: notas / hilo de entradas ─────────────────────────────────────
+    const objetivosByPlan: Record<string, any[]> = {};
+    for (const o of (objetivos ?? [])) {
+      const pid = (o as any).plan_id;
+      if (!objetivosByPlan[pid]) objetivosByPlan[pid] = [];
+      objetivosByPlan[pid].push(o);
+    }
 
-  const notasRows = (notasRaw ?? []).map((n: any) => ({
-    "Nota ID":                  n.id,
-    "Plan ID":                  n.plan_id,
-    "Tipo":                     TIPO_LABEL[n.tipo] ?? n.tipo,
-    "Autor":                    n.autor_nombre ?? "",
-    "Fortalezas":               n.fortalezas ?? "",
-    "Áreas de Desarrollo":      n.areas_desarrollo ?? "",
-    "Logros / Experiencias":    n.logros_experiencias ?? "",
-    "Experiencias Requeridas":  n.experiencias_requeridas ?? "",
-    "Observaciones":            n.observaciones ?? "",
-    "Editado el":               fmtDate(n.editado_en),
-    "Editado por":              n.editado_por_nombre ?? "",
-    "Creado el":                fmtDate(n.created_at),
-  }));
+    // ── Fetch all notas ──────────────────────────────────────────────────────
 
-  const wb = XLSX.utils.book_new();
+    const { data: notas, error: nErr } = await supabase
+      .from("plan_carrera_notas")
+      .select("*")
+      .order("created_at", { ascending: true });
 
-  if (planesRows.length > 0) {
-    const ws1 = XLSX.utils.json_to_sheet(planesRows);
-    autoWidth(ws1, planesRows);
+    if (nErr) throw nErr;
+
+    const notasByPlan: Record<string, any[]> = {};
+    for (const n of (notas ?? [])) {
+      const pid = (n as any).plan_id;
+      if (!notasByPlan[pid]) notasByPlan[pid] = [];
+      notasByPlan[pid].push(n);
+    }
+
+    // ── Sheet 1: planes summary ──────────────────────────────────────────────
+
+    const planesRows = (planes ?? []).map((p: any) => {
+      const colab = colabMap[p.colaborador_id] ?? {};
+      const objs = objetivosByPlan[p.id] ?? [];
+      const principal = objs[0];
+      const sesionesCount = (notasByPlan[p.id] ?? []).filter((n: any) => n.tipo === "sesion").length;
+      return {
+        "Plan ID":             p.id,
+        "Colaborador ID":      p.colaborador_id,
+        "Colaborador":         colab.nombre_completo ?? "",
+        "Puesto Actual":       colab.puesto ?? "",
+        "UEN / Organización":  colab.organización ?? "",
+        "Ciclo":               p.ciclo_año,
+        "Estado":              ESTADO_LABEL[p.estado] ?? p.estado,
+        "Objetivo Principal":  principal?.puesto_nombre ?? "",
+        "Org Objetivo":        principal?.puesto_org ?? "",
+        "# Objetivos":         objs.length,
+        "# Sesiones":          sesionesCount,
+        "Creado el":           fmtDate(p.created_at),
+      };
+    });
+
+    // ── Sheet 2: notas / hilo de entradas ────────────────────────────────────
+
+    const notasRows = (notas ?? []).map((n: any) => ({
+      "Nota ID":                  n.id,
+      "Plan ID":                  n.plan_id,
+      "Tipo":                     TIPO_LABEL[n.tipo] ?? n.tipo,
+      "Autor":                    n.autor_nombre ?? "",
+      "Fortalezas":               n.fortalezas ?? "",
+      "Áreas de Desarrollo":      n.areas_desarrollo ?? "",
+      "Logros / Experiencias":    n.logros_experiencias ?? "",
+      "Experiencias Requeridas":  n.experiencias_requeridas ?? "",
+      "Observaciones":            n.observaciones ?? "",
+      "Editado el":               fmtDate(n.editado_en),
+      "Editado por":              n.editado_por_nombre ?? "",
+      "Creado el":                fmtDate(n.created_at),
+    }));
+
+    const wb = XLSX.utils.book_new();
+
+    const ws1 = XLSX.utils.json_to_sheet(planesRows.length > 0 ? planesRows : [{ "Sin datos": "" }]);
+    if (planesRows.length > 0) autoWidth(ws1, planesRows);
     XLSX.utils.book_append_sheet(wb, ws1, "Planes de Carrera");
-  }
 
-  if (notasRows.length > 0) {
-    const ws2 = XLSX.utils.json_to_sheet(notasRows);
-    autoWidth(ws2, notasRows);
+    const ws2 = XLSX.utils.json_to_sheet(notasRows.length > 0 ? notasRows : [{ "Sin datos": "" }]);
+    if (notasRows.length > 0) autoWidth(ws2, notasRows);
     XLSX.utils.book_append_sheet(wb, ws2, "Hilo de Entradas");
+
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    return new NextResponse(buf, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="planes_carrera_completo.xlsx"`,
+      },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-
-  return new NextResponse(buf, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="planes_carrera_completo.xlsx"`,
-    },
-  });
 }
