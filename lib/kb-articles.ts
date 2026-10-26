@@ -7,7 +7,8 @@ export type KbArticle = {
   category: string;
   title: string;
   content: string; // plain text / light markdown
-  updatedAt: string; // ISO date string, for display
+  publishedAt: string; // ISO datetime string, e.g. "2026-10-26T14:30:00"
+  modules: string[];   // platform modules this article applies to
 };
 
 export const KB_ARTICLES: KbArticle[] = [
@@ -16,7 +17,8 @@ export const KB_ARTICLES: KbArticle[] = [
     id: "exports-overview",
     category: "Exportaciones",
     title: "Archivos que genera la plataforma",
-    updatedAt: "2026-10-26",
+    publishedAt: "2026-10-26T14:30:00",
+    modules: ["Motor de Matching", "Cobertura", "Planes de Carrera", "Expediente Individual"],
     content: `La plataforma genera 4 archivos Excel y 1 PDF por colaborador. Todos los archivos incluyen IDs (UUID) para poder cruzarlos entre sí en Excel, Power BI o con un LLM.
 
 ─── ARCHIVOS EXCEL ───────────────────────────────────
@@ -104,7 +106,8 @@ export const KB_ARTICLES: KbArticle[] = [
     id: "exports-crossref",
     category: "Exportaciones",
     title: "Cómo cruzar los archivos entre sí",
-    updatedAt: "2026-10-26",
+    publishedAt: "2026-10-26T14:30:00",
+    modules: ["Motor de Matching", "Cobertura", "Planes de Carrera"],
     content: `Todos los archivos comparten IDs (UUID) que permiten unirlos en Excel (BUSCARV / XLOOKUP), Power Query, Power BI, o pasárselos a un LLM junto con los datos.
 
 RELACIONES CLAVE
@@ -141,7 +144,8 @@ EJEMPLO CON POWER BI / EXCEL
     id: "matching-estados",
     category: "Motor de Matching",
     title: "Estados de un match y flujo de validación",
-    updatedAt: "2026-10-26",
+    publishedAt: "2026-10-26T14:30:00",
+    modules: ["Motor de Matching", "Carpeta Individual → Sucesión"],
     content: `Un match puede estar en uno de estos estados:
 
 • Pendiente — generado por el motor, sin revisión de CH
@@ -169,7 +173,8 @@ READINESS (tiempo estimado del sucesor)
     id: "expediente-secciones",
     category: "Expedientes de Talento",
     title: "Secciones del hilo de entradas",
-    updatedAt: "2026-10-26",
+    publishedAt: "2026-10-26T14:30:00",
+    modules: ["Planes de Carrera", "Expediente Individual"],
     content: `Cada sesión documentada en un expediente tiene 5 secciones de contenido libre:
 
 1. Fortalezas observadas y por consolidar

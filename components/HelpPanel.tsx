@@ -161,18 +161,53 @@ function ArticleButton({ article, active, onClick }: { article: KbArticle; activ
   );
 }
 
+function fmtPublished(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("es-MX", {
+      day: "numeric", month: "long", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+  } catch { return iso; }
+}
+
 function ArticleView({ article }: { article: KbArticle }) {
   return (
     <div className="p-6">
+      {/* Category + title */}
       <div className="mb-4">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-[#1a3a5c]/60 bg-[#1a3a5c]/8 px-2 py-0.5 rounded-full">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-[#1a3a5c]/70 bg-[#1a3a5c]/8 px-2 py-0.5 rounded-full">
           {article.category}
         </span>
         <h3 className="text-base font-bold text-gray-900 mt-2 leading-snug">{article.title}</h3>
-        <p className="text-[10px] text-gray-400 mt-1">Actualizado: {article.updatedAt}</p>
       </div>
+
+      {/* Meta: published + modules */}
+      <div className="flex flex-col gap-2 mb-5 pb-4 border-b border-gray-100">
+        <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+          <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span>Publicado: <span className="text-gray-600 font-medium">{fmtPublished(article.publishedAt)}</span></span>
+        </div>
+        {article.modules.length > 0 && (
+          <div className="flex items-start gap-1.5">
+            <svg className="w-3 h-3 flex-shrink-0 text-gray-400 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
+            <div className="flex flex-wrap gap-1">
+              {article.modules.map((m) => (
+                <span key={m} className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200">
+                  {m}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
       <div
-        className="text-[12px] text-gray-700 leading-relaxed font-mono whitespace-pre-wrap"
+        className="text-[12px] text-gray-700 leading-relaxed whitespace-pre-wrap"
         style={{ fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace" }}
       >
         {article.content}
