@@ -383,6 +383,238 @@ FILTROS DISPONIBLES
 • Búsqueda por nombre de puesto`,
   },
 
+  // ── Carpeta Individual ─────────────────────────────────────────────────────
+  {
+    id: "carpeta-overview",
+    category: "Carpeta Individual",
+    title: "¿Qué es la Carpeta Individual?",
+    publishedAt: "2026-10-26T15:30:00",
+    modules: ["Carpeta Individual", "Colaboradores", "Mi Equipo"],
+    content: `La Carpeta Individual es el expediente completo de un colaborador dentro de la plataforma. Concentra en un solo lugar toda la información de desempeño, potencial, formación, carrera y sucesión.
+
+QUIÉN PUEDE VERLA
+─────────────────────────────────────────────────
+• Capital Humano / Superadmin — puede ver y editar la carpeta de cualquier colaborador
+• Jefe inmediato — puede ver y editar las carpetas de su equipo directo
+  (acceso desde "Mi Equipo")
+• Colaborador — puede ver únicamente su propia carpeta ("Mi Carpeta")
+  en modo lectura para la mayoría de secciones
+
+CÓMO NAVEGAR
+─────────────────────────────────────────────────
+La carpeta tiene 4 pestañas principales:
+
+1. Perfil
+   Datos personales y laborales, formación académica, historial de
+   carrera interno y externo, cursos y certifications.
+   Fuente: sistema HR (importación HRCorp / SAP) + captura manual.
+
+2. Evaluación
+   Resultados del EIP (Evaluación Integral de Potencial) por ciclo.
+   Desempeño, potencial, desglose de componentes, zona 9-box.
+   (Ver artículo "EIP — cómo se calcula")
+
+3. PICD
+   Plan Individual de Capacitación y Desarrollo del ciclo.
+   Acciones comprometidas, avance, entrevistas de seguimiento y
+   comentarios del jefe.
+
+4. Sucesión
+   Planes de sucesión donde el colaborador participa:
+   - Como sucesor de un puesto (planes donde él es el candidato)
+   - Como candidato informado (si CH decidió notificarle)
+   CH puede crear, editar y descartar planes desde esta pestaña.
+
+DATOS QUE TOMA DE OTRAS FUENTES
+─────────────────────────────────────────────────
+• HRCorp / SAP → datos del colaborador (puesto, UEN, antigüedad,
+  jefe, etc.) — se importan periódicamente; el historial de cambios
+  queda en "Historial HRCorp"
+• Evaluaciones → tablas evaluacion_integral_personal, evaluacion_desempeno_anual,
+  evaluacion_competencias_360, evaluacion_anual_liderazgo
+• PICD → tablas picd, picd_acciones, picd_entrevistas, picd_comentarios
+• Formación → formacion_academica, cursos_formacion, experiencia_externa
+• Sucesión → plan_sucesion, sucesion_matches`,
+  },
+
+  {
+    id: "carpeta-eip",
+    category: "Carpeta Individual",
+    title: "EIP — cómo se calcula el puntaje de potencial",
+    publishedAt: "2026-10-26T15:30:00",
+    modules: ["Carpeta Individual", "Evaluaciones"],
+    content: `El EIP (Evaluación Integral de Potencial) es el puntaje que resume el nivel de potencial de un colaborador en un ciclo dado. Se compone de dos dimensiones — Desempeño y Potencial — y juntas determinan su posición en la Matriz 9-Box.
+
+═══════════════════════════════════════════════
+DIMENSIÓN 1: DESEMPEÑO  (eje X de la matriz)
+═══════════════════════════════════════════════
+Fuente: Evaluación de Desempeño Anual (tabla evaluacion_desempeno_anual)
+
+Se calcula a partir de 6 sub-competencias:
+  • Planea
+  • Ejecuta
+  • Optimiza
+  • Trabaja en Equipo
+  • Atiende al Cliente
+  • Informa
+
+El campo resultado_logra es el promedio ponderado de las 6.
+Escala: 0 – 120 (100 = cumple al 100%)
+
+═══════════════════════════════════════════════
+DIMENSIÓN 2: POTENCIAL  (eje Y de la matriz)
+═══════════════════════════════════════════════
+Fuente: tabla evaluacion_integral_personal
+
+El potencial es un puntaje compuesto de hasta 6 componentes.
+Cada componente tiene un PESO configurado por ciclo y por banda
+(calif_ponderada) en la tabla eip_ponderaciones.
+
+┌─────────────────────────────┬────────────┬──────────────────────────────────┐
+│ Componente                  │ Campo EIP  │ Fuente de datos                  │
+├─────────────────────────────┼────────────┼──────────────────────────────────┤
+│ Experiencia                 │ ev_exp     │ Años totales + movilidad entre   │
+│                             │            │ puestos (num_puestos, movilidad) │
+├─────────────────────────────┼────────────┼──────────────────────────────────┤
+│ Nivel Académico             │ ev_form_acad│ Grado máximo de estudios        │
+│                             │            │ (formacion_academica)            │
+├─────────────────────────────┼────────────┼──────────────────────────────────┤
+│ Cursos y Certificaciones    │ ev_cursos  │ Horas acumuladas en              │
+│                             │            │ cursos_formacion                 │
+├─────────────────────────────┼────────────┼──────────────────────────────────┤
+│ Competencias 360°           │ ev_comp    │ Promedio de evaluacion_          │
+│                             │            │ competencias_360 + percentil     │
+├─────────────────────────────┼────────────┼──────────────────────────────────┤
+│ Evaluación Anual Liderazgo  │ ev_eal     │ Solo aparece si tuvo_eal = true  │
+│ (EAL)                       │            │ Fuente: evaluacion_anual_        │
+│                             │            │ liderazgo                        │
+├─────────────────────────────┼────────────┼──────────────────────────────────┤
+│ Cumplimiento PICD           │ ev_picd    │ Solo si entrego_picd = true      │
+│                             │            │ Fuente: picd.porcentaje_         │
+│                             │            │ cumplimiento                     │
+└─────────────────────────────┴────────────┴──────────────────────────────────┘
+
+FÓRMULA GENERAL
+─────────────────────────────────────────────────
+  Potencial = (ev_exp × w_exp)
+            + (ev_form_acad × w_form_acad)
+            + (ev_cursos × w_cursos)
+            + (ev_comp × w_comp)
+            + (ev_eal × w_eal)        ← si aplica
+            + (ev_picd × w_picd)      ← si aplica
+
+Los pesos (w_*) suman 100% y se configuran por ciclo y por
+calif_ponderada (banda de calificación) en la tabla eip_ponderaciones.
+
+NOTA: Si el colaborador no tuvo EAL (tuvo_eal = false), ese
+componente no entra en la fórmula y su peso se redistribuye.
+Lo mismo aplica para PICD (entrego_picd = false).
+
+Escala final: 0 – 100`,
+  },
+
+  {
+    id: "carpeta-9box",
+    category: "Carpeta Individual",
+    title: "Matriz 9-Box — zonas y cómo ubicarse",
+    publishedAt: "2026-10-26T15:30:00",
+    modules: ["Carpeta Individual", "Evaluaciones"],
+    content: `La Matriz 9-Box es la herramienta visual que combina Desempeño (eje X)
+y Potencial (eje Y) para clasificar a cada colaborador en una de las
+9 celdas y asignarle una ZONA de desarrollo.
+
+ZONAS (de menor a mayor)
+─────────────────────────────────────────────────
+  Inicio         → colaborador en etapa temprana / resultados bajos
+  Revisión       → por debajo de lo esperado, requiere acompañamiento
+  Estabilidad    → cumple expectativas de forma consistente
+  Desarrollo     → por encima del promedio, con potencial claro
+  Sobresaliente  → alto desempeño + alto potencial, talento clave
+
+Las zonas Desarrollo y Sobresaliente alimentan automáticamente la
+lista de Talento Clave de la organización.
+
+UMBRALES CONFIGURABLES
+─────────────────────────────────────────────────
+Los rangos de cada zona (umbral inferior y superior) se configuran
+por ciclo en la tabla config_zonas_eip y se administran desde la
+sección de Configuración de la plataforma.
+
+Esto permite que los umbrales de un ciclo se ajusten sin afectar
+los históricos de ciclos anteriores.
+
+CÓMO LEER LA CARPETA
+─────────────────────────────────────────────────
+En la pestaña Evaluación de la Carpeta Individual:
+
+• El punto en la matriz muestra la posición del colaborador
+• El chip de zona (ej. "Desarrollo") resume su categoría
+• El desglose de Potencial muestra cuánto aporta cada componente
+  y su peso (%) en el puntaje total
+• El desglose de Desempeño muestra las 6 sub-competencias
+
+SE USA EN SUCESIÓN ASÍ:
+─────────────────────────────────────────────────
+Al crear un match en el Motor de Matching, el sistema adjunta el
+último EIP disponible del colaborador (ciclo, puntaje de potencial
+total y zona) para que CH pueda tomar decisiones informadas.`,
+  },
+
+  {
+    id: "carpeta-picd",
+    category: "Carpeta Individual",
+    title: "PICD — Plan Individual de Capacitación y Desarrollo",
+    publishedAt: "2026-10-26T15:30:00",
+    modules: ["Carpeta Individual", "PICD"],
+    content: `El PICD (Plan Individual de Capacitación y Desarrollo) es el compromiso
+formal entre el colaborador y su jefe directo para el ciclo en curso.
+Define acciones de desarrollo concretas y se evalúa al cierre del ciclo.
+
+CÓMO FUNCIONA
+─────────────────────────────────────────────────
+1. El colaborador (o su jefe / CH) registra acciones de desarrollo:
+   cursos, proyectos, mentorías, certificaciones, etc.
+
+2. Cada acción tiene:
+   • Tipo de acción
+   • Descripción
+   • Institución / plataforma
+   • Fecha compromiso
+   • Horas de capacitación
+   • Avance (% etapa 1 y etapa 2)
+   • Objetivo logrado (texto libre)
+
+3. El jefe documenta entrevistas de seguimiento:
+   Fechas, participantes y notas de cada conversación.
+   Los comentarios del hilo son visibles para ambas partes.
+
+4. Al cerrar el ciclo, el jefe registra el % de cumplimiento
+   global del PICD.
+
+ESTADOS DEL CICLO PICD
+─────────────────────────────────────────────────
+  Abierto   → el colaborador y el jefe pueden editarlo
+  Cerrado   → el jefe cerró el ciclo (ya no se edita)
+  Aprobado  → CH aprobó el cierre
+  Rechazado → CH pidió correcciones antes de aprobar
+  Reabierto → CH volvió a abrir el ciclo para ajustes
+
+RELACIÓN CON EL EIP
+─────────────────────────────────────────────────
+El cumplimiento del PICD alimenta directamente el componente
+"Cumplimiento PICD" (ev_picd) del puntaje de Potencial.
+
+Si el colaborador no entregó PICD (entrego_picd = false), ese
+componente se excluye del cálculo de potencial para ese ciclo.
+
+POSICIONES FUTURAS
+─────────────────────────────────────────────────
+El PICD también registra hasta 2 posiciones futuras a las que
+el colaborador aspira (puesto_futuro_opcion1 / opcion2).
+Estas aspiraciones alimentan el Motor de Matching con señales
+de tipo "Aspiración".`,
+  },
+
   // ── Expedientes de talento ─────────────────────────────────────────────────
   {
     id: "expediente-secciones",
@@ -422,6 +654,7 @@ export const KB_CATEGORIES = [
   "Motor de Matching",
   "Planes de Sucesión",
   "Cobertura por Puesto",
+  "Carpeta Individual",
   "Expedientes de Talento",
   "Exportaciones",
 ];
