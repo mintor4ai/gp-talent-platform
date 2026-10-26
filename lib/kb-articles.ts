@@ -141,6 +141,59 @@ EJEMPLO CON POWER BI / EXCEL
 
   // ── Motor de Matching ──────────────────────────────────────────────────────
   {
+    id: "matching-overview",
+    category: "Motor de Matching",
+    title: "¿Qué es el Motor de Matching?",
+    publishedAt: "2026-10-26T15:00:00",
+    modules: ["Motor de Matching"],
+    content: `El Motor de Matching es el núcleo del proceso de sucesión. Identifica y registra las posibles relaciones entre colaboradores y puestos del catálogo, ya sea de forma automática o manual.
+
+CÓMO SE GENERAN LOS MATCHES
+─────────────────────────────────────────────────
+El motor combina tres fuentes de señal:
+
+1. Aspiración del colaborador
+   El propio colaborador indica en su perfil a qué puesto aspira.
+   → genera un match de tipo "Aspiración"
+
+2. Propuesta del director o CH
+   Un director o Capital Humano propone a un colaborador como sucesor
+   de un puesto específico.
+   → genera un match de tipo "Propuesta"
+
+3. Cruce bidireccional automático
+   Cuando un colaborador aspira a un puesto Y alguien lo propone para
+   ese mismo puesto, el motor fusiona ambas señales.
+   → genera un match de tipo "Bidireccional" (la señal más fuerte)
+
+4. Gap Crítico
+   Un puesto marcado como crítico no tiene sucesores activos.
+   El motor registra automáticamente este riesgo como match de tipo
+   "Gap Crítico". Se auto-descarta cuando alguien es validado para
+   ese puesto.
+
+5. Manual
+   CH crea el plan de sucesión directamente desde la Carpeta
+   Individual del colaborador, sin pasar por propuesta previa.
+   → genera un match de tipo "Manual"
+
+CICLOS
+─────────────────────────────────────────────────
+Cada match pertenece a un ciclo (año). Los ciclos permiten comparar
+la evolución de la cobertura de sucesión año con año.
+La vista puede filtrarse por ciclo o mostrar todos.
+
+FILTROS DISPONIBLES
+─────────────────────────────────────────────────
+• Ciclo (año)
+• UEN / Organización
+• Tipo de match
+• Estado: Pendiente | Validado | Descartado
+• Texto libre (nombre, puesto)
+• Solo puestos críticos`,
+  },
+
+  {
     id: "matching-estados",
     category: "Motor de Matching",
     title: "Estados de un match y flujo de validación",
@@ -166,6 +219,168 @@ READINESS (tiempo estimado del sucesor)
   • Inmediato (listo_ahora) — puede tomar el puesto hoy
   • Mediano Plazo (uno_dos_anios) — en 1-2 años
   • Largo Plazo (tres_mas_anios) — en 3 o más años`,
+  },
+
+  // ── Planes de Sucesión ─────────────────────────────────────────────────────
+  {
+    id: "plan-sucesion-overview",
+    category: "Planes de Sucesión",
+    title: "¿Qué es un Plan de Sucesión?",
+    publishedAt: "2026-10-26T15:00:00",
+    modules: ["Carpeta Individual → Sucesión", "Motor de Matching"],
+    content: `Un Plan de Sucesión es el registro formal de que un colaborador específico
+está siendo preparado para ocupar un puesto específico, en un ciclo determinado.
+
+Se distingue del match en que el match es la señal (aspiración o propuesta),
+mientras que el plan es el compromiso formal documentado y firmado.
+
+CUÁNDO SE CREA UN PLAN
+─────────────────────────────────────────────────
+Un plan se crea de dos formas:
+
+1. Automáticamente al validar un match en el Motor de Matching
+   CH aprueba el match → el plan queda en estado "Aprobado" de inmediato.
+
+2. Manualmente desde la Carpeta Individual del colaborador
+   CH ingresa a la Carpeta → pestaña Sucesión → "Agregar plan"
+   Elige el puesto del catálogo y el ciclo.
+   El plan inicia en "Borrador" y puede validarse después.
+
+ESTRUCTURA DE UN PLAN
+─────────────────────────────────────────────────
+• Colaborador (sucesor)
+• Puesto objetivo (del catálogo)
+• Titular al que reemplazaría
+• Ciclo (año)
+• Readiness: Inmediato | Mediano Plazo | Largo Plazo
+• Tiempo estimado (texto libre complementario)
+• Estado (ver artículo de estados)
+• Notas internas de CH`,
+  },
+
+  {
+    id: "plan-sucesion-estados",
+    category: "Planes de Sucesión",
+    title: "Estados y flujo de aprobación",
+    publishedAt: "2026-10-26T15:00:00",
+    modules: ["Carpeta Individual → Sucesión", "Motor de Matching"],
+    content: `ESTADOS DE UN PLAN DE SUCESIÓN
+─────────────────────────────────────────────────
+
+• Borrador
+  El plan fue creado manualmente. Aún no ha sido revisado ni aprobado.
+  CH puede editarlo libremente.
+
+• Aprobado
+  Capital Humano validó el match o aprobó el plan directamente.
+  Este estado vincula el plan con el expediente de talento (Plan de
+  Carrera) del colaborador.
+  → El match correspondiente queda marcado como validado_ch = true.
+
+• Descartado
+  CH descartó el plan. Requiere un motivo escrito.
+  El match correspondiente queda marcado como descartado = true.
+  Un plan descartado puede reactivarse (vuelve a Borrador).
+
+• Revertido (acción, no estado final)
+  CH deshace una validación previa desde la Carpeta Individual.
+  El plan regresa a Borrador y el campo validado_ch del match
+  se limpia (queda nulo = Pendiente).
+
+FLUJO NORMAL
+─────────────────────────────────────────────────
+
+  Motor detecta señal
+        ↓
+  Match generado (Pendiente)
+        ↓
+  CH revisa en Motor de Matching
+        ↓
+  ┌─── Valida ──────────────────→ Aprobado → Expediente de Talento
+  └─── Descarta (con motivo) ──→ Descartado
+
+FLUJO MANUAL (sin match previo)
+─────────────────────────────────────────────────
+
+  CH abre Carpeta Individual → Sucesión
+        ↓
+  "Agregar plan" → elige puesto + ciclo
+        ↓
+  Plan en Borrador
+        ↓
+  CH valida → Aprobado → Expediente de Talento
+
+CÓMO REVERTIR UNA VALIDACIÓN
+─────────────────────────────────────────────────
+  Carpeta Individual → pestaña Sucesión
+  → fila con estado "Aprobado"
+  → botón "↩ Revertir"
+
+  Esto hace dos cosas simultáneamente:
+  1. Regresa el plan a estado Borrador
+  2. Limpia validado_ch / validado_por / fecha_validacion en el match`,
+  },
+
+  {
+    id: "cobertura-overview",
+    category: "Cobertura por Puesto",
+    title: "Vista de Cobertura — qué muestra y cómo leerla",
+    publishedAt: "2026-10-26T15:00:00",
+    modules: ["Cobertura"],
+    content: `La vista de Cobertura muestra el estado de sucesión de cada puesto del
+catálogo: quién lo ocupa hoy, quién podría ocuparlo mañana, y qué tan
+expuesta está la organización si ese puesto queda vacante.
+
+QUÉ MUESTRA CADA TARJETA DE PUESTO
+─────────────────────────────────────────────────
+
+• Titulares — quién ocupa el puesto actualmente
+  (puede estar vacante si no hay titular asignado)
+
+• Aspirantes — colaboradores que aspiran a ese puesto
+  (señal de interés, sin validar)
+
+• Matches validados — colaboradores que CH ya validó como sucesores,
+  con su readiness indicado
+
+• Sucesores formales — colaboradores con Plan de Sucesión aprobado
+  para ese puesto (el nivel más formal)
+
+NIVELES DE RIESGO DE COBERTURA
+─────────────────────────────────────────────────
+
+🔴 Sin sucesor
+   El puesto tiene titular pero ningún sucesor validado ni plan activo.
+   Riesgo alto: si el titular sale, no hay reemplazo identificado.
+
+🟡 3+ años
+   Hay sucesores, pero todos con readiness de Largo Plazo (3+ años).
+   Riesgo medio: hay continuidad, pero requiere tiempo de preparación.
+
+🟢 Con sucesor
+   Al menos un sucesor tiene readiness Inmediato o Mediano Plazo.
+   Cobertura adecuada.
+
+⚪ Vacante
+   El puesto no tiene titular ni sucesor. Puede ser un puesto nuevo o
+   que aún no se ha cubierto.
+
+PUESTOS CRÍTICOS
+─────────────────────────────────────────────────
+Los puestos marcados como "Crítico" en el catálogo reciben tratamiento
+especial:
+• Se resaltan visualmente en la cobertura
+• Si quedan sin sucesor, el motor genera automáticamente un match de
+  tipo "Gap Crítico" como alerta
+• En el Excel de cobertura aparecen en la columna "Es Crítico: Sí"
+
+FILTROS DISPONIBLES
+─────────────────────────────────────────────────
+• Ciclo (año)
+• Solo puestos críticos
+• Nivel de riesgo
+• UEN / Organización
+• Búsqueda por nombre de puesto`,
   },
 
   // ── Expedientes de talento ─────────────────────────────────────────────────
@@ -204,7 +419,9 @@ TIPOS DE ENTRADA EN EL HILO
 
 // Categories in display order
 export const KB_CATEGORIES = [
-  "Exportaciones",
   "Motor de Matching",
+  "Planes de Sucesión",
+  "Cobertura por Puesto",
   "Expedientes de Talento",
+  "Exportaciones",
 ];
