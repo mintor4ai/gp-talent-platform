@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/SignOutButton";
 import NavSidebar from "@/components/NavSidebar";
 import { NotificationBell } from "@/components/ui/NotificationBell";
+import HelpPanel from "@/components/HelpPanel";
 import { ROL_LABELS } from "@/lib/types";
 import type { Rol } from "@/lib/types";
 
@@ -75,6 +76,7 @@ export default async function ProtectedLayout({
           {children}
         </main>
       </div>
+      <HelpPanel />
     </div>
   );
 }
