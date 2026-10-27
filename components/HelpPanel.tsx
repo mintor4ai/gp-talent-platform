@@ -5,6 +5,7 @@ import { KB_ARTICLES, KB_CATEGORIES, type KbArticle } from "@/lib/kb-articles";
 
 export default function HelpPanel() {
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
@@ -30,6 +31,11 @@ export default function HelpPanel() {
     if (!selectedId && KB_ARTICLES.length > 0) setSelectedId(KB_ARTICLES[0].id);
   }
 
+  function handleClose() {
+    setOpen(false);
+    setExpanded(false);
+  }
+
   return (
     <>
       {/* Floating help button */}
@@ -46,7 +52,7 @@ export default function HelpPanel() {
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
-          onClick={() => setOpen(false)}
+          onClick={handleClose}
         />
       )}
 
@@ -55,7 +61,7 @@ export default function HelpPanel() {
         className={`fixed top-0 right-0 h-full z-50 flex flex-col bg-white shadow-2xl border-l border-gray-200 transition-all duration-300 ease-in-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
-        style={{ width: "min(600px, 95vw)" }}
+        style={{ width: expanded ? "min(1100px, 96vw)" : "min(600px, 95vw)" }}
       >
         {/* Panel header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-[#1a3a5c] text-white flex-shrink-0">
@@ -63,20 +69,38 @@ export default function HelpPanel() {
             <p className="text-[10px] font-semibold uppercase tracking-widest text-white/50 mb-0.5">GP Talent Platform</p>
             <h2 className="text-base font-bold leading-tight">Centro de Ayuda</h2>
           </div>
-          <button
-            onClick={() => setOpen(false)}
-            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white/70 hover:text-white"
-            aria-label="Cerrar ayuda"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setExpanded((e) => !e)}
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white/70 hover:text-white"
+              aria-label={expanded ? "Reducir panel" : "Ampliar panel"}
+              title={expanded ? "Reducir" : "Ampliar"}
+            >
+              {expanded ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 9L4 4m0 0h5m-5 0v5M15 9l5-5m0 0h-5m5 0v5M9 15l-5 5m0 0h5m-5 0v-5M15 15l5 5m0 0h-5m5 0v-5" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5M20 8V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5M20 16v4m0 0h-4m4 0l-5-5" />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={handleClose}
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white/70 hover:text-white"
+              aria-label="Cerrar ayuda"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar — article list */}
-          <div className="w-52 flex-shrink-0 border-r border-gray-100 flex flex-col overflow-hidden">
+          <div className={`${expanded ? "w-64" : "w-52"} flex-shrink-0 border-r border-gray-100 flex flex-col overflow-hidden transition-all duration-300`}>
             {/* Search */}
             <div className="px-3 py-3 border-b border-gray-100">
               <input
@@ -207,7 +231,7 @@ function ArticleView({ article }: { article: KbArticle }) {
 
       {/* Content */}
       <div
-        className="text-[12px] text-gray-700 leading-relaxed whitespace-pre-wrap"
+        className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap"
         style={{ fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace" }}
       >
         {article.content}

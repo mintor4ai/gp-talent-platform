@@ -411,7 +411,7 @@ La carpeta tiene 4 pestañas principales:
 
 2. Evaluación
    Resultados del EIP (Evaluación Integral de Potencial) por ciclo.
-   Desempeño, potencial, desglose de componentes, zona 9-box.
+   Desempeño, potencial, desglose de componentes, zona de desarrollo.
    (Ver artículo "EIP — cómo se calcula")
 
 3. PICD
@@ -443,10 +443,10 @@ DATOS QUE TOMA DE OTRAS FUENTES
     title: "EIP — cómo se calcula el puntaje de potencial",
     publishedAt: "2026-10-26T15:30:00",
     modules: ["Carpeta Individual", "Evaluaciones"],
-    content: `El EIP (Evaluación Integral de Potencial) es el puntaje que resume el nivel de potencial de un colaborador en un ciclo dado. Se compone de dos dimensiones — Desempeño y Potencial — y juntas determinan su posición en la Matriz 9-Box.
+    content: `El EIP (Evaluación Integral de Potencial) es el puntaje que resume el nivel de potencial de un colaborador en un ciclo dado. Se compone de dos dimensiones — Desempeño y Potencial — y juntas determinan su ZONA de desarrollo.
 
 ═══════════════════════════════════════════════
-DIMENSIÓN 1: DESEMPEÑO  (eje X de la matriz)
+DIMENSIÓN 1: DESEMPEÑO
 ═══════════════════════════════════════════════
 Fuente: Evaluación de Desempeño Anual (tabla evaluacion_desempeno_anual)
 
@@ -462,7 +462,7 @@ El campo resultado_logra es el promedio ponderado de las 6.
 Escala: 0 – 120 (100 = cumple al 100%)
 
 ═══════════════════════════════════════════════
-DIMENSIÓN 2: POTENCIAL  (eje Y de la matriz)
+DIMENSIÓN 2: POTENCIAL
 ═══════════════════════════════════════════════
 Fuente: tabla evaluacion_integral_personal
 
@@ -514,14 +514,13 @@ Escala final: 0 – 100`,
   },
 
   {
-    id: "carpeta-9box",
+    id: "carpeta-zonas",
     category: "Carpeta Individual",
-    title: "Matriz 9-Box — zonas y cómo ubicarse",
-    publishedAt: "2026-10-26T15:30:00",
+    title: "Zonas de Potencial — clasificación y umbrales",
+    publishedAt: "2026-10-27T10:00:00",
     modules: ["Carpeta Individual", "Evaluaciones"],
-    content: `La Matriz 9-Box es la herramienta visual que combina Desempeño (eje X)
-y Potencial (eje Y) para clasificar a cada colaborador en una de las
-9 celdas y asignarle una ZONA de desarrollo.
+    content: `La plataforma combina el puntaje de Desempeño y el puntaje de Potencial
+(EIP) para asignar a cada colaborador una ZONA de desarrollo por ciclo.
 
 ZONAS (de menor a mayor)
 ─────────────────────────────────────────────────
@@ -540,15 +539,14 @@ Los rangos de cada zona (umbral inferior y superior) se configuran
 por ciclo en la tabla config_zonas_eip y se administran desde la
 sección de Configuración de la plataforma.
 
-Esto permite que los umbrales de un ciclo se ajusten sin afectar
-los históricos de ciclos anteriores.
+Esto permite ajustar umbrales sin afectar los históricos de ciclos
+anteriores.
 
 CÓMO LEER LA CARPETA
 ─────────────────────────────────────────────────
 En la pestaña Evaluación de la Carpeta Individual:
 
-• El punto en la matriz muestra la posición del colaborador
-• El chip de zona (ej. "Desarrollo") resume su categoría
+• El chip de zona (ej. "Desarrollo") resume la categoría del ciclo
 • El desglose de Potencial muestra cuánto aporta cada componente
   y su peso (%) en el puntaje total
 • El desglose de Desempeño muestra las 6 sub-competencias
