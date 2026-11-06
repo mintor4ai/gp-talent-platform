@@ -338,7 +338,7 @@ export default async function CarpetaPage({ params }: { params: Promise<{ id: st
       {/* Header */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-          <EmpleadoAvatar idEmpleado={(colab as any).id_empleado} nombre={colab.nombre_completo} size={48} rounded="lg" />
+          <EmpleadoAvatar idEmpleado={(colab as any).id_empleado} nombre={colab.nombre_completo} size={48} rounded="lg" clickable />
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold text-gray-900">{colab.nombre_completo}</h1>
             <p className="text-gray-500 text-sm mt-0.5">{colab.puesto}</p>
